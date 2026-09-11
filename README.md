@@ -63,8 +63,9 @@ produced a route distinct from both Fastest and Safest.
 
 ## Project layout
 
-- `data/flood/uttarakhand/` — the live app: `server.py` (Flask API),
-  `map_app.py` (generates the Leaflet frontend), `routing_engine.py`
+- `data/flood/uttarakhand/` — the live app: `server.py` (Flask API, the `/`
+  landing page, and the `/reports-view` page), `map_app.py` (generates the
+  Leaflet frontend served at `/app`), `routing_engine.py`
   (risk-weighted Dijkstra), the data-build pipeline
   (`extract_hazard.py` → `get_boundary.py` → `clip_hazard.py` →
   `create_road_hazard_geojson.py` → `road_flood_risk.py`) that turns the raw
@@ -99,9 +100,10 @@ cd data/flood/uttarakhand
 python server.py
 ```
 
-Open **http://127.0.0.1:5000/**. The routing graph (~2M nodes) takes a few
-seconds to load on startup — the server prints "Spatial index ready." when
-it's done.
+Open **http://127.0.0.1:5000/** for the landing page, or go straight to
+**http://127.0.0.1:5000/app** for the map tool. The routing graph (~2M nodes)
+takes a few seconds to load on startup — the server prints "Spatial index
+ready." when it's done.
 
 If `pyproj` complains about its CRS database on Windows, point it at your
 env's copy:
@@ -118,15 +120,19 @@ python map_app.py
 
 ## Demo script
 
-1. Set your current location (search "Rishikesh" or use GPS) and a
+1. Start from the landing page (`/`) — point out the live stats strip (it's
+   pulling real numbers from this same server's `/status`, `/shelters`,
+   `/reports`, and `/weather` endpoints), then click **Launch app** to reach
+   the map tool (`/app`).
+2. Set your current location (search "Rishikesh" or use GPS) and a
    destination ("Dehradun"). Note the live-rainfall banner that appears.
-2. Calculate a **Safest** route — point out the risk-colored segments and
+3. Calculate a **Safest** route — point out the risk-colored segments and
    the risk breakdown.
-3. Click **Compare Fastest vs Safest** — show the stats card: how much extra
+4. Click **Compare Fastest vs Safest** — show the stats card: how much extra
    distance safety costs, and how many extreme-risk segments it avoids.
-4. Click anywhere on the map to **report a hazard**, then recalculate the
+5. Click anywhere on the map to **report a hazard**, then recalculate the
    route — show it detouring around the reported point.
-5. Click **Evacuate to Nearest Shelter** — shows the closest reachable
+6. Click **Evacuate to Nearest Shelter** — shows the closest reachable
    shelter/community facility, routed to using the same flood-aware engine.
 
 ## Tech stack
