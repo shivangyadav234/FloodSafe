@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+cache/
+
+# Raw build-time sources — large, not needed to run the app
+data/osm/**/*.osm.pbf
+202607291528447525.pdf
+
+# Old routing graph location (now consolidated under data/flood/uttarakhand/data)
+data/routing/
+
+.env
+
+# Claude Code's own local session state — not part of the project
+.claude/
+
+# Live, user-generated hazard reports — runtime data, not source.
+# Keep the file itself (server expects it to exist) but not its contents.
+data/flood/uttarakhand/data/reports.json
