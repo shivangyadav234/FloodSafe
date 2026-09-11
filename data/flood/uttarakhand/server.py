@@ -213,45 +213,21 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
 <style>
 
 :root {
-  --ink: #0f2027;
-  --ink-2: #16323b;
-  --paper: #f5f8f7;
-  --paper-raised: #ffffff;
-  --line: #dbe4e2;
-  --text: #16232a;
-  --text-muted: #57696c;
-  --accent: #1f7a8c;
-  --accent-strong: #145a68;
-  --accent-tint: #e3f1f2;
-  --amber: #c76a2e;
-  --amber-tint: #fbead9;
-  --hz-low: #4c8c4a;
-  --hz-mod: #c99a2e;
-  --hz-sig: #cf7a2a;
-  --hz-ext: #b0402e;
-  --shadow: 0 1px 2px rgba(15,32,39,0.05), 0 10px 30px rgba(15,32,39,0.08);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #eef3f2;
-    --ink-2: #cfdbd9;
-    --paper: #0c1517;
-    --paper-raised: #121e21;
-    --line: #223234;
-    --text: #e6ede9;
-    --text-muted: #93a5a3;
-    --accent: #5fb2c2;
-    --accent-strong: #86c9d6;
-    --accent-tint: #142a2d;
-    --amber: #d99b5f;
-    --amber-tint: #2a2015;
-    --hz-low: #6fae6b;
-    --hz-mod: #d9b354;
-    --hz-sig: #dd9455;
-    --hz-ext: #d1685a;
-    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 30px rgba(0,0,0,0.4);
-  }
+  --bg: #06090f;
+  --bg-2: #0a0f18;
+  --surface: rgba(255,255,255,0.035);
+  --surface-2: rgba(255,255,255,0.06);
+  --border: rgba(255,255,255,0.09);
+  --border-strong: rgba(255,255,255,0.18);
+  --text: #eef2f7;
+  --text-muted: #93a0b4;
+  --text-faint: #57627a;
+  --cyan: #33e0ff;
+  --teal: #2dd9b0;
+  --violet: #9b8cff;
+  --amber: #ffb84d;
+  --red: #ff6b6b;
+  --shadow-glow: 0 0 0 1px rgba(255,255,255,0.06), 0 20px 60px rgba(0,0,0,0.55);
 }
 
 * { box-sizing: border-box; }
@@ -259,33 +235,98 @@ html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  background: var(--paper);
+  background: var(--bg);
   color: var(--text);
   font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 16.5px;
   line-height: 1.6;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ambient background: grid + drifting glow orbs + grain */
+
+.bg-fixed {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bg-grid {
+  position: absolute;
+  inset: -2px;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 0%, transparent 75%);
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  animation: drift 22s ease-in-out infinite alternate;
+}
+
+.orb.o1 { width: 560px; height: 560px; top: -220px; left: -140px; background: radial-gradient(circle, var(--cyan), transparent 70%); }
+.orb.o2 { width: 460px; height: 460px; top: 80px; right: -160px; background: radial-gradient(circle, var(--violet), transparent 70%); animation-duration: 28s; animation-delay: -6s; }
+.orb.o3 { width: 500px; height: 500px; top: 1400px; left: 30%; background: radial-gradient(circle, var(--teal), transparent 70%); opacity: 0.28; animation-duration: 26s; }
+
+@keyframes drift {
+  0% { transform: translate(0,0) scale(1); }
+  100% { transform: translate(40px,60px) scale(1.08); }
+}
+
+.grain {
+  position: absolute; inset: 0;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 h1, h2, h3 {
   font-family: 'Bricolage Grotesque', 'Source Sans 3', sans-serif;
-  color: var(--ink);
+  color: var(--text);
   text-wrap: balance;
   margin: 0;
+  letter-spacing: -0.01em;
 }
 
 code, .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
 
-a { color: var(--accent-strong); }
+a { color: var(--cyan); }
 
-.wrap { max-width: 1100px; margin: 0 auto; padding: 0 28px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 1; }
+
+.grad-text {
+  background: linear-gradient(90deg, var(--cyan), var(--teal));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.in {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 /* ---------------- NAV ---------------- */
 
 nav {
-  position: sticky; top: 0; z-index: 20;
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 30;
+  background: rgba(6,9,15,0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
 }
 
 nav .wrap {
@@ -294,207 +335,291 @@ nav .wrap {
 }
 
 .brand {
-  display: flex; align-items: center; gap: 9px;
+  display: flex; align-items: center; gap: 10px;
   font-family: 'Bricolage Grotesque', sans-serif;
-  font-weight: 700; font-size: 19px; color: var(--ink);
+  font-weight: 700; font-size: 19px; color: var(--text);
   text-decoration: none;
 }
 
 .brand .mark {
-  width: 26px; height: 26px; border-radius: 7px;
-  background: linear-gradient(155deg, var(--accent), var(--accent-strong));
+  width: 30px; height: 30px; border-radius: 9px;
+  background: linear-gradient(155deg, var(--cyan), var(--violet));
   display: inline-flex; align-items: center; justify-content: center;
-  color: white; font-size: 14px;
+  color: #06090f; font-size: 15px;
+  box-shadow: 0 0 24px rgba(51,224,255,0.35);
 }
 
-.nav-links { display: flex; align-items: center; gap: 22px; }
-.nav-links a.plain { color: var(--text-muted); text-decoration: none; font-size: 14.5px; }
-.nav-links a.plain:hover { color: var(--accent-strong); }
+.nav-links { display: flex; align-items: center; gap: 26px; }
+.nav-links a.plain { color: var(--text-muted); text-decoration: none; font-size: 14.5px; transition: color .15s ease; }
+.nav-links a.plain:hover { color: var(--text); }
 
 .btn-primary {
-  background: var(--ink);
-  color: var(--paper) !important;
-  padding: 10px 18px;
-  border-radius: 8px;
+  background: linear-gradient(90deg, var(--cyan), var(--teal));
+  color: #04121a !important;
+  padding: 10px 20px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: transform .18s ease, box-shadow .18s ease;
+  box-shadow: 0 0 0 1px rgba(51,224,255,0.25), 0 10px 30px -8px rgba(51,224,255,0.55);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(51,224,255,0.4), 0 16px 36px -6px rgba(51,224,255,0.7); }
+
+.btn-glass {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text) !important;
+  padding: 10px 20px;
+  border-radius: 999px;
   text-decoration: none;
   font-weight: 600;
   font-size: 14.5px;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  transition: transform .15s ease, box-shadow .15s ease;
+  transition: background .15s ease, border-color .15s ease, transform .15s ease;
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.btn-glass:hover { background: var(--surface-2); border-color: rgba(255,255,255,0.3); transform: translateY(-2px); }
 
 /* ---------------- HERO ---------------- */
 
 .hero {
-  padding: 68px 0 40px;
-  border-bottom: 1px solid var(--line);
+  padding: 84px 0 56px;
+  position: relative;
 }
 
 .hero-grid {
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 48px;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 54px;
   align-items: center;
 }
 
 .eyebrow {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12.5px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent-strong);
-  background: var(--accent-tint);
-  display: inline-block;
-  padding: 5px 11px;
-  border-radius: 20px;
-  margin-bottom: 18px;
+  color: var(--cyan);
+  background: rgba(51,224,255,0.1);
+  border: 1px solid rgba(51,224,255,0.25);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  margin-bottom: 22px;
+}
+
+.eyebrow .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
 }
 
 .hero h1 {
-  font-size: 50px;
-  line-height: 1.06;
+  font-size: 58px;
+  line-height: 1.04;
   font-weight: 700;
-  letter-spacing: -0.01em;
 }
 
 .hero h1 em {
   font-style: normal;
-  color: var(--accent-strong);
 }
 
 .hero p.sub {
-  font-size: 18px;
+  font-size: 18.5px;
   color: var(--text-muted);
-  max-width: 480px;
-  margin: 18px 0 28px;
+  max-width: 490px;
+  margin: 20px 0 30px;
 }
 
 .hero-ctas { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 
-.btn-ghost {
-  color: var(--text);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 14.5px;
-  padding: 10px 4px;
-  border-bottom: 2px solid var(--line);
-}
-.btn-ghost:hover { border-bottom-color: var(--accent); }
+/* hero art: mock "product" card */
 
 .hero-art {
-  background: var(--paper-raised);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  box-shadow: var(--shadow);
-  padding: 20px;
+  background: linear-gradient(165deg, #0d1420, #070b12);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-glow);
+  padding: 0;
   aspect-ratio: 1 / 0.95;
   position: relative;
   overflow: hidden;
 }
 
-.hero-art svg { width: 100%; height: 100%; }
+.hero-art .grid-pattern {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 40%, black 30%, transparent 90%);
+}
 
-.hero-art .cap {
-  position: absolute; bottom: 14px; left: 20px; right: 20px;
+.hero-art .blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+}
+.hero-art .blob.b1 { width: 220px; height: 220px; top: -40px; right: -40px; background: radial-gradient(circle, rgba(155,140,255,0.4), transparent 70%); }
+.hero-art .blob.b2 { width: 260px; height: 260px; bottom: -60px; left: -60px; background: radial-gradient(circle, rgba(51,224,255,0.32), transparent 70%); }
+
+.hero-art svg { width: 100%; height: 100%; position: relative; z-index: 1; }
+
+.route-safe {
+  stroke-dasharray: 700;
+  stroke-dashoffset: 700;
+  animation: draw 2.2s ease-out 0.3s forwards;
+}
+.route-risk {
+  stroke-dasharray: 6 8;
+  opacity: 0;
+  animation: fadein 1s ease 1.6s forwards;
+}
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes fadein { to { opacity: 0.85; } }
+
+.pulse-node {
+  animation: nodepulse 2.4s ease-in-out infinite;
+}
+@keyframes nodepulse {
+  0%, 100% { r: 6; opacity: 1; }
+  50% { r: 8.5; opacity: 0.7; }
+}
+
+.hero-chip {
+  position: absolute;
+  background: rgba(10,15,24,0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 9px 13px;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11.5px;
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--paper-raised) 85%, transparent);
-  padding: 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+  z-index: 2;
+  opacity: 0;
+  animation: chipin 0.6s ease forwards;
 }
+.hero-chip .sw { width: 8px; height: 8px; border-radius: 50%; }
+.hero-chip.c1 { top: 24px; left: 22px; animation-delay: 0.4s; }
+.hero-chip.c2 { bottom: 60px; right: 20px; animation-delay: 2.1s; }
+@keyframes chipin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
 /* ---------------- LIVE STRIP ---------------- */
 
 .live-strip {
-  padding: 26px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 30px 0 8px;
 }
 
-.live-strip-head {
-  display: flex; align-items: center; gap: 9px;
+.live-status-pill {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 16px;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 12.5px;
   color: var(--text-muted);
-  margin-bottom: 16px;
+  margin-bottom: 22px;
 }
 
 .pulse-dot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: var(--hz-low);
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--hz-low) 60%, transparent);
+  background: var(--teal);
+  box-shadow: 0 0 10px var(--teal);
   animation: pulse 2.2s infinite;
 }
-.pulse-dot.off { background: var(--hz-ext); animation: none; }
+.pulse-dot.off { background: var(--red); box-shadow: 0 0 10px var(--red); animation: none; }
 
 @keyframes pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hz-low) 45%, transparent); }
-  70% { box-shadow: 0 0 0 8px transparent; }
+  0% { box-shadow: 0 0 0 0 rgba(45,217,176,0.55); }
+  70% { box-shadow: 0 0 0 10px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 
 .live-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  background: var(--line);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  overflow: hidden;
+  gap: 14px;
 }
 
 .live-tile {
-  background: var(--paper-raised);
-  padding: 18px 18px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 20px 18px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s ease, transform .2s ease;
 }
+.live-tile:hover { border-color: var(--border-strong); transform: translateY(-3px); }
+
+.live-tile .lv-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  margin-bottom: 14px;
+}
+.live-tile.t1 .lv-icon { background: rgba(51,224,255,0.14); }
+.live-tile.t2 .lv-icon { background: rgba(155,140,255,0.14); }
+.live-tile.t3 .lv-icon { background: rgba(255,184,77,0.14); }
+.live-tile.t4 .lv-icon { background: rgba(45,217,176,0.14); }
 
 .live-tile .lv-num {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--text);
   font-variant-numeric: tabular-nums;
-  min-height: 32px;
+  min-height: 34px;
 }
 
 .live-tile .lv-label {
   font-size: 12.5px;
-  color: var(--text-muted);
+  color: var(--text-faint);
   margin-top: 4px;
 }
 
-.skeleton { opacity: 0.35; }
+.skeleton { opacity: 0.25; }
 
 /* ---------------- HAZARD LEGEND ---------------- */
 
 .legend-band {
-  display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
-  padding: 20px 0;
-  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 26px 0;
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12.5px;
   color: var(--text-muted);
 }
 
-.legend-band .lb-label { color: var(--ink); font-weight: 600; margin-right: 4px; }
-.legend-sw { display: inline-flex; align-items: center; gap: 6px; }
-.legend-sw .dot { width: 10px; height: 10px; border-radius: 3px; }
+.legend-band .lb-label { color: var(--text); font-weight: 600; margin-right: 4px; }
+.legend-sw { display: inline-flex; align-items: center; gap: 7px; }
+.legend-sw .dot { width: 9px; height: 9px; border-radius: 3px; box-shadow: 0 0 8px currentColor; }
 
 /* ---------------- STORY ---------------- */
 
 .story {
-  padding: 56px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 72px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .story-grid {
   display: grid;
   grid-template-columns: 0.9fr 1.1fr;
-  gap: 44px;
+  gap: 48px;
   align-items: start;
 }
 
@@ -502,160 +627,192 @@ nav .wrap {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;
   color: var(--amber);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-kicker::before {
+  content: '';
+  width: 16px; height: 1px;
+  background: var(--amber);
 }
 
-.story h2 { font-size: 30px; margin-bottom: 14px; }
+.story h2 { font-size: 32px; margin-bottom: 16px; }
 .story p { color: var(--text-muted); font-size: 15.5px; }
 
 .compare-card {
-  background: var(--paper-raised);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
-  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-glow);
+  padding: 26px 28px;
 }
 
 .compare-card .route-label {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 14px;
+  color: var(--text-faint);
+  margin-bottom: 18px;
+  letter-spacing: 0.03em;
 }
 
-.compare-rows { display: flex; flex-direction: column; gap: 10px; }
+.compare-rows { display: flex; flex-direction: column; gap: 12px; }
 
 .compare-row {
   display: grid;
-  grid-template-columns: 90px 1fr 70px;
+  grid-template-columns: 92px 1fr 74px;
   align-items: center;
   gap: 12px;
   font-size: 13.5px;
 }
 
 .compare-row .bar-track {
-  background: var(--line);
-  border-radius: 6px;
-  height: 22px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+  height: 26px;
   position: relative;
   overflow: hidden;
 }
 
 .compare-row .bar-fill {
   position: absolute; left: 0; top: 0; bottom: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex; align-items: center;
-  padding-left: 8px;
+  padding-left: 10px;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
-  color: white;
+  color: #04121a;
+  font-weight: 600;
   white-space: nowrap;
+  width: 0;
+  animation: growbar 1.4s cubic-bezier(.2,.8,.2,1) forwards;
+  animation-delay: 0.3s;
 }
 
-.compare-row.fastest .bar-fill { background: var(--hz-ext); }
-.compare-row.safest .bar-fill { background: var(--accent); }
+.compare-row.fastest .bar-fill { background: linear-gradient(90deg, #ff8a80, var(--red)); --target: 76%; }
+.compare-row.safest .bar-fill { background: linear-gradient(90deg, var(--teal), var(--cyan)); --target: 100%; animation-delay: 0.6s; }
 
-.compare-row .val { font-family: 'IBM Plex Mono', monospace; text-align: right; font-weight: 600; color: var(--ink); }
+@keyframes growbar { to { width: var(--target); } }
+
+.compare-row .val { font-family: 'IBM Plex Mono', monospace; text-align: right; font-weight: 700; color: var(--text); }
 
 .compare-foot {
-  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line);
-  font-size: 12.5px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace;
+  margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border);
+  font-size: 12.5px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace;
 }
 
 /* ---------------- FEATURES ---------------- */
 
-.features { padding: 56px 0; border-bottom: 1px solid var(--line); }
+.features { padding: 72px 0; border-bottom: 1px solid var(--border); }
 
-.features h2 { font-size: 30px; margin-bottom: 8px; }
-.features > .wrap > p { color: var(--text-muted); margin: 0 0 32px; font-size: 15.5px; max-width: 560px; }
+.features h2 { font-size: 32px; margin-bottom: 10px; }
+.features > .wrap > p.lede { color: var(--text-muted); margin: 0 0 36px; font-size: 15.5px; max-width: 560px; }
 
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  gap: 18px;
 }
 
 .feature-card {
-  background: var(--paper-raised);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 22px;
-  box-shadow: var(--shadow);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  transition: border-color .2s ease, transform .2s ease, background .2s ease;
+  position: relative;
 }
+.feature-card:hover { border-color: var(--border-strong); transform: translateY(-4px); background: var(--surface-2); }
 
 .feature-card .ic {
-  width: 38px; height: 38px; border-radius: 10px;
-  background: var(--accent-tint);
+  width: 42px; height: 42px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; margin-bottom: 14px;
+  font-size: 19px; margin-bottom: 16px;
 }
+.feature-card:nth-child(1) .ic { background: linear-gradient(155deg, rgba(51,224,255,0.25), rgba(51,224,255,0.05)); }
+.feature-card:nth-child(2) .ic { background: linear-gradient(155deg, rgba(155,140,255,0.25), rgba(155,140,255,0.05)); }
+.feature-card:nth-child(3) .ic { background: linear-gradient(155deg, rgba(255,184,77,0.25), rgba(255,184,77,0.05)); }
+.feature-card:nth-child(4) .ic { background: linear-gradient(155deg, rgba(255,107,107,0.25), rgba(255,107,107,0.05)); }
 
-.feature-card h3 { font-size: 16.5px; font-family: 'Source Sans 3',sans-serif; font-weight: 700; margin-bottom: 6px; }
-.feature-card p { font-size: 14px; color: var(--text-muted); margin: 0; }
+.feature-card h3 { font-size: 17px; font-family: 'Source Sans 3',sans-serif; font-weight: 700; margin-bottom: 7px; }
+.feature-card p { font-size: 14px; color: var(--text-muted); margin: 0; line-height: 1.55; }
 
 /* ---------------- SOURCES ---------------- */
 
 .sources-band {
-  padding: 40px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 44px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .sources-band .sb-label {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11.5px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  margin-bottom: 16px;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  margin-bottom: 18px;
 }
 
 .pill-row { display: flex; gap: 10px; flex-wrap: wrap; }
 
 .src-pill {
-  background: var(--paper-raised);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 7px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 15px;
   font-size: 13px;
   color: var(--text-muted);
   display: flex; align-items: center; gap: 7px;
+  transition: border-color .2s ease;
 }
-.src-pill b { color: var(--ink); font-weight: 600; }
+.src-pill:hover { border-color: var(--border-strong); }
+.src-pill b { color: var(--text); font-weight: 600; }
 
 /* ---------------- FINAL CTA ---------------- */
 
 .final-cta {
-  padding: 64px 0 56px;
+  padding: 88px 0 72px;
   text-align: center;
+  position: relative;
 }
 
-.final-cta h2 { font-size: 32px; margin-bottom: 12px; }
-.final-cta p { color: var(--text-muted); margin: 0 0 26px; }
+.final-cta h2 { font-size: 40px; margin-bottom: 14px; }
+.final-cta p { color: var(--text-muted); margin: 0 0 30px; font-size: 16px; }
 
 footer {
-  border-top: 1px solid var(--line);
-  padding: 26px 0 40px;
+  border-top: 1px solid var(--border);
+  padding: 28px 0 44px;
   display: flex; justify-content: space-between; align-items: center;
   flex-wrap: wrap; gap: 10px;
-  font-size: 13px; color: var(--text-muted);
+  font-size: 13px; color: var(--text-faint);
+  position: relative; z-index: 1;
 }
 
-footer a { color: var(--text-muted); }
+footer a { color: var(--text-faint); }
+footer a:hover { color: var(--text-muted); }
 
 @media (max-width: 860px) {
   .hero-grid { grid-template-columns: 1fr; }
-  .hero h1 { font-size: 38px; }
+  .hero h1 { font-size: 42px; }
   .live-grid { grid-template-columns: repeat(2, 1fr); }
   .story-grid { grid-template-columns: 1fr; }
   .feature-grid { grid-template-columns: 1fr; }
   .nav-links a.plain { display: none; }
+  .hero-chip.c2 { right: auto; left: 20px; bottom: 20px; }
 }
 
 </style>
 </head>
 <body>
+
+<div class="bg-fixed">
+  <div class="bg-grid"></div>
+  <div class="orb o1"></div>
+  <div class="orb o2"></div>
+  <div class="orb o3"></div>
+  <div class="grain"></div>
+</div>
 
 <nav>
   <div class="wrap">
@@ -672,53 +829,64 @@ footer a { color: var(--text-muted); }
 <header class="hero">
   <div class="wrap hero-grid">
     <div>
-      <span class="eyebrow">Uttarakhand &middot; live routing</span>
-      <h1>Fastest isn't<br>always <em>safe</em>.</h1>
+      <span class="eyebrow"><span class="dot"></span>Uttarakhand &middot; live routing</span>
+      <h1>Fastest isn't<br>always <em class="grad-text">safe</em>.</h1>
       <p class="sub">FloodSafe routes you around flood-hazard roads using a real government hazard atlas, not just distance &mdash; on a live graph of 2 million road nodes across Uttarakhand.</p>
       <div class="hero-ctas">
         <a class="btn-primary" href="/app">Open the map →</a>
-        <a class="btn-ghost" href="#live">See it working live ↓</a>
+        <a class="btn-glass" href="#live">See it working live ↓</a>
       </div>
     </div>
     <div class="hero-art">
+      <div class="grid-pattern"></div>
+      <div class="blob b1"></div>
+      <div class="blob b2"></div>
+      <div class="hero-chip c1"><span class="sw" style="background:var(--red); box-shadow:0 0 8px var(--red);"></span>EXTREME risk detected</div>
+      <div class="hero-chip c2"><span class="sw" style="background:var(--teal); box-shadow:0 0 8px var(--teal);"></span>Rerouted +29km safer</div>
       <svg viewBox="0 0 340 300" xmlns="http://www.w3.org/2000/svg">
-        <rect x="0" y="0" width="340" height="300" fill="none"/>
-        <path d="M20 250 Q 90 180 140 200 T 260 130 Q 300 100 320 60" fill="none" stroke="var(--hz-ext)" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
-        <path d="M20 250 Q 70 230 100 245 Q 150 270 180 230 Q 210 190 190 150 Q 170 105 210 85 Q 260 60 320 60" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>
-        <circle cx="20" cy="250" r="7" fill="var(--ink)"/>
-        <circle cx="320" cy="60" r="7" fill="var(--ink)"/>
-        <circle cx="190" cy="150" r="5" fill="var(--hz-ext)"/>
-        <text x="150" y="140" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--hz-ext)">EXTREME risk</text>
-        <text x="14" y="270" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--text-muted)">start</text>
-        <text x="285" y="50" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--text-muted)">destination</text>
+        <defs>
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <path class="route-risk" d="M20 250 Q 90 180 140 200 T 260 130 Q 300 100 320 60" fill="none" stroke="#ff6b6b" stroke-width="3" stroke-linecap="round"/>
+        <path class="route-safe" filter="url(#glow)" d="M20 250 Q 70 230 100 245 Q 150 270 180 230 Q 210 190 190 150 Q 170 105 210 85 Q 260 60 320 60" fill="none" stroke="url(#safeGrad)" stroke-width="4" stroke-linecap="round"/>
+        <linearGradient id="safeGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#33e0ff"/>
+          <stop offset="100%" stop-color="#2dd9b0"/>
+        </linearGradient>
+        <circle class="pulse-node" cx="20" cy="250" r="6" fill="#eef2f7"/>
+        <circle class="pulse-node" cx="320" cy="60" r="6" fill="#eef2f7"/>
+        <circle cx="190" cy="150" r="5" fill="#ff6b6b" filter="url(#glow)"/>
       </svg>
-      <div class="cap">two real routes, same start and end &mdash; red crosses risk, teal avoids it</div>
     </div>
   </div>
 </header>
 
-<section class="live-strip" id="live">
-  <div class="wrap">
-    <div class="live-strip-head"><span class="pulse-dot" id="statusDot"></span> <span id="statusText">Checking live status…</span></div>
-    <div class="live-grid">
-      <div class="live-tile"><div class="lv-num skeleton" id="statNodes">—</div><div class="lv-label">road nodes in the graph</div></div>
-      <div class="live-tile"><div class="lv-num skeleton" id="statShelters">—</div><div class="lv-label">shelters &amp; hospitals mapped</div></div>
-      <div class="live-tile"><div class="lv-num skeleton" id="statReports">—</div><div class="lv-label">active hazard reports right now</div></div>
-      <div class="live-tile"><div class="lv-num skeleton" id="statWeather">—</div><div class="lv-label">live rainfall, Dehradun</div></div>
-    </div>
+<section class="wrap live-strip" id="live">
+  <div class="live-status-pill"><span class="pulse-dot" id="statusDot"></span> <span id="statusText">Checking live status…</span></div>
+  <div class="live-grid">
+    <div class="live-tile t1"><div class="lv-icon">🗺️</div><div class="lv-num skeleton" id="statNodes">—</div><div class="lv-label">road nodes in the graph</div></div>
+    <div class="live-tile t2"><div class="lv-icon">⛺</div><div class="lv-num skeleton" id="statShelters">—</div><div class="lv-label">shelters &amp; hospitals mapped</div></div>
+    <div class="live-tile t3"><div class="lv-icon">🚨</div><div class="lv-num skeleton" id="statReports">—</div><div class="lv-label">active hazard reports right now</div></div>
+    <div class="live-tile t4"><div class="lv-icon">🌧️</div><div class="lv-num skeleton" id="statWeather">—</div><div class="lv-label">live rainfall, Dehradun</div></div>
+  </div>
+
+  <div class="legend-band">
+    <span class="lb-label">Hazard classes:</span>
+    <span class="legend-sw" style="color:#4ade80"><span class="dot" style="background:#4ade80"></span>LOW</span>
+    <span class="legend-sw" style="color:#facc15"><span class="dot" style="background:#facc15"></span>MODERATE</span>
+    <span class="legend-sw" style="color:#fb923c"><span class="dot" style="background:#fb923c"></span>SIGNIFICANT</span>
+    <span class="legend-sw" style="color:#ff6b6b"><span class="dot" style="background:#ff6b6b"></span>EXTREME</span>
+    <span style="margin-left:auto; color:var(--text-faint);">from a georeferenced state flash-flood hazard atlas</span>
   </div>
 </section>
 
-<div class="legend-band wrap">
-  <span class="lb-label">Hazard classes:</span>
-  <span class="legend-sw"><span class="dot" style="background:var(--hz-low)"></span>LOW</span>
-  <span class="legend-sw"><span class="dot" style="background:var(--hz-mod)"></span>MODERATE</span>
-  <span class="legend-sw"><span class="dot" style="background:var(--hz-sig)"></span>SIGNIFICANT</span>
-  <span class="legend-sw"><span class="dot" style="background:var(--hz-ext)"></span>EXTREME</span>
-  <span style="margin-left:auto; color:var(--text-muted);">from a georeferenced state flash-flood hazard atlas</span>
-</div>
-
-<section class="story">
+<section class="story reveal">
   <div class="wrap story-grid">
     <div>
       <div class="section-kicker">Real example</div>
@@ -731,12 +899,12 @@ footer a { color: var(--text-muted); }
       <div class="compare-rows">
         <div class="compare-row fastest">
           <div>⚡ Fastest</div>
-          <div class="bar-track"><div class="bar-fill" style="width:76%">10 extreme-risk segments</div></div>
+          <div class="bar-track"><div class="bar-fill">10 extreme-risk segments</div></div>
           <div class="val">90.2 km</div>
         </div>
         <div class="compare-row safest">
           <div>🛡 Safest</div>
-          <div class="bar-track"><div class="bar-fill" style="width:100%">0 extreme-risk segments</div></div>
+          <div class="bar-track"><div class="bar-fill">0 extreme-risk segments</div></div>
           <div class="val">119.3 km</div>
         </div>
       </div>
@@ -745,11 +913,11 @@ footer a { color: var(--text-muted); }
   </div>
 </section>
 
-<section class="features" id="features">
+<section class="features reveal" id="features">
   <div class="wrap">
     <div class="section-kicker">What it does</div>
     <h2>Built for the moment it actually rains</h2>
-    <p>Every feature exists because a static hazard map alone isn't enough once water is actually rising.</p>
+    <p class="lede">Every feature exists because a static hazard map alone isn't enough once water is actually rising.</p>
     <div class="feature-grid">
       <div class="feature-card">
         <div class="ic">🛡</div>
@@ -775,7 +943,7 @@ footer a { color: var(--text-muted); }
   </div>
 </section>
 
-<section class="sources-band">
+<section class="sources-band reveal">
   <div class="wrap">
     <div class="sb-label">Built on</div>
     <div class="pill-row">
@@ -788,11 +956,11 @@ footer a { color: var(--text-muted); }
   </div>
 </section>
 
-<section class="final-cta">
+<section class="final-cta reveal">
   <div class="wrap">
-    <h2>Uttarakhand's roads, mapped by risk.</h2>
+    <h2>Uttarakhand's roads, <span class="grad-text">mapped by risk.</span></h2>
     <p>No signup. No app to install. Just open it.</p>
-    <a class="btn-primary" href="/app" style="padding:13px 26px; font-size:15.5px;">Launch FloodSafe →</a>
+    <a class="btn-primary" href="/app" style="padding:15px 30px; font-size:16px;">Launch FloodSafe →</a>
   </div>
 </section>
 
@@ -804,6 +972,20 @@ footer a { color: var(--text-muted); }
 </footer>
 
 <script>
+
+function animateCount(el, target, suffix, duration) {
+    suffix = suffix || '';
+    duration = duration || 900;
+    const start = performance.now();
+    function tick(now) {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const value = Math.round(target * eased);
+        el.textContent = value + suffix;
+        if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+}
 
 async function loadLiveStrip() {
 
@@ -826,8 +1008,8 @@ async function loadLiveStrip() {
     try {
         const shelters = await (await fetch('/shelters')).json();
         const el = document.getElementById('statShelters');
-        el.textContent = Array.isArray(shelters) ? shelters.length : '—';
         el.classList.remove('skeleton');
+        animateCount(el, Array.isArray(shelters) ? shelters.length : 0);
     } catch (error) {
         document.getElementById('statShelters').textContent = '—';
     }
@@ -835,8 +1017,8 @@ async function loadLiveStrip() {
     try {
         const reports = await (await fetch('/reports')).json();
         const el = document.getElementById('statReports');
-        el.textContent = Array.isArray(reports) ? reports.length : '0';
         el.classList.remove('skeleton');
+        animateCount(el, Array.isArray(reports) ? reports.length : 0);
     } catch (error) {
         document.getElementById('statReports').textContent = '—';
     }
@@ -844,24 +1026,33 @@ async function loadLiveStrip() {
     try {
         const weather = await (await fetch('/weather?lat=30.3165&lon=78.0322')).json();
         const el = document.getElementById('statWeather');
+        el.classList.remove('skeleton');
         if (weather && typeof weather.total_mm === 'number') {
             el.textContent = weather.total_mm.toFixed(1) + ' mm';
         } else {
             el.textContent = '—';
         }
-        el.classList.remove('skeleton');
     } catch (error) {
         document.getElementById('statWeather').textContent = '—';
     }
 
-    // Node count is a fixed property of the deployed graph, not a live
-    // API value — shown here for context alongside the truly live tiles.
     const nodesEl = document.getElementById('statNodes');
-    nodesEl.textContent = '2.02M';
     nodesEl.classList.remove('skeleton');
+    nodesEl.textContent = '2.02M';
 }
 
 loadLiveStrip();
+
+const revealEls = document.querySelectorAll('.reveal');
+const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('in');
+            revealObserver.unobserve(entry.target);
+        }
+    });
+}, { threshold: 0.15 });
+revealEls.forEach((el) => revealObserver.observe(el));
 
 </script>
 
