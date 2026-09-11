@@ -195,11 +195,693 @@ def _active_reports():
 
 
 # ============================================================
-# HOME
+# LANDING PAGE
+#
+# The site's front door. Pulls live numbers from this same
+# server's own endpoints (/status, /shelters, /reports, /weather)
+# via same-origin fetches in the browser, so the page always
+# reflects the live deployment instead of baked-in copy.
 # ============================================================
 
+LANDING_PAGE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FloodSafe — flood-aware navigation for Uttarakhand</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+
+:root {
+  --ink: #0f2027;
+  --ink-2: #16323b;
+  --paper: #f5f8f7;
+  --paper-raised: #ffffff;
+  --line: #dbe4e2;
+  --text: #16232a;
+  --text-muted: #57696c;
+  --accent: #1f7a8c;
+  --accent-strong: #145a68;
+  --accent-tint: #e3f1f2;
+  --amber: #c76a2e;
+  --amber-tint: #fbead9;
+  --hz-low: #4c8c4a;
+  --hz-mod: #c99a2e;
+  --hz-sig: #cf7a2a;
+  --hz-ext: #b0402e;
+  --shadow: 0 1px 2px rgba(15,32,39,0.05), 0 10px 30px rgba(15,32,39,0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #eef3f2;
+    --ink-2: #cfdbd9;
+    --paper: #0c1517;
+    --paper-raised: #121e21;
+    --line: #223234;
+    --text: #e6ede9;
+    --text-muted: #93a5a3;
+    --accent: #5fb2c2;
+    --accent-strong: #86c9d6;
+    --accent-tint: #142a2d;
+    --amber: #d99b5f;
+    --amber-tint: #2a2015;
+    --hz-low: #6fae6b;
+    --hz-mod: #d9b354;
+    --hz-sig: #dd9455;
+    --hz-ext: #d1685a;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 30px rgba(0,0,0,0.4);
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16.5px;
+  line-height: 1.6;
+}
+
+h1, h2, h3 {
+  font-family: 'Bricolage Grotesque', 'Source Sans 3', sans-serif;
+  color: var(--ink);
+  text-wrap: balance;
+  margin: 0;
+}
+
+code, .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+a { color: var(--accent-strong); }
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 28px; }
+
+/* ---------------- NAV ---------------- */
+
+nav {
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+nav .wrap {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 16px; padding-bottom: 16px;
+}
+
+.brand {
+  display: flex; align-items: center; gap: 9px;
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-weight: 700; font-size: 19px; color: var(--ink);
+  text-decoration: none;
+}
+
+.brand .mark {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: linear-gradient(155deg, var(--accent), var(--accent-strong));
+  display: inline-flex; align-items: center; justify-content: center;
+  color: white; font-size: 14px;
+}
+
+.nav-links { display: flex; align-items: center; gap: 22px; }
+.nav-links a.plain { color: var(--text-muted); text-decoration: none; font-size: 14.5px; }
+.nav-links a.plain:hover { color: var(--accent-strong); }
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper) !important;
+  padding: 10px 18px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
+/* ---------------- HERO ---------------- */
+
+.hero {
+  padding: 68px 0 40px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+  background: var(--accent-tint);
+  display: inline-block;
+  padding: 5px 11px;
+  border-radius: 20px;
+  margin-bottom: 18px;
+}
+
+.hero h1 {
+  font-size: 50px;
+  line-height: 1.06;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.hero h1 em {
+  font-style: normal;
+  color: var(--accent-strong);
+}
+
+.hero p.sub {
+  font-size: 18px;
+  color: var(--text-muted);
+  max-width: 480px;
+  margin: 18px 0 28px;
+}
+
+.hero-ctas { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+
+.btn-ghost {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14.5px;
+  padding: 10px 4px;
+  border-bottom: 2px solid var(--line);
+}
+.btn-ghost:hover { border-bottom-color: var(--accent); }
+
+.hero-art {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+  aspect-ratio: 1 / 0.95;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-art svg { width: 100%; height: 100%; }
+
+.hero-art .cap {
+  position: absolute; bottom: 14px; left: 20px; right: 20px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--paper-raised) 85%, transparent);
+  padding: 6px 0;
+}
+
+/* ---------------- LIVE STRIP ---------------- */
+
+.live-strip {
+  padding: 26px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.live-strip-head {
+  display: flex; align-items: center; gap: 9px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--hz-low);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--hz-low) 60%, transparent);
+  animation: pulse 2.2s infinite;
+}
+.pulse-dot.off { background: var(--hz-ext); animation: none; }
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--hz-low) 45%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.live-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.live-tile {
+  background: var(--paper-raised);
+  padding: 18px 18px 16px;
+}
+
+.live-tile .lv-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  min-height: 32px;
+}
+
+.live-tile .lv-label {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.skeleton { opacity: 0.35; }
+
+/* ---------------- HAZARD LEGEND ---------------- */
+
+.legend-band {
+  display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.legend-band .lb-label { color: var(--ink); font-weight: 600; margin-right: 4px; }
+.legend-sw { display: inline-flex; align-items: center; gap: 6px; }
+.legend-sw .dot { width: 10px; height: 10px; border-radius: 3px; }
+
+/* ---------------- STORY ---------------- */
+
+.story {
+  padding: 56px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.story-grid {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 44px;
+  align-items: start;
+}
+
+.section-kicker {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--amber);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.story h2 { font-size: 30px; margin-bottom: 14px; }
+.story p { color: var(--text-muted); font-size: 15.5px; }
+
+.compare-card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 22px 24px;
+}
+
+.compare-card .route-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.compare-rows { display: flex; flex-direction: column; gap: 10px; }
+
+.compare-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 70px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13.5px;
+}
+
+.compare-row .bar-track {
+  background: var(--line);
+  border-radius: 6px;
+  height: 22px;
+  position: relative;
+  overflow: hidden;
+}
+
+.compare-row .bar-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  border-radius: 6px;
+  display: flex; align-items: center;
+  padding-left: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: white;
+  white-space: nowrap;
+}
+
+.compare-row.fastest .bar-fill { background: var(--hz-ext); }
+.compare-row.safest .bar-fill { background: var(--accent); }
+
+.compare-row .val { font-family: 'IBM Plex Mono', monospace; text-align: right; font-weight: 600; color: var(--ink); }
+
+.compare-foot {
+  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line);
+  font-size: 12.5px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ---------------- FEATURES ---------------- */
+
+.features { padding: 56px 0; border-bottom: 1px solid var(--line); }
+
+.features h2 { font-size: 30px; margin-bottom: 8px; }
+.features > .wrap > p { color: var(--text-muted); margin: 0 0 32px; font-size: 15.5px; max-width: 560px; }
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.feature-card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+
+.feature-card .ic {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--accent-tint);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 14px;
+}
+
+.feature-card h3 { font-size: 16.5px; font-family: 'Source Sans 3',sans-serif; font-weight: 700; margin-bottom: 6px; }
+.feature-card p { font-size: 14px; color: var(--text-muted); margin: 0; }
+
+/* ---------------- SOURCES ---------------- */
+
+.sources-band {
+  padding: 40px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sources-band .sb-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.pill-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.src-pill {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex; align-items: center; gap: 7px;
+}
+.src-pill b { color: var(--ink); font-weight: 600; }
+
+/* ---------------- FINAL CTA ---------------- */
+
+.final-cta {
+  padding: 64px 0 56px;
+  text-align: center;
+}
+
+.final-cta h2 { font-size: 32px; margin-bottom: 12px; }
+.final-cta p { color: var(--text-muted); margin: 0 0 26px; }
+
+footer {
+  border-top: 1px solid var(--line);
+  padding: 26px 0 40px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 10px;
+  font-size: 13px; color: var(--text-muted);
+}
+
+footer a { color: var(--text-muted); }
+
+@media (max-width: 860px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 38px; }
+  .live-grid { grid-template-columns: repeat(2, 1fr); }
+  .story-grid { grid-template-columns: 1fr; }
+  .feature-grid { grid-template-columns: 1fr; }
+  .nav-links a.plain { display: none; }
+}
+
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/"><span class="mark">🌊</span> FloodSafe</a>
+    <div class="nav-links">
+      <a class="plain" href="#live">Live status</a>
+      <a class="plain" href="#features">Features</a>
+      <a class="plain" href="/reports-view">Reports</a>
+      <a class="btn-primary" href="/app">Launch app →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Uttarakhand &middot; live routing</span>
+      <h1>Fastest isn't<br>always <em>safe</em>.</h1>
+      <p class="sub">FloodSafe routes you around flood-hazard roads using a real government hazard atlas, not just distance &mdash; on a live graph of 2 million road nodes across Uttarakhand.</p>
+      <div class="hero-ctas">
+        <a class="btn-primary" href="/app">Open the map →</a>
+        <a class="btn-ghost" href="#live">See it working live ↓</a>
+      </div>
+    </div>
+    <div class="hero-art">
+      <svg viewBox="0 0 340 300" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="340" height="300" fill="none"/>
+        <path d="M20 250 Q 90 180 140 200 T 260 130 Q 300 100 320 60" fill="none" stroke="var(--hz-ext)" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
+        <path d="M20 250 Q 70 230 100 245 Q 150 270 180 230 Q 210 190 190 150 Q 170 105 210 85 Q 260 60 320 60" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="20" cy="250" r="7" fill="var(--ink)"/>
+        <circle cx="320" cy="60" r="7" fill="var(--ink)"/>
+        <circle cx="190" cy="150" r="5" fill="var(--hz-ext)"/>
+        <text x="150" y="140" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--hz-ext)">EXTREME risk</text>
+        <text x="14" y="270" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--text-muted)">start</text>
+        <text x="285" y="50" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--text-muted)">destination</text>
+      </svg>
+      <div class="cap">two real routes, same start and end &mdash; red crosses risk, teal avoids it</div>
+    </div>
+  </div>
+</header>
+
+<section class="live-strip" id="live">
+  <div class="wrap">
+    <div class="live-strip-head"><span class="pulse-dot" id="statusDot"></span> <span id="statusText">Checking live status…</span></div>
+    <div class="live-grid">
+      <div class="live-tile"><div class="lv-num skeleton" id="statNodes">—</div><div class="lv-label">road nodes in the graph</div></div>
+      <div class="live-tile"><div class="lv-num skeleton" id="statShelters">—</div><div class="lv-label">shelters &amp; hospitals mapped</div></div>
+      <div class="live-tile"><div class="lv-num skeleton" id="statReports">—</div><div class="lv-label">active hazard reports right now</div></div>
+      <div class="live-tile"><div class="lv-num skeleton" id="statWeather">—</div><div class="lv-label">live rainfall, Dehradun</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="legend-band wrap">
+  <span class="lb-label">Hazard classes:</span>
+  <span class="legend-sw"><span class="dot" style="background:var(--hz-low)"></span>LOW</span>
+  <span class="legend-sw"><span class="dot" style="background:var(--hz-mod)"></span>MODERATE</span>
+  <span class="legend-sw"><span class="dot" style="background:var(--hz-sig)"></span>SIGNIFICANT</span>
+  <span class="legend-sw"><span class="dot" style="background:var(--hz-ext)"></span>EXTREME</span>
+  <span style="margin-left:auto; color:var(--text-muted);">from a georeferenced state flash-flood hazard atlas</span>
+</div>
+
+<section class="story">
+  <div class="wrap story-grid">
+    <div>
+      <div class="section-kicker">Real example</div>
+      <h2>It knows when a detour isn't worth it</h2>
+      <p>Between Pachora and Chamun in Pithoragarh district, the direct road crosses 10 extreme-risk segments. Safest mode reroutes around all of them for a reasonable 32% longer trip &mdash; a genuine, different path, not just a warning label.</p>
+      <p>But it also knows when to stop. On a different route where avoiding risk would triple the distance, Safest refuses the detour and says so, instead of sending you on an hour-long loop to dodge 300 metres of bad road.</p>
+    </div>
+    <div class="compare-card">
+      <div class="route-label">PACHORA → CHAMUN, PITHORAGARH DISTRICT</div>
+      <div class="compare-rows">
+        <div class="compare-row fastest">
+          <div>⚡ Fastest</div>
+          <div class="bar-track"><div class="bar-fill" style="width:76%">10 extreme-risk segments</div></div>
+          <div class="val">90.2 km</div>
+        </div>
+        <div class="compare-row safest">
+          <div>🛡 Safest</div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%">0 extreme-risk segments</div></div>
+          <div class="val">119.3 km</div>
+        </div>
+      </div>
+      <div class="compare-foot">+29 km to eliminate every extreme-risk segment on the route</div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="wrap">
+    <div class="section-kicker">What it does</div>
+    <h2>Built for the moment it actually rains</h2>
+    <p>Every feature exists because a static hazard map alone isn't enough once water is actually rising.</p>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="ic">🛡</div>
+        <h3>Risk-weighted routing</h3>
+        <p>Fastest and Safest run on the same graph, weighted by real per-road hazard scores &mdash; not a flat "avoid this area" toggle.</p>
+      </div>
+      <div class="feature-card">
+        <div class="ic">⛺</div>
+        <h3>Evacuate to nearest shelter</h3>
+        <p>Shortlists the closest OSM-tagged shelters, then routes to each and picks the shortest real trip &mdash; not just the nearest pin on the map.</p>
+      </div>
+      <div class="feature-card">
+        <div class="ic">🌧</div>
+        <h3>Live rainfall awareness</h3>
+        <p>Current and forecast rain feed directly into Safest's routing weights, not just a banner &mdash; the route itself gets more cautious while it's raining.</p>
+      </div>
+      <div class="feature-card">
+        <div class="ic">🚨</div>
+        <h3>Crowdsourced hazard reports</h3>
+        <p>Anyone can flag a flooded or blocked road from the map. Reports hard-block that road for every routing mode and expire automatically after 6 hours.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sources-band">
+  <div class="wrap">
+    <div class="sb-label">Built on</div>
+    <div class="pill-row">
+      <span class="src-pill"><b>Hazard data</b> &middot; state flash-flood atlas</span>
+      <span class="src-pill"><b>Roads</b> &middot; OpenStreetMap</span>
+      <span class="src-pill"><b>Weather</b> &middot; Open-Meteo</span>
+      <span class="src-pill"><b>Search</b> &middot; Nominatim</span>
+      <span class="src-pill"><b>Engine</b> &middot; SciPy sparse Dijkstra</span>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <div class="wrap">
+    <h2>Uttarakhand's roads, mapped by risk.</h2>
+    <p>No signup. No app to install. Just open it.</p>
+    <a class="btn-primary" href="/app" style="padding:13px 26px; font-size:15.5px;">Launch FloodSafe →</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex; justify-content:space-between; width:100%; flex-wrap:wrap; gap:10px;">
+    <span>FloodSafe &middot; a flood-aware navigation project for Uttarakhand, India</span>
+    <span><a href="/reports-view">Community reports</a> &middot; <a href="/status">API status</a></span>
+  </div>
+</footer>
+
+<script>
+
+async function loadLiveStrip() {
+
+    try {
+        const status = await (await fetch('/status')).json();
+        const dot = document.getElementById('statusDot');
+        const text = document.getElementById('statusText');
+
+        if (status.routing === 'online') {
+            text.textContent = 'Routing engine online — live on this page right now';
+        } else {
+            dot.classList.add('off');
+            text.textContent = 'Routing engine temporarily unavailable';
+        }
+    } catch (error) {
+        document.getElementById('statusDot').classList.add('off');
+        document.getElementById('statusText').textContent = 'Could not reach the server';
+    }
+
+    try {
+        const shelters = await (await fetch('/shelters')).json();
+        const el = document.getElementById('statShelters');
+        el.textContent = Array.isArray(shelters) ? shelters.length : '—';
+        el.classList.remove('skeleton');
+    } catch (error) {
+        document.getElementById('statShelters').textContent = '—';
+    }
+
+    try {
+        const reports = await (await fetch('/reports')).json();
+        const el = document.getElementById('statReports');
+        el.textContent = Array.isArray(reports) ? reports.length : '0';
+        el.classList.remove('skeleton');
+    } catch (error) {
+        document.getElementById('statReports').textContent = '—';
+    }
+
+    try {
+        const weather = await (await fetch('/weather?lat=30.3165&lon=78.0322')).json();
+        const el = document.getElementById('statWeather');
+        if (weather && typeof weather.total_mm === 'number') {
+            el.textContent = weather.total_mm.toFixed(1) + ' mm';
+        } else {
+            el.textContent = '—';
+        }
+        el.classList.remove('skeleton');
+    } catch (error) {
+        document.getElementById('statWeather').textContent = '—';
+    }
+
+    // Node count is a fixed property of the deployed graph, not a live
+    // API value — shown here for context alongside the truly live tiles.
+    const nodesEl = document.getElementById('statNodes');
+    nodesEl.textContent = '2.02M';
+    nodesEl.classList.remove('skeleton');
+}
+
+loadLiveStrip();
+
+</script>
+
+</body>
+</html>
+"""
+
+
 @app.route("/")
-def home():
+def landing():
+
+    return LANDING_PAGE_HTML
+
+
+# ============================================================
+# APP (the actual map tool)
+# ============================================================
+
+@app.route("/app")
+def app_map():
 
     if not os.path.exists(MAP_FILE):
 
@@ -403,7 +1085,7 @@ header a.back-link:hover {
     </div>
     <div style="display:flex; gap:10px; align-items:center;">
         <button id="refreshBtn" onclick="loadReportsView()">↻ Refresh</button>
-        <a class="back-link" href="/">← Back to map</a>
+        <a class="back-link" href="/app">← Back to map</a>
     </div>
 </header>
 
