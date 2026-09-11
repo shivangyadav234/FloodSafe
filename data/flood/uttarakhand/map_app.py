@@ -2076,14 +2076,22 @@ function correctSpelling(query) {
     return query.replace(firstToken, bestMatch);
 }
 
+// Uttarakhand's bounding box (matches the routing graph's own
+// coordinate range) -- with bounded=1, Nominatim only returns
+// places actually inside it, since results outside this area
+// aren't routable in this app anyway.
+const UTTARAKHAND_VIEWBOX = "77.5,31.5,81.1,28.6";
+
 async function nominatimSearch(query) {
 
     const url = NOMINATIM_BASE + "/search?" + new URLSearchParams({
-        q: query + ", India",
+        q: query + ", Uttarakhand, India",
         format: "jsonv2",
         limit: 5,
         countrycodes: "in",
-        addressdetails: 1
+        addressdetails: 1,
+        viewbox: UTTARAKHAND_VIEWBOX,
+        bounded: 1
     });
 
     const response = await fetchWithTimeout(url, {}, 15000);
@@ -2226,7 +2234,9 @@ async function searchCurrentLocation() {
         '<div class="fs-result">Searching...</div>';
     showResults(resultsBox);
 
-    input.disabled = true;
+    // Not disabling the input here (unlike a click-triggered search)
+    // -- this also runs on every keystroke via debounce, and a
+    // disabled field loses focus, kicking the user out mid-typing.
 
     try {
 
@@ -2295,10 +2305,6 @@ async function searchCurrentLocation() {
             escapeHtml(error.message || "Search failed. Please try again.") +
             '</div>';
         showResults(resultsBox);
-    }
-    finally {
-
-        input.disabled = false;
     }
 }
 
@@ -2506,7 +2512,9 @@ async function searchPlace() {
         '<div class="fs-result">Searching...</div>';
     showResults(resultsBox);
 
-    input.disabled = true;
+    // Not disabling the input here (unlike a click-triggered search)
+    // -- this also runs on every keystroke via debounce, and a
+    // disabled field loses focus, kicking the user out mid-typing.
 
     try {
 
@@ -2571,10 +2579,6 @@ async function searchPlace() {
             escapeHtml(error.message || "Search failed. Please try again.") +
             '</div>';
         showResults(resultsBox);
-    }
-    finally {
-
-        input.disabled = false;
     }
 }
 
