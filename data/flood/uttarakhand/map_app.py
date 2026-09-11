@@ -1808,19 +1808,58 @@ async function fetchLiveConditions(lat, lon) {
 
     try {
 
+        // Called directly from the browser (not proxied through this
+        // server) so every visitor uses their own IP against
+        // Open-Meteo's free API, instead of all visitors sharing
+        // Render's one outbound IP and tripping its rate limit — the
+        // same fix already applied to place search/geocoding.
         const response = await fetchWithTimeout(
-            "/weather?lat=" + lat + "&lon=" + lon,
+            "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
+            "&longitude=" + lon +
+            "&current=precipitation&hourly=precipitation" +
+            "&forecast_days=1&timezone=auto",
             {},
             12000
         );
 
-        const data = await response.json();
+        const payload = await response.json();
 
-        if (!response.ok || data.error) {
+        if (!response.ok || !payload.current) {
             box.style.display = "none";
             liveWeather = null;
             return;
         }
+
+        const currentMm = Number(payload.current.precipitation || 0);
+        const hourlyTimes = (payload.hourly && payload.hourly.time) || [];
+        const hourlyPrecip = (payload.hourly && payload.hourly.precipitation) || [];
+        const currentTime = payload.current.time;
+
+        let next3hMm = 0;
+
+        if (currentTime && hourlyTimes.length) {
+            let startIndex = hourlyTimes.indexOf(currentTime);
+            if (startIndex === -1) startIndex = 0;
+            next3hMm = hourlyPrecip
+                .slice(startIndex, startIndex + 3)
+                .reduce((sum, v) => sum + (Number(v) || 0), 0);
+        }
+
+        const totalMm = currentMm + next3hMm;
+
+        // Mirrors RAIN_LOW_THRESHOLD_MM / RAIN_HIGH_THRESHOLD_MM in server.py
+        const riskLevel =
+            totalMm < 5.0 ? "LOW" :
+            totalMm < 15.0 ? "MODERATE" :
+            "HIGH";
+
+        const data = {
+            status: "ok",
+            current_mm: currentMm,
+            next_3h_mm: next3hMm,
+            total_mm: totalMm,
+            risk_level: riskLevel
+        };
 
         liveWeather = data;
 

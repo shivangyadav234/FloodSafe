@@ -1024,16 +1024,41 @@ async function loadLiveStrip() {
     }
 
     try {
-        const weather = await (await fetch('/weather?lat=30.3165&lon=78.0322')).json();
+        // Called directly from the browser, not proxied through this
+        // server — see fetchLiveConditions() in map_app.py for why.
+        const payload = await (await fetch(
+            'https://api.open-meteo.com/v1/forecast?latitude=30.3165&longitude=78.0322' +
+            '&current=precipitation&hourly=precipitation&forecast_days=1&timezone=auto'
+        )).json();
+
         const el = document.getElementById('statWeather');
         el.classList.remove('skeleton');
-        if (weather && typeof weather.total_mm === 'number') {
-            el.textContent = weather.total_mm.toFixed(1) + ' mm';
+
+        if (payload && payload.current) {
+            const currentMm = Number(payload.current.precipitation || 0);
+            const hourlyTimes = (payload.hourly && payload.hourly.time) || [];
+            const hourlyPrecip = (payload.hourly && payload.hourly.precipitation) || [];
+            const currentTime = payload.current.time;
+            let next3hMm = 0;
+            if (currentTime && hourlyTimes.length) {
+                let startIndex = hourlyTimes.indexOf(currentTime);
+                if (startIndex === -1) startIndex = 0;
+                next3hMm = hourlyPrecip
+                    .slice(startIndex, startIndex + 3)
+                    .reduce((sum, v) => sum + (Number(v) || 0), 0);
+            }
+            el.textContent = (currentMm + next3hMm).toFixed(1) + ' mm';
         } else {
-            el.textContent = '—';
+            el.style.fontSize = '15px';
+            el.style.color = 'var(--text-faint)';
+            el.textContent = 'unavailable right now';
         }
     } catch (error) {
-        document.getElementById('statWeather').textContent = '—';
+        const el = document.getElementById('statWeather');
+        el.classList.remove('skeleton');
+        el.style.fontSize = '15px';
+        el.style.color = 'var(--text-faint)';
+        el.textContent = 'unavailable right now';
     }
 
     const nodesEl = document.getElementById('statNodes');
@@ -1521,10 +1546,25 @@ def post_report():
 # show current conditions and the router can become more
 # cautious when it's actually raining, without either of them
 # calling a third-party API directly from the browser.
+#
+# Cached briefly per rounded coordinate (~1km) because Render's
+# free tier shares one outbound IP across tenants, and Open-Meteo
+# rate-limits (429) that shared IP once request volume climbs —
+# the same failure mode hit earlier with Nominatim. Weather doesn't
+# need second-by-second freshness, so a short TTL cache avoids
+# almost all real outbound calls. On a failed refresh, a stale
+# cached value is served instead of erroring out.
 # ============================================================
 
 RAIN_LOW_THRESHOLD_MM = 5.0
 RAIN_HIGH_THRESHOLD_MM = 15.0
+
+WEATHER_CACHE_TTL_SECONDS = 10 * 60
+_weather_cache = {}
+
+
+def _weather_cache_key(lat, lon):
+    return (round(lat, 2), round(lon, 2))
 
 
 @app.route("/weather")
@@ -1542,6 +1582,13 @@ def weather():
         return jsonify({
             "error": "lat/lon out of range."
         }), 400
+
+    cache_key = _weather_cache_key(lat, lon)
+    cached = _weather_cache.get(cache_key)
+    now = time.time()
+
+    if cached and (now - cached["timestamp"]) < WEATHER_CACHE_TTL_SECONDS:
+        return jsonify(cached["data"])
 
     try:
 
@@ -1595,15 +1642,22 @@ def weather():
         else:
             risk_level = "HIGH"
 
-        return jsonify({
+        result = {
             "status": "ok",
             "current_mm": current_mm,
             "next_3h_mm": next_3h_mm,
             "total_mm": total_mm,
             "risk_level": risk_level
-        })
+        }
+
+        _weather_cache[cache_key] = {"timestamp": now, "data": result}
+
+        return jsonify(result)
 
     except requests.exceptions.Timeout:
+
+        if cached:
+            return jsonify(cached["data"])
 
         return jsonify({
             "error": "Weather request timed out."
@@ -1611,12 +1665,18 @@ def weather():
 
     except requests.exceptions.RequestException as e:
 
+        if cached:
+            return jsonify(cached["data"])
+
         return jsonify({
             "error": "Weather request failed.",
             "details": str(e)
         }), 502
 
     except Exception as e:
+
+        if cached:
+            return jsonify(cached["data"])
 
         return jsonify({
             "error": "Weather lookup failed.",
