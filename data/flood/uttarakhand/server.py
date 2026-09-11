@@ -2,6 +2,7 @@ import os
 import json
 import time
 import uuid
+import threading
 import requests
 from difflib import get_close_matches
 
@@ -280,8 +281,63 @@ def _correct_spelling(query):
     return query.replace(first_token, matches[0], 1)
 
 
+# ============================================================
+# NOMINATIM THROTTLE + CACHE
+#
+# Every visitor's search/report goes through THIS server, so they
+# all share one outbound IP when talking to Nominatim — which
+# enforces a strict ~1 request/second limit per IP and returns 429
+# once it's exceeded. A single busy demo (a few people searching
+# and reporting around the same time) is enough to trip that.
+#
+# Two independent mitigations:
+#   - a hard minimum spacing between outbound Nominatim calls
+#     (queues bursts instead of firing them all at once)
+#   - a short-lived cache, since demo traffic tends to repeat the
+#     same well-known place names within minutes of each other
+# ============================================================
+
+NOMINATIM_MIN_INTERVAL_SECONDS = 1.1
+GEOCODE_CACHE_TTL_SECONDS = 600
+
+_nominatim_lock = threading.Lock()
+_last_nominatim_call = 0.0
+
+_search_cache = {}    # normalized query -> (expires_at, results)
+_reverse_cache = {}   # (rounded_lat, rounded_lon) -> (expires_at, place_name)
+
+
+def _throttle_nominatim():
+    """Blocks just long enough to keep outbound Nominatim calls at
+    least NOMINATIM_MIN_INTERVAL_SECONDS apart, across all requests
+    this process handles."""
+
+    global _last_nominatim_call
+
+    with _nominatim_lock:
+
+        wait = (
+            NOMINATIM_MIN_INTERVAL_SECONDS
+            - (time.time() - _last_nominatim_call)
+        )
+
+        if wait > 0:
+            time.sleep(wait)
+
+        _last_nominatim_call = time.time()
+
+
 def _geocode(query):
     """Raw Nominatim lookup — returns a parsed list of {lat, lon, name}."""
+
+    cache_key = query.strip().lower()
+
+    cached = _search_cache.get(cache_key)
+
+    if cached and cached[0] > time.time():
+        return cached[1]
+
+    _throttle_nominatim()
 
     response = requests.get(
         "https://nominatim.openstreetmap.org/search",
@@ -326,6 +382,11 @@ def _geocode(query):
 
             continue
 
+    _search_cache[cache_key] = (
+        time.time() + GEOCODE_CACHE_TTL_SECONDS,
+        output
+    )
+
     return output
 
 
@@ -337,7 +398,18 @@ def _reverse_geocode(lat, lon):
     Returns None on any failure.
     """
 
+    # ~11m precision — plenty for "did someone already report near
+    # here", and lets nearby reports share one cached lookup.
+    cache_key = (round(lat, 4), round(lon, 4))
+
+    cached = _reverse_cache.get(cache_key)
+
+    if cached and cached[0] > time.time():
+        return cached[1]
+
     try:
+
+        _throttle_nominatim()
 
         response = requests.get(
             "https://nominatim.openstreetmap.org/reverse",
@@ -362,7 +434,14 @@ def _reverse_geocode(lat, lon):
 
         place = response.json()
 
-        return place.get("display_name")
+        place_name = place.get("display_name")
+
+        _reverse_cache[cache_key] = (
+            time.time() + GEOCODE_CACHE_TTL_SECONDS,
+            place_name
+        )
+
+        return place_name
 
     except Exception as e:
 
