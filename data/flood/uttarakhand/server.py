@@ -138,6 +138,7 @@ MAP_FILE = os.path.join(DATA_DIR, "uttarakhand_flood_map.html")
 REPORTS_FILE = os.path.join(DATA_DIR, "reports.json")
 REPORT_EXPIRY_SECONDS = 6 * 60 * 60
 REPORT_DESCRIPTION_MAX_LENGTH = 300
+REPORT_NAME_MAX_LENGTH = 80
 
 
 def _load_reports():
@@ -369,6 +370,12 @@ header a.back-link:hover {
     margin-bottom: 6px;
 }
 
+.report-reporter {
+    font-size: 12px;
+    color: #555;
+    margin-bottom: 6px;
+}
+
 .report-meta {
     font-size: 12px;
     color: #888;
@@ -487,11 +494,16 @@ async function loadReportsView() {
                 report.place_name.split(",").slice(0, 2).join(",") :
                 report.lat.toFixed(5) + ", " + report.lon.toFixed(5);
 
+            const reporterLabel = report.reporter_name ?
+                escapeHtml(report.reporter_name) : "Anonymous";
+
             const marker = L.marker([report.lat, report.lon]).addTo(map);
 
             marker.bindPopup(
                 "<b>" + escapeHtml(label) + "</b><br>" +
-                escapeHtml(report.description)
+                escapeHtml(report.description) + "<br>" +
+                "<span style='color:#888; font-size:12px;'>Reported by " +
+                reporterLabel + "</span>"
             );
 
             markers[report.id] = marker;
@@ -504,6 +516,7 @@ async function loadReportsView() {
                 '<div class="report-place">📍 ' + escapeHtml(label) + '</div>' +
                 '<div class="report-description">' +
                 escapeHtml(report.description) + '</div>' +
+                '<div class="report-reporter">👤 ' + reporterLabel + '</div>' +
                 '<div class="report-meta">' +
                 '<span>' + timeAgo(report.timestamp) + '</span>' +
                 '<span>' + report.lat.toFixed(5) + ', ' +
@@ -597,12 +610,20 @@ def post_report():
     else:
         place_name = place_name.strip()[:300]
 
+    reporter_name = data.get("reporter_name")
+
+    if not isinstance(reporter_name, str) or not reporter_name.strip():
+        reporter_name = None
+    else:
+        reporter_name = reporter_name.strip()[:REPORT_NAME_MAX_LENGTH]
+
     report = {
         "id": uuid.uuid4().hex,
         "lat": lat,
         "lon": lon,
         "place_name": place_name,
         "description": description,
+        "reporter_name": reporter_name,
         "timestamp": time.time()
     }
 
@@ -611,6 +632,7 @@ def post_report():
     print("HAZARD REPORT")
     print("================================")
     print("Location:", lat, lon, "(", place_name, ")")
+    print("Reporter:", reporter_name or "anonymous")
     print("Description:", description)
 
     _reports.append(report)

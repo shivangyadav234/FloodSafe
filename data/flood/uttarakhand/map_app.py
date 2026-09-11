@@ -1305,6 +1305,17 @@ css = """
 }
 
 
+.fs-report-popup input[type="text"] {
+    width: 200px;
+    font-size: 13px;
+    padding: 6px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    display: block;
+}
+
 .fs-report-popup textarea {
     width: 200px;
     height: 50px;
@@ -3327,10 +3338,16 @@ function addHazardMarker(report) {
         report.place_name.split(",").slice(0, 2).join(",") :
         null;
 
+    const reporterLabel = report.reporter_name ?
+        "Reported by " + escapeHtml(report.reporter_name) :
+        "Reported anonymously";
+
     marker.bindPopup(
         "<b>Reported hazard</b>" +
         (placeLabel ? "<br>" + escapeHtml(placeLabel) : "") +
-        "<br>" + escapeHtml(report.description)
+        "<br>" + escapeHtml(report.description) +
+        "<br><span style='color:#888; font-size:12px;'>" +
+        reporterLabel + "</span>"
     );
 
     hazardMarkers.push(marker);
@@ -3542,13 +3559,35 @@ async function evacuateToShelter() {
 
 let activeReportPopup = null;
 
+function getSavedReporterName() {
+
+    try {
+        return localStorage.getItem("floodsafeReporterName") || "";
+    } catch (error) {
+        return "";
+    }
+}
+
+function saveReporterName(name) {
+
+    try {
+        localStorage.setItem("floodsafeReporterName", name);
+    } catch (error) {
+        // Private browsing / storage disabled -- just skip remembering it.
+    }
+}
+
 function openReportPopup(latlng) {
+
+    const savedName = escapeHtml(getSavedReporterName());
 
     const html =
         '<div class="fs-report-popup">' +
         '<div style="font-weight:700; margin-bottom:6px;">' +
         'Report a flooded / blocked road' +
         '</div>' +
+        '<input id="reportNameInput" type="text" ' +
+        'placeholder="Your name (optional)" value="' + savedName + '">' +
         '<textarea id="reportDescInput" ' +
         'placeholder="What did you see? (optional)"></textarea>' +
         '<button id="submitReportBtn">Submit report</button>' +
@@ -3574,8 +3613,13 @@ function openReportPopup(latlng) {
 
 async function submitReport(lat, lon) {
 
-    const input = document.getElementById("reportDescInput");
-    const description = input ? input.value.trim() : "";
+    const descInput = document.getElementById("reportDescInput");
+    const description = descInput ? descInput.value.trim() : "";
+
+    const nameInput = document.getElementById("reportNameInput");
+    const reporterName = nameInput ? nameInput.value.trim() : "";
+
+    saveReporterName(reporterName);
 
     try {
 
@@ -3592,7 +3636,8 @@ async function submitReport(lat, lon) {
                     lat: lat,
                     lon: lon,
                     description: description,
-                    place_name: placeName
+                    place_name: placeName,
+                    reporter_name: reporterName
                 })
             },
             10000
