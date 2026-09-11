@@ -1968,6 +1968,221 @@ function useCurrentLocation() {
 }
 
 
+// =======================================================
+// CLIENT-SIDE GEOCODING
+//
+// Search and reverse-geocoding call Nominatim directly from the
+// browser instead of proxying through our server. Every visitor
+// then uses their own IP, so one busy demo (several people
+// searching/reporting at once) can't trip Nominatim's per-IP rate
+// limit for everyone at once the way a server-side proxy would.
+// =======================================================
+
+const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
+
+const KNOWN_PLACES = [
+    "Dehradun", "Rishikesh", "Haridwar", "Mussoorie", "Nainital",
+    "Almora", "Bageshwar", "Pithoragarh", "Berinag", "Kanda", "Khelkot",
+    "Munsyari", "Chamoli", "Joshimath", "Uttarkashi", "Gopeshwar",
+    "Rudraprayag", "Kausani", "Ranikhet", "Champawat", "Tehri",
+    "Gairsain", "Didihat", "Dwarahat", "Bhimtal", "Lansdowne", "Pauri",
+    "Karnaprayag", "Roorkee", "Kotdwar", "Ramnagar", "Haldwani",
+    "Kashipur", "Rudrapur", "Vikasnagar", "Srinagar", "Devprayag",
+    "Ukhimath", "Chakrata", "Barkot", "Purola", "Auli", "Chopta",
+    "Sitarganj", "Bazpur", "Tanakpur", "Lohaghat", "Dharchula",
+    "Gangotri", "Yamunotri", "Kedarnath", "Badrinath"
+];
+
+const MIN_SPELLING_SIMILARITY = 0.6;
+
+function levenshteinDistance(a, b) {
+
+    const rows = a.length + 1;
+    const cols = b.length + 1;
+    const dp = [];
+
+    for (let i = 0; i < rows; i++) {
+        dp.push(new Array(cols).fill(0));
+        dp[i][0] = i;
+    }
+
+    for (let j = 0; j < cols; j++) {
+        dp[0][j] = j;
+    }
+
+    for (let i = 1; i < rows; i++) {
+        for (let j = 1; j < cols; j++) {
+            if (a[i - 1] === b[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1];
+            } else {
+                dp[i][j] = 1 + Math.min(
+                    dp[i - 1][j],
+                    dp[i][j - 1],
+                    dp[i - 1][j - 1]
+                );
+            }
+        }
+    }
+
+    return dp[rows - 1][cols - 1];
+}
+
+function spellingSimilarity(a, b) {
+
+    const maxLen = Math.max(a.length, b.length);
+
+    if (maxLen === 0) {
+        return 1;
+    }
+
+    const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase());
+
+    return 1 - (distance / maxLen);
+}
+
+// Best-effort typo fix against KNOWN_PLACES — only corrects the
+// first comma-separated token (the actual place name; later tokens
+// are usually "India"/district names) and only when it's close
+// enough to a known place but not already an exact match.
+function correctSpelling(query) {
+
+    const firstToken = query.split(",")[0].trim();
+
+    if (!firstToken) {
+        return query;
+    }
+
+    let bestMatch = null;
+    let bestRatio = 0;
+
+    KNOWN_PLACES.forEach(function(place) {
+
+        const ratio = spellingSimilarity(firstToken, place);
+
+        if (ratio > bestRatio) {
+            bestRatio = ratio;
+            bestMatch = place;
+        }
+    });
+
+    if (
+        !bestMatch ||
+        bestRatio < MIN_SPELLING_SIMILARITY ||
+        bestMatch.toLowerCase() === firstToken.toLowerCase()
+    ) {
+        return query;
+    }
+
+    return query.replace(firstToken, bestMatch);
+}
+
+async function nominatimSearch(query) {
+
+    const url = NOMINATIM_BASE + "/search?" + new URLSearchParams({
+        q: query + ", India",
+        format: "jsonv2",
+        limit: 5,
+        countrycodes: "in",
+        addressdetails: 1
+    });
+
+    const response = await fetchWithTimeout(url, {}, 15000);
+
+    if (!response.ok) {
+        throw new Error("Search service returned " + response.status);
+    }
+
+    const places = await response.json();
+
+    if (!Array.isArray(places)) {
+        return [];
+    }
+
+    const results = [];
+
+    places.forEach(function(place) {
+
+        const lat = Number(place.lat);
+        const lon = Number(place.lon);
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            return;
+        }
+
+        results.push({
+            lat: lat,
+            lon: lon,
+            name: place.display_name || place.name || query
+        });
+    });
+
+    return results;
+}
+
+// Returns {results, corrected_from, corrected_to} — same shape the
+// old server-side /search endpoint returned, so callers don't need
+// to change beyond where they get their data from.
+async function geocodePlace(query) {
+
+    let results = await nominatimSearch(query);
+
+    let correctedFrom = null;
+    let correctedTo = null;
+
+    if (results.length === 0) {
+
+        const corrected = correctSpelling(query);
+
+        if (corrected !== query) {
+
+            const retryResults = await nominatimSearch(corrected);
+
+            if (retryResults.length > 0) {
+                results = retryResults;
+                correctedFrom = query;
+                correctedTo = corrected;
+            }
+        }
+    }
+
+    return {
+        results: results,
+        corrected_from: correctedFrom,
+        corrected_to: correctedTo
+    };
+}
+
+// Best-effort place name for a coordinate — used only for display
+// (hazard-report list), never blocks or fails the caller.
+async function reverseGeocode(lat, lon) {
+
+    try {
+
+        const url = NOMINATIM_BASE + "/reverse?" + new URLSearchParams({
+            lat: lat,
+            lon: lon,
+            format: "jsonv2",
+            zoom: 16
+        });
+
+        const response = await fetchWithTimeout(url, {}, 8000);
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const place = await response.json();
+
+        return place.display_name || null;
+
+    } catch (error) {
+
+        console.error("Reverse geocode failed:", error);
+        return null;
+    }
+}
+
+
 // Search manually entered current location.
 async function searchCurrentLocation() {
 
@@ -2015,38 +2230,7 @@ async function searchCurrentLocation() {
 
     try {
 
-        const response = await fetchWithTimeout(
-            "/search?q=" + encodeURIComponent(query),
-            {},
-            15000
-        );
-
-        let data;
-
-        try {
-            data = await response.json();
-        } catch (parseError) {
-            throw new Error(
-                "Server returned an unreadable response " +
-                "(status " + response.status + ")."
-            );
-        }
-
-        if (!response.ok) {
-            throw new Error(
-                (data && data.error) ||
-                ("Server returned " + response.status)
-            );
-        }
-
-        if (data && data.error) {
-            resultsBox.innerHTML =
-                '<div class="fs-result">' +
-                escapeHtml(data.error) +
-                '</div>';
-            showResults(resultsBox);
-            return;
-        }
+        const data = await geocodePlace(query);
 
         const places = (data && Array.isArray(data.results)) ?
             data.results : [];
@@ -2326,38 +2510,7 @@ async function searchPlace() {
 
     try {
 
-        const response = await fetchWithTimeout(
-            "/search?q=" + encodeURIComponent(query),
-            {},
-            15000
-        );
-
-        let data;
-
-        try {
-            data = await response.json();
-        } catch (parseError) {
-            throw new Error(
-                "Server returned an unreadable response " +
-                "(status " + response.status + ")."
-            );
-        }
-
-        if (!response.ok) {
-            throw new Error(
-                (data && data.error) ||
-                ("Server returned " + response.status)
-            );
-        }
-
-        if (data && data.error) {
-            resultsBox.innerHTML =
-                '<div class="fs-result">Search error: ' +
-                escapeHtml(data.error) +
-                '</div>';
-            showResults(resultsBox);
-            return;
-        }
+        const data = await geocodePlace(query);
 
         const places = (data && Array.isArray(data.results)) ?
             data.results : [];
@@ -3422,6 +3575,10 @@ async function submitReport(lat, lon) {
 
     try {
 
+        // Resolved in the browser (own IP), not proxied through our
+        // server — see the CLIENT-SIDE GEOCODING block above.
+        const placeName = await reverseGeocode(lat, lon);
+
         const response = await fetchWithTimeout(
             "/report",
             {
@@ -3430,7 +3587,8 @@ async function submitReport(lat, lon) {
                 body: JSON.stringify({
                     lat: lat,
                     lon: lon,
-                    description: description
+                    description: description,
+                    place_name: placeName
                 })
             },
             10000

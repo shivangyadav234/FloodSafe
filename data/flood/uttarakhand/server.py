@@ -2,9 +2,7 @@ import os
 import json
 import time
 import uuid
-import threading
 import requests
-from difflib import get_close_matches
 
 # ============================================================
 # PROJ FIX
@@ -233,301 +231,15 @@ def status():
 # ============================================================
 # SEARCH
 #
-# KNOWN_PLACES is a small gazetteer of well-known Uttarakhand
-# towns/villages, used only to correct obvious typos before
-# handing the query to Nominatim — Nominatim itself does the
-# real geocoding, this just fixes spelling first so "Brinag"
-# still finds "Berinag".
+# Geocoding (place search + hazard-report reverse geocoding) now
+# happens CLIENT-SIDE, in each visitor's own browser — see
+# map_app.py. Every visitor talking to Nominatim from their own
+# IP, instead of all proxying through this one server, is both
+# more resilient (one shared server IP getting rate-limited no
+# longer breaks search for everyone) and closer to how Nominatim's
+# usage policy expects it to be used. This server no longer makes
+# any outbound geocoding calls itself.
 # ============================================================
-
-KNOWN_PLACES = [
-    "Dehradun", "Rishikesh", "Haridwar", "Mussoorie", "Nainital",
-    "Almora", "Bageshwar", "Pithoragarh", "Berinag", "Kanda", "Khelkot",
-    "Munsyari", "Chamoli", "Joshimath", "Uttarkashi", "Gopeshwar",
-    "Rudraprayag", "Kausani", "Ranikhet", "Champawat", "Tehri",
-    "Gairsain", "Didihat", "Dwarahat", "Bhimtal", "Lansdowne", "Pauri",
-    "Karnaprayag", "Roorkee", "Kotdwar", "Ramnagar", "Haldwani",
-    "Kashipur", "Rudrapur", "Vikasnagar", "Srinagar", "Devprayag",
-    "Ukhimath", "Chakrata", "Barkot", "Purola", "Auli", "Chopta",
-    "Sitarganj", "Bazpur", "Tanakpur", "Lohaghat", "Dharchula",
-    "Gangotri", "Yamunotri", "Kedarnath", "Badrinath"
-]
-
-MIN_SPELLING_SIMILARITY = 0.6
-
-
-def _correct_spelling(query):
-    """
-    Best-effort typo fix against KNOWN_PLACES. Only corrects the
-    first comma-separated token (the actual place name — later
-    tokens are usually "India"/district names typed by the user)
-    and only when it's close enough to a known place but not an
-    exact match already. Returns the corrected query, or the
-    original if nothing close enough was found.
-    """
-
-    first_token = query.split(",")[0].strip()
-
-    if not first_token:
-        return query
-
-    matches = get_close_matches(
-        first_token, KNOWN_PLACES, n=1, cutoff=MIN_SPELLING_SIMILARITY
-    )
-
-    if not matches or matches[0].lower() == first_token.lower():
-        return query
-
-    return query.replace(first_token, matches[0], 1)
-
-
-# ============================================================
-# NOMINATIM THROTTLE + CACHE
-#
-# Every visitor's search/report goes through THIS server, so they
-# all share one outbound IP when talking to Nominatim — which
-# enforces a strict ~1 request/second limit per IP and returns 429
-# once it's exceeded. A single busy demo (a few people searching
-# and reporting around the same time) is enough to trip that.
-#
-# Two independent mitigations:
-#   - a hard minimum spacing between outbound Nominatim calls
-#     (queues bursts instead of firing them all at once)
-#   - a short-lived cache, since demo traffic tends to repeat the
-#     same well-known place names within minutes of each other
-# ============================================================
-
-NOMINATIM_MIN_INTERVAL_SECONDS = 1.1
-GEOCODE_CACHE_TTL_SECONDS = 600
-
-_nominatim_lock = threading.Lock()
-_last_nominatim_call = 0.0
-
-_search_cache = {}    # normalized query -> (expires_at, results)
-_reverse_cache = {}   # (rounded_lat, rounded_lon) -> (expires_at, place_name)
-
-
-def _throttle_nominatim():
-    """Blocks just long enough to keep outbound Nominatim calls at
-    least NOMINATIM_MIN_INTERVAL_SECONDS apart, across all requests
-    this process handles."""
-
-    global _last_nominatim_call
-
-    with _nominatim_lock:
-
-        wait = (
-            NOMINATIM_MIN_INTERVAL_SECONDS
-            - (time.time() - _last_nominatim_call)
-        )
-
-        if wait > 0:
-            time.sleep(wait)
-
-        _last_nominatim_call = time.time()
-
-
-def _geocode(query):
-    """Raw Nominatim lookup — returns a parsed list of {lat, lon, name}."""
-
-    cache_key = query.strip().lower()
-
-    cached = _search_cache.get(cache_key)
-
-    if cached and cached[0] > time.time():
-        return cached[1]
-
-    _throttle_nominatim()
-
-    response = requests.get(
-        "https://nominatim.openstreetmap.org/search",
-
-        params={
-            "q": query + ", India",
-            "format": "jsonv2",
-            "limit": 5,
-            "countrycodes": "in",
-            "addressdetails": 1
-        },
-
-        headers={
-            "User-Agent":
-                "FloodSafe/1.0 "
-                "(college disaster-navigation project)"
-        },
-
-        timeout=15
-    )
-
-    response.raise_for_status()
-
-    results = response.json()
-
-    output = []
-
-    for place in results:
-
-        try:
-
-            output.append({
-                "lat": float(place["lat"]),
-                "lon": float(place["lon"]),
-                "name": place.get(
-                    "display_name",
-                    place.get("name", query)
-                )
-            })
-
-        except (KeyError, ValueError, TypeError):
-
-            continue
-
-    _search_cache[cache_key] = (
-        time.time() + GEOCODE_CACHE_TTL_SECONDS,
-        output
-    )
-
-    return output
-
-
-def _reverse_geocode(lat, lon):
-    """
-    Best-effort place name for a coordinate, via Nominatim's reverse
-    endpoint. Used only for display (hazard-report list) — never
-    blocks or fails the caller if it errors out or times out.
-    Returns None on any failure.
-    """
-
-    # ~11m precision — plenty for "did someone already report near
-    # here", and lets nearby reports share one cached lookup.
-    cache_key = (round(lat, 4), round(lon, 4))
-
-    cached = _reverse_cache.get(cache_key)
-
-    if cached and cached[0] > time.time():
-        return cached[1]
-
-    try:
-
-        _throttle_nominatim()
-
-        response = requests.get(
-            "https://nominatim.openstreetmap.org/reverse",
-
-            params={
-                "lat": lat,
-                "lon": lon,
-                "format": "jsonv2",
-                "zoom": 16
-            },
-
-            headers={
-                "User-Agent":
-                    "FloodSafe/1.0 "
-                    "(college disaster-navigation project)"
-            },
-
-            timeout=8
-        )
-
-        response.raise_for_status()
-
-        place = response.json()
-
-        place_name = place.get("display_name")
-
-        _reverse_cache[cache_key] = (
-            time.time() + GEOCODE_CACHE_TTL_SECONDS,
-            place_name
-        )
-
-        return place_name
-
-    except Exception as e:
-
-        print("WARNING: reverse geocode failed:", repr(e))
-        return None
-
-
-@app.route("/search")
-def search():
-
-    query = request.args.get("q", "").strip()
-
-    if not query:
-
-        return jsonify([])
-
-    if len(query) > 200:
-
-        return jsonify({
-            "error": "Search query is too long."
-        }), 400
-
-    print()
-    print("================================")
-    print("SEARCH")
-    print("================================")
-    print("Query:", query)
-
-    try:
-
-        output = _geocode(query)
-
-        corrected_from = None
-        corrected_to = None
-
-        # Nominatim found nothing — try a spelling-corrected retry
-        # before giving up, so a typo in a well-known town name
-        # still finds something instead of "no places found".
-        if not output:
-
-            corrected_query = _correct_spelling(query)
-
-            if corrected_query != query:
-
-                print("No results — retrying as:", corrected_query)
-
-                retry_output = _geocode(corrected_query)
-
-                if retry_output:
-
-                    output = retry_output
-                    corrected_from = query
-                    corrected_to = corrected_query
-
-        print("Results:", len(output))
-
-        response_body = {"results": output}
-
-        if corrected_to:
-
-            response_body["corrected_from"] = corrected_from
-            response_body["corrected_to"] = corrected_to
-
-            print(f"Corrected '{corrected_from}' -> '{corrected_to}'")
-
-        return jsonify(response_body)
-
-    except requests.exceptions.Timeout:
-
-        return jsonify({
-            "error": "Search request timed out."
-        }), 504
-
-    except requests.exceptions.RequestException as e:
-
-        return jsonify({
-            "error": "Search request failed.",
-            "details": str(e)
-        }), 502
-
-    except Exception as e:
-
-        return jsonify({
-            "error": "Search failed.",
-            "details": str(e)
-        }), 500
 
 
 # ============================================================
@@ -874,7 +586,16 @@ def post_report():
 
         description = "Flooded / blocked road reported"
 
-    place_name = _reverse_geocode(lat, lon)
+    # The client resolves this itself (its own browser calling
+    # Nominatim's reverse endpoint directly) — this server makes no
+    # outbound geocoding calls at all. Best-effort only: fall back
+    # to no place name rather than fail the report.
+    place_name = data.get("place_name")
+
+    if not isinstance(place_name, str) or not place_name.strip():
+        place_name = None
+    else:
+        place_name = place_name.strip()[:300]
 
     report = {
         "id": uuid.uuid4().hex,
