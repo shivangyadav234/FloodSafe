@@ -672,6 +672,15 @@ panel_html = """
     </button>
 
 
+    <!-- REROUTE NOTICE -->
+
+    <div
+        id="rerouteNotice"
+        class="fs-warning-message"
+        style="display:none;">
+    </div>
+
+
     <!-- RESULT -->
 
     <div
@@ -1566,6 +1575,13 @@ let hazardMarkers = [];
 let compareGroup = null;
 
 let shelterMarkers = [];
+
+// Tracks which route action (if any) is currently on screen, so a
+// new hazard report — this user's own, or anyone else's picked up
+// by polling — can automatically recompute the same thing instead
+// of leaving a stale route displayed.
+let lastRouteAction = null;
+let knownReportIds = null;
 
 
 // =======================================================
@@ -3118,6 +3134,8 @@ async function calculateRoute() {
                 '</div>';
         }
 
+        lastRouteAction = "route";
+
         resultBox.innerHTML =
             '<div class="fs-result-title">Route calculated</div>' +
             '<div class="fs-route-mode">' + escapeHtml(mode) + '</div>' +
@@ -3367,6 +3385,8 @@ async function compareRoutes() {
             (data.safest.risk_counts && data.safest.risk_counts["8.0"]) || 0
         );
 
+        lastRouteAction = "compare";
+
         resultBox.innerHTML =
             '<div class="fs-result-title">Fastest vs Safest</div>' +
             '<div class="fs-compare-row"><span>⚡ Fastest (dashed)</span><span>' +
@@ -3433,7 +3453,44 @@ function addHazardMarker(report) {
     hazardMarkers.push(marker);
 }
 
-async function loadReports() {
+function showRerouteNotice(text) {
+
+    const el = document.getElementById("rerouteNotice");
+
+    if (!el) return;
+
+    el.textContent = text;
+    el.style.display = "block";
+
+    clearTimeout(showRerouteNotice._timer);
+
+    showRerouteNotice._timer = setTimeout(function() {
+        el.style.display = "none";
+    }, 7000);
+}
+
+function rerunLastRouteAction(noticeText) {
+
+    if (!lastRouteAction) return;
+
+    if (noticeText) {
+        showRerouteNotice(noticeText);
+    }
+
+    if (lastRouteAction === "route") {
+        calculateRoute();
+    } else if (lastRouteAction === "evacuate") {
+        evacuateToShelter();
+    } else if (lastRouteAction === "hospital") {
+        routeToNearestHospital();
+    } else if (lastRouteAction === "compare") {
+        compareRoutes();
+    }
+}
+
+async function loadReports(options) {
+
+    const isPoll = !!(options && options.isPoll);
 
     try {
 
@@ -3444,6 +3501,25 @@ async function loadReports() {
             return;
         }
 
+        const currentIds = new Set(data.map(function(r) { return r.id; }));
+
+        // knownReportIds starts null so the very first load (page open)
+        // never counts as "new reports appeared" — only reports that
+        // show up in a later poll, after we already have a baseline,
+        // should trigger an automatic reroute.
+        let hasNewReport = false;
+
+        if (isPoll && knownReportIds) {
+
+            currentIds.forEach(function(id) {
+                if (!knownReportIds.has(id)) {
+                    hasNewReport = true;
+                }
+            });
+        }
+
+        knownReportIds = currentIds;
+
         hazardMarkers.forEach(function(marker) {
             FLOODSAFE_MAP.removeLayer(marker);
         });
@@ -3452,10 +3528,23 @@ async function loadReports() {
 
         data.forEach(addHazardMarker);
 
+        if (hasNewReport && lastRouteAction) {
+            rerunLastRouteAction(
+                "⚠ New hazard reported nearby — updating your route…"
+            );
+        }
+
     } catch (error) {
         console.error("Failed to load hazard reports:", error);
     }
 }
+
+// Poll for reports made by other users while this map stays open —
+// without this, a hazard someone else reports is invisible until
+// the page is reloaded.
+setInterval(function() {
+    loadReports({ isPoll: true });
+}, 30000);
 
 // =======================================================
 // RESCUE SHELTERS
@@ -3612,6 +3701,8 @@ async function evacuateToShelter() {
         const risk = data.risk_counts || {};
         const extreme = Number(risk["8.0"] || 0);
 
+        lastRouteAction = "evacuate";
+
         resultBox.innerHTML =
             '<div class="fs-result-title">🚨 Evacuation route</div>' +
             '<div class="fs-route-mode">To: ' + shelterName + '</div>' +
@@ -3736,6 +3827,8 @@ async function routeToNearestHospital() {
 
         const risk = data.risk_counts || {};
         const extreme = Number(risk["8.0"] || 0);
+
+        lastRouteAction = "hospital";
 
         resultBox.innerHTML =
             '<div class="fs-result-title">🏥 Hospital route</div>' +
@@ -3863,9 +3956,19 @@ async function submitReport(lat, lon) {
 
         addHazardMarker(data);
 
+        if (knownReportIds) {
+            knownReportIds.add(data.id);
+        }
+
         if (activeReportPopup) {
             FLOODSAFE_MAP.closePopup(activeReportPopup);
             activeReportPopup = null;
+        }
+
+        if (lastRouteAction) {
+            rerunLastRouteAction(
+                "✓ Report submitted — recalculating your route to avoid it…"
+            );
         }
 
     } catch (error) {

@@ -50,6 +50,9 @@ produced a route distinct from both Fastest and Safest.
   flooded or blocked road in real time. Reported locations hard-block nearby
   roads for *every* routing mode (a reported flooded bridge isn't a
   "graduated risk," it's a fact on the ground) and are visible to all users.
+  Submitting a report instantly recalculates your own active route around
+  it, and every open map polls for new reports every 30s so someone else's
+  report reroutes you too — without needing to reload the page.
 - **Route comparison** — see Fastest and Safest side by side on one map, with
   a stats card showing the extra distance the safe route costs and how many
   extreme-risk segments it avoids.
