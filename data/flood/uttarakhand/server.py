@@ -1283,6 +1283,22 @@ header a.back-link:hover {
     justify-content: space-between;
 }
 
+.resolve-btn {
+    margin-top: 10px;
+    padding: 7px 12px;
+    border: 1px solid #2e7d32;
+    border-radius: 8px;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.resolve-btn:hover {
+    background: #d5ecd6;
+}
+
 .empty-state {
     text-align: center;
     color: #888;
@@ -1356,6 +1372,41 @@ function focusReport(id) {
     marker.openPopup();
 }
 
+async function resolveReport(id) {
+
+    const confirmed = confirm(
+        "Mark this hazard as resolved? It will be removed for everyone " +
+        "immediately, and routes will no longer avoid it."
+    );
+
+    if (!confirmed) return;
+
+    try {
+
+        const response = await fetch(
+            "/report/" + encodeURIComponent(id) + "/resolve",
+            { method: "POST" }
+        );
+
+        if (!response.ok) {
+
+            const data = await response.json().catch(function() {
+                return null;
+            });
+
+            alert((data && data.error) || "Failed to mark this report resolved.");
+            return;
+        }
+
+        loadReportsView();
+
+    } catch (error) {
+
+        console.error(error);
+        alert("Failed to mark this report resolved. Please try again.");
+    }
+}
+
 async function loadReportsView() {
 
     const summaryBar = document.getElementById("summaryBar");
@@ -1421,7 +1472,15 @@ async function loadReportsView() {
                 '<span>' + timeAgo(report.timestamp) + '</span>' +
                 '<span>' + report.lat.toFixed(5) + ', ' +
                 report.lon.toFixed(5) + '</span>' +
-                '</div>';
+                '</div>' +
+                '<button class="resolve-btn">✓ Mark resolved — road is clear</button>';
+
+            const resolveBtn = card.querySelector(".resolve-btn");
+
+            resolveBtn.onclick = function(e) {
+                e.stopPropagation();
+                resolveReport(report.id);
+            };
 
             listEl.appendChild(card);
         });
@@ -1539,6 +1598,43 @@ def post_report():
     _save_reports(_reports)
 
     return jsonify(report), 201
+
+
+# ============================================================
+# RESOLVE REPORT
+#
+# Lets anyone mark a hazard report resolved before its normal
+# 6-hour expiry (e.g. the road has actually been cleared). No
+# ownership check, deliberately — the same open-trust model as
+# submitting a report in the first place. Once removed, it no
+# longer blocks any road for any routing mode.
+# ============================================================
+
+@app.route("/report/<report_id>/resolve", methods=["POST"])
+def resolve_report(report_id):
+
+    before_count = len(_reports)
+
+    _reports[:] = [
+        report for report in _reports
+        if report.get("id") != report_id
+    ]
+
+    if len(_reports) == before_count:
+
+        return jsonify({
+            "status": "error",
+            "error":
+                "Report not found — it may have already been resolved "
+                "or expired."
+        }), 404
+
+    _save_reports(_reports)
+
+    print()
+    print("Report resolved:", report_id)
+
+    return jsonify({"status": "ok", "id": report_id})
 
 
 # ============================================================

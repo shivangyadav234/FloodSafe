@@ -1284,6 +1284,22 @@ css = """
     background: #006970;
 }
 
+.fs-resolve-btn {
+    margin-top: 8px;
+    padding: 6px 10px;
+    border: 1px solid #2e7d32;
+    border-radius: 8px;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.fs-resolve-btn:hover {
+    background: #d5ecd6;
+}
+
 
 .fs-live-conditions {
 
@@ -3443,14 +3459,84 @@ function addHazardMarker(report) {
         "Reported anonymously";
 
     marker.bindPopup(
+        "<div class='fs-hazard-popup'>" +
         "<b>Reported hazard</b>" +
         (placeLabel ? "<br>" + escapeHtml(placeLabel) : "") +
         "<br>" + escapeHtml(report.description) +
         "<br><span style='color:#888; font-size:12px;'>" +
-        reporterLabel + "</span>"
+        reporterLabel + "</span>" +
+        "<br><button class='fs-resolve-btn'>✓ Road is clear now</button>" +
+        "</div>"
     );
 
+    marker.on("popupopen", function() {
+
+        const btn = document.querySelector(".fs-hazard-popup .fs-resolve-btn");
+
+        if (btn) {
+            btn.onclick = function() {
+                resolveReport(report.id, marker);
+            };
+        }
+    });
+
     hazardMarkers.push(marker);
+}
+
+async function resolveReport(reportId, marker) {
+
+    const confirmed = confirm(
+        "Mark this hazard as resolved? It will be removed for everyone " +
+        "immediately, and routes will no longer avoid it."
+    );
+
+    if (!confirmed) return;
+
+    try {
+
+        const response = await fetchWithTimeout(
+            "/report/" + encodeURIComponent(reportId) + "/resolve",
+            { method: "POST" },
+            10000
+        );
+
+        let data;
+
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            data = null;
+        }
+
+        if (!response.ok) {
+            alert((data && data.error) || "Failed to mark this report resolved.");
+            return;
+        }
+
+        FLOODSAFE_MAP.closePopup();
+
+        if (marker) {
+            FLOODSAFE_MAP.removeLayer(marker);
+            hazardMarkers = hazardMarkers.filter(function(m) {
+                return m !== marker;
+            });
+        }
+
+        if (knownReportIds) {
+            knownReportIds.delete(reportId);
+        }
+
+        if (lastRouteAction) {
+            rerunLastRouteAction(
+                "✓ Hazard cleared — checking for a better route…"
+            );
+        }
+
+    } catch (error) {
+
+        console.error(error);
+        alert("Failed to mark this report resolved. Please try again.");
+    }
 }
 
 function showRerouteNotice(text) {
@@ -3504,16 +3590,23 @@ async function loadReports(options) {
         const currentIds = new Set(data.map(function(r) { return r.id; }));
 
         // knownReportIds starts null so the very first load (page open)
-        // never counts as "new reports appeared" — only reports that
-        // show up in a later poll, after we already have a baseline,
-        // should trigger an automatic reroute.
+        // never counts as "new/cleared reports appeared" — only a
+        // change from an already-established baseline, seen on a
+        // later poll, should trigger an automatic reroute.
         let hasNewReport = false;
+        let hasRemovedReport = false;
 
         if (isPoll && knownReportIds) {
 
             currentIds.forEach(function(id) {
                 if (!knownReportIds.has(id)) {
                     hasNewReport = true;
+                }
+            });
+
+            knownReportIds.forEach(function(id) {
+                if (!currentIds.has(id)) {
+                    hasRemovedReport = true;
                 }
             });
         }
@@ -3531,6 +3624,10 @@ async function loadReports(options) {
         if (hasNewReport && lastRouteAction) {
             rerunLastRouteAction(
                 "⚠ New hazard reported nearby — updating your route…"
+            );
+        } else if (hasRemovedReport && lastRouteAction) {
+            rerunLastRouteAction(
+                "✓ A nearby hazard was cleared — checking for a better route…"
             );
         }
 
