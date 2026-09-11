@@ -55,11 +55,13 @@ produced a route distinct from both Fastest and Safest.
   extreme-risk segments it avoids.
 - **Evacuate to nearest shelter** — one click routes from your current
   location to the closest reachable shelter/community facility, using the
-  same flood-aware engine (not just straight-line distance). Shelter and
-  hospital locations come from real OpenStreetMap tags (`amenity=shelter`,
-  `community_centre`, `social_facility`, `hospital`) — not an official
-  government list, so treat them as a starting point, not verified capacity
-  or open status.
+  same flood-aware engine (not just straight-line distance).
+- **Route to nearest hospital** — the same shortlist-then-route logic, run
+  against hospitals instead of shelters, for when the need is medical
+  rather than evacuation. Shelter and hospital locations come from real
+  OpenStreetMap tags (`amenity=shelter`, `community_centre`,
+  `social_facility`, `hospital`) — not an official government list, so
+  treat them as a starting point, not verified capacity or open status.
 
 ## Project layout
 
@@ -134,6 +136,8 @@ python map_app.py
    route — show it detouring around the reported point.
 6. Click **Evacuate to Nearest Shelter** — shows the closest reachable
    shelter/community facility, routed to using the same flood-aware engine.
+7. Click **Route to Nearest Hospital** — same idea, against the hospital
+   list instead of shelters.
 
 ## Tech stack
 

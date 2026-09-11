@@ -639,6 +639,17 @@ panel_html = """
     </button>
 
 
+    <!-- NEAREST HOSPITAL -->
+
+    <button
+        class="fs-hospital-btn"
+        onclick="routeToNearestHospital()">
+
+        🏥 Route to Nearest Hospital
+
+    </button>
+
+
     <!-- COMPARE -->
 
     <button
@@ -1145,6 +1156,7 @@ css = """
 .fs-route-btn:disabled,
 .fs-location-btn:disabled,
 .fs-evacuate-btn:disabled,
+.fs-hospital-btn:disabled,
 .fs-compare-btn:disabled,
 #currentLocationInput:disabled,
 #searchInput:disabled {
@@ -1232,6 +1244,35 @@ css = """
 
 .fs-evacuate-btn:hover {
     background: #ad2121;
+}
+
+
+.fs-hospital-btn {
+
+    width: 100%;
+
+    margin-top: 10px;
+
+    padding: 14px;
+
+    border: none;
+
+    border-radius: 10px;
+
+    background: #00838f;
+
+    color: white;
+
+    font-size: 16px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+}
+
+.fs-hospital-btn:hover {
+    background: #006970;
 }
 
 
@@ -3587,6 +3628,131 @@ async function evacuateToShelter() {
 
         resultBox.innerHTML =
             "Evacuation error: " +
+            escapeHtml(error.message || "Something went wrong.");
+
+    } finally {
+
+        if (btn) { btn.disabled = false; }
+    }
+}
+
+
+// =======================================================
+// ROUTE TO NEAREST HOSPITAL
+// =======================================================
+
+async function routeToNearestHospital() {
+
+    if (!currentLocation) {
+        alert("Please select your current location first.");
+        return;
+    }
+
+    const mode = document.getElementById("routeMode").value;
+    const resultBox = document.getElementById("routeResult");
+    const btn = document.querySelector(".fs-hospital-btn");
+
+    resultBox.innerHTML = "Finding nearest hospital...";
+    if (btn) { btn.disabled = true; }
+
+    if (routeLine) {
+        FLOODSAFE_MAP.removeLayer(routeLine);
+        routeLine = null;
+    }
+
+    if (compareGroup) {
+        FLOODSAFE_MAP.removeLayer(compareGroup);
+        compareGroup = null;
+    }
+
+    try {
+
+        const response = await fetchWithTimeout(
+            "/nearest-hospital",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    lat: currentLocation.lat,
+                    lon: currentLocation.lon,
+                    mode: mode,
+                    live_rain_mm: liveWeather ? liveWeather.total_mm : null
+                })
+            },
+            25000
+        );
+
+        let data;
+
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            throw new Error(
+                "Server returned an unreadable response " +
+                "(status " + response.status + ")."
+            );
+        }
+
+        if (!response.ok || (data && data.error)) {
+            throw new Error(
+                (data && (data.details || data.error)) ||
+                "Hospital routing failed"
+            );
+        }
+
+        const leafletCoordinates = data.coordinates.map(function(p) {
+            return [p[1], p[0]];
+        });
+
+        if (leafletCoordinates.length === 1) {
+            leafletCoordinates.push(leafletCoordinates[0]);
+        }
+
+        const segmentRisks = Array.isArray(data.segment_risks) ?
+            data.segment_risks : [];
+
+        routeLine = L.featureGroup();
+
+        for (let i = 0; i < leafletCoordinates.length - 1; i++) {
+
+            const riskValue = Number(segmentRisks[i]) || 1;
+
+            L.polyline(
+                [leafletCoordinates[i], leafletCoordinates[i + 1]],
+                { color: segmentColor(riskValue), weight: 6, opacity: 0.9 }
+            ).addTo(routeLine);
+        }
+
+        routeLine.addTo(FLOODSAFE_MAP);
+
+        FLOODSAFE_MAP.fitBounds(
+            routeLine.getBounds(),
+            { padding: [40, 40] }
+        );
+
+        const distance = Number(data.distance_km).toFixed(2);
+        const hospitalName = data.hospital ?
+            escapeHtml(data.hospital.name) : "nearest hospital";
+
+        const risk = data.risk_counts || {};
+        const extreme = Number(risk["8.0"] || 0);
+
+        resultBox.innerHTML =
+            '<div class="fs-result-title">🏥 Hospital route</div>' +
+            '<div class="fs-route-mode">To: ' + hospitalName + '</div>' +
+            '<div class="fs-distance">' + distance + ' km</div>' +
+            (extreme > 0 ?
+                '<div class="fs-warning-message">⚠ Crosses ' + extreme +
+                ' Extreme-risk road segment(s)</div>' :
+                '<div class="fs-safe-message">✓ No Extreme-risk segments ' +
+                'on this route</div>');
+
+    } catch (error) {
+
+        console.error(error);
+
+        resultBox.innerHTML =
+            "Hospital routing error: " +
             escapeHtml(error.message || "Something went wrong.");
 
     } finally {

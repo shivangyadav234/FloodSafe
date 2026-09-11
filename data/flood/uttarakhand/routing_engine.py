@@ -717,24 +717,92 @@ def _load_shelters():
 shelters = _load_shelters()
 
 # Only "shelter"-kind points (shelter/community_centre/social_facility)
-# are evacuation targets — hospitals are shown on the map but aren't
-# treated as a place to send someone fleeing a flood.
+# are evacuation targets — hospitals are a separate target list used
+# for "route to nearest hospital" instead of flood evacuation.
 _evacuation_targets = [s for s in shelters if s.get("kind") == "shelter"]
+_hospital_targets = [s for s in shelters if s.get("kind") == "hospital"]
 
-if _evacuation_targets:
 
-    _shelter_coords = np.array([
-        [s["lon"], s["lat"]] for s in _evacuation_targets
-    ])
+def _build_tree(targets):
 
-    _shelter_tree = cKDTree(_shelter_coords)
+    if not targets:
+        return None
 
-else:
+    coords = np.array([[t["lon"], t["lat"]] for t in targets])
 
-    _shelter_tree = None
+    return cKDTree(coords)
+
+
+_shelter_tree = _build_tree(_evacuation_targets)
+_hospital_tree = _build_tree(_hospital_targets)
 
 print(f"Loaded {len(shelters)} shelter/hospital points "
-      f"({len(_evacuation_targets)} usable as evacuation targets)")
+      f"({len(_evacuation_targets)} evacuation targets, "
+      f"{len(_hospital_targets)} hospitals)")
+
+
+def _find_nearest_target(
+    targets,
+    tree,
+    start_lon,
+    start_lat,
+    mode,
+    report_points,
+    live_rain_mm,
+    max_candidates
+):
+    """
+    Shared shortlist-then-route logic for both find_nearest_shelter()
+    and find_nearest_hospital(): shortlist the `max_candidates`
+    straight-line-closest points (cheap), then run the real
+    flood-aware router to each and keep the one with the shortest
+    real route — the straight-line-nearest point isn't necessarily
+    the fastest/safest one to actually reach.
+    """
+
+    if tree is None:
+        return None
+
+    k = min(max_candidates, len(targets))
+
+    distances, indexes = tree.query(
+        [start_lon, start_lat],
+        k=k
+    )
+
+    indexes = np.atleast_1d(indexes)
+
+    best_target = None
+    best_result = None
+
+    for idx in indexes:
+
+        target = targets[int(idx)]
+
+        result = calculate_route(
+            start_lon=start_lon,
+            start_lat=start_lat,
+            end_lon=target["lon"],
+            end_lat=target["lat"],
+            mode=mode,
+            report_points=report_points,
+            live_rain_mm=live_rain_mm
+        )
+
+        if result is None:
+            continue
+
+        if best_result is None or result["distance_m"] < best_result["distance_m"]:
+            best_target = target
+            best_result = result
+
+    if best_result is None:
+        return None
+
+    return {
+        "target": best_target,
+        "route": best_result
+    }
 
 
 def find_nearest_shelter(
@@ -746,60 +814,47 @@ def find_nearest_shelter(
     max_candidates=5
 ):
     """
-    Find the best reachable shelter for an evacuation, by real road
-    distance (not straight-line) — the straight-line-nearest shelter
-    isn't necessarily the fastest/safest one to actually reach.
-
-    Shortlists the `max_candidates` straight-line-closest shelters
-    (cheap), then runs the real flood-aware router to each and picks
-    the one with the shortest real route. Returns
+    Find the best reachable shelter for an evacuation. Returns
     {"shelter": {...}, "route": <calculate_route result>} or None if
     no shelters are loaded or none are reachable.
     """
 
-    if _shelter_tree is None:
-        return None
-
-    k = min(max_candidates, len(_evacuation_targets))
-
-    distances, indexes = _shelter_tree.query(
-        [start_lon, start_lat],
-        k=k
+    found = _find_nearest_target(
+        _evacuation_targets, _shelter_tree,
+        start_lon, start_lat, mode,
+        report_points, live_rain_mm, max_candidates
     )
 
-    indexes = np.atleast_1d(indexes)
-
-    best_shelter = None
-    best_result = None
-
-    for idx in indexes:
-
-        shelter = _evacuation_targets[int(idx)]
-
-        result = calculate_route(
-            start_lon=start_lon,
-            start_lat=start_lat,
-            end_lon=shelter["lon"],
-            end_lat=shelter["lat"],
-            mode=mode,
-            report_points=report_points,
-            live_rain_mm=live_rain_mm
-        )
-
-        if result is None:
-            continue
-
-        if best_result is None or result["distance_m"] < best_result["distance_m"]:
-            best_shelter = shelter
-            best_result = result
-
-    if best_result is None:
+    if found is None:
         return None
 
-    return {
-        "shelter": best_shelter,
-        "route": best_result
-    }
+    return {"shelter": found["target"], "route": found["route"]}
+
+
+def find_nearest_hospital(
+    start_lon,
+    start_lat,
+    mode="SAFEST",
+    report_points=None,
+    live_rain_mm=None,
+    max_candidates=5
+):
+    """
+    Find the best reachable hospital, by real road distance. Returns
+    {"hospital": {...}, "route": <calculate_route result>} or None if
+    no hospitals are loaded or none are reachable.
+    """
+
+    found = _find_nearest_target(
+        _hospital_targets, _hospital_tree,
+        start_lon, start_lat, mode,
+        report_points, live_rain_mm, max_candidates
+    )
+
+    if found is None:
+        return None
+
+    return {"hospital": found["target"], "route": found["route"]}
 
 
 # ============================================================

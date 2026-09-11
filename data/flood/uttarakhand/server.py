@@ -56,7 +56,8 @@ ROUTING_ENGINE_ERROR = None
 try:
 
     from routing_engine import (
-        calculate_route, coordinates, shelters, find_nearest_shelter
+        calculate_route, coordinates, shelters,
+        find_nearest_shelter, find_nearest_hospital
     )
 
     ROUTING_ENGINE_AVAILABLE = True
@@ -67,6 +68,7 @@ except Exception as e:
     coordinates = None
     shelters = []
     find_nearest_shelter = None
+    find_nearest_hospital = None
 
     ROUTING_ENGINE_ERROR = str(e)
 
@@ -1813,6 +1815,133 @@ def evacuate():
         return jsonify({
             "status": "error",
             "error": "Evacuation routing failed",
+            "details": str(e)
+        }), 500
+
+
+# ============================================================
+# NEAREST HOSPITAL — route to the nearest reachable hospital
+#
+# Same shortlist-then-route logic as /evacuate, but against the
+# hospital target list instead of shelters — for "I need a
+# hospital" rather than "I need to flee a flood."
+# ============================================================
+
+@app.route("/nearest-hospital", methods=["POST"])
+def nearest_hospital():
+
+    if not ROUTING_ENGINE_AVAILABLE:
+
+        return jsonify({
+            "status": "error",
+            "error": "Routing is temporarily unavailable.",
+            "details": ROUTING_ENGINE_ERROR or "Routing engine failed to load."
+        }), 503
+
+    try:
+
+        data = request.get_json(force=True, silent=True)
+
+        if not isinstance(data, dict):
+
+            return jsonify({
+                "status": "error",
+                "error": "Request body must be valid JSON with lat, lon."
+            }), 400
+
+        try:
+
+            lat = float(data.get("lat"))
+            lon = float(data.get("lon"))
+
+        except (TypeError, ValueError):
+
+            return jsonify({
+                "status": "error",
+                "error": "lat and lon must be numbers."
+            }), 400
+
+        if not (-90.0 <= lat <= 90.0):
+
+            return jsonify({
+                "status": "error",
+                "error": "lat must be between -90 and 90."
+            }), 400
+
+        if not (-180.0 <= lon <= 180.0):
+
+            return jsonify({
+                "status": "error",
+                "error": "lon must be between -180 and 180."
+            }), 400
+
+        mode = str(data.get("mode", "SAFEST")).upper()
+
+        if mode not in ["FASTEST", "SAFEST"]:
+            mode = "SAFEST"
+
+        reports_list = [
+            [report["lon"], report["lat"]]
+            for report in _active_reports()
+        ]
+
+        live_rain_mm = data.get("live_rain_mm")
+
+        try:
+            live_rain_mm = (
+                float(live_rain_mm) if live_rain_mm is not None else None
+            )
+        except (TypeError, ValueError):
+            live_rain_mm = None
+
+        print()
+        print("================================")
+        print("NEAREST HOSPITAL")
+        print("================================")
+        print("From:", lat, lon, "mode:", mode)
+
+        outcome = find_nearest_hospital(
+            start_lon=lon,
+            start_lat=lat,
+            mode=mode,
+            report_points=reports_list,
+            live_rain_mm=live_rain_mm
+        )
+
+        if outcome is None:
+
+            return jsonify({
+                "status": "error",
+                "error": "No reachable hospital found.",
+                "details":
+                    "Either no hospitals are loaded for this region, or "
+                    "none could be reached from this location."
+            }), 422
+
+        response = _shape_route_result(outcome["route"], mode)
+        response["status"] = "ok"
+        response["hospital"] = {
+            "name": outcome["hospital"]["name"],
+            "lat": outcome["hospital"]["lat"],
+            "lon": outcome["hospital"]["lon"]
+        }
+
+        print(
+            "Nearest reachable hospital:",
+            outcome["hospital"]["name"],
+            f"({response['distance_km']:.2f} km)"
+        )
+
+        return jsonify(response)
+
+    except Exception as e:
+
+        print()
+        print("NEAREST HOSPITAL ERROR:", repr(e))
+
+        return jsonify({
+            "status": "error",
+            "error": "Hospital routing failed",
             "details": str(e)
         }), 500
 
