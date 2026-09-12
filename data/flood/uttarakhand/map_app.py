@@ -4063,8 +4063,18 @@ async function submitReport(lat, lon) {
         }
 
         if (lastRouteAction) {
+
+            // The reporter is presumably at (or right next to) the
+            // point they just reported — they're on this road, seeing
+            // the hazard right now — so the reroute should start from
+            // there, not from wherever "Current Location" was set at
+            // the beginning of the trip. Without this, reporting a
+            // hazard 20km into a drive would recompute the route from
+            // the original starting point instead of from here.
+            setCurrentLocation(lat, lon, placeName);
+
             rerunLastRouteAction(
-                "✓ Report submitted — recalculating your route to avoid it…"
+                "✓ Report submitted — recalculating your route from here…"
             );
         }
 
