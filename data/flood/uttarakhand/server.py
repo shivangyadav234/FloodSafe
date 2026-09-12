@@ -496,14 +496,79 @@ nav .wrap {
   stroke-dasharray: 700;
   stroke-dashoffset: 700;
   animation: draw 2.2s ease-out 0.3s forwards;
+  transition: opacity .25s ease, stroke-width .25s ease;
 }
 .route-risk {
   stroke-dasharray: 6 8;
   opacity: 0;
   animation: fadein 1s ease 1.6s forwards;
+  transition: opacity .25s ease, stroke-width .25s ease;
 }
 @keyframes draw { to { stroke-dashoffset: 0; } }
 @keyframes fadein { to { opacity: 0.85; } }
+
+.route-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 22;
+  cursor: pointer;
+  pointer-events: stroke;
+}
+
+.route-dimmed { opacity: 0.22 !important; }
+.route-active { stroke-width: 5.5; filter: url(#glow); }
+.route-risk.route-active { opacity: 0.95 !important; stroke-width: 4.5; }
+
+.route-dot {
+  opacity: 0;
+  filter: url(#glow);
+  pointer-events: none;
+}
+
+.extreme-marker {
+  opacity: 0;
+  transform: scale(0.6);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity .25s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
+  pointer-events: none;
+}
+.extreme-marker.show {
+  opacity: 1;
+  transform: scale(1);
+}
+.extreme-marker circle { filter: url(#glow); }
+.extreme-marker circle.ring {
+  fill: none;
+  stroke: #ff6b6b;
+  stroke-width: 2;
+  opacity: 0.6;
+  animation: ringpulse 1.4s ease-out infinite;
+}
+@keyframes ringpulse {
+  0% { r: 7; opacity: 0.7; }
+  100% { r: 16; opacity: 0; }
+}
+.extreme-marker text {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  fill: #ffb3ac;
+  letter-spacing: 0.04em;
+}
+
+.hero-art-hint {
+  position: absolute;
+  left: 0; right: 0; bottom: 14px;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-faint);
+  z-index: 2;
+  opacity: 0;
+  animation: chipin .6s ease 2.6s forwards;
+  pointer-events: none;
+}
 
 .pulse-node {
   animation: nodepulse 2.4s ease-in-out infinite;
@@ -863,7 +928,7 @@ footer a:hover { color: var(--text-muted); }
       <div class="blob b2"></div>
       <div class="hero-chip c1"><span class="sw" style="background:var(--red); box-shadow:0 0 8px var(--red);"></span>EXTREME risk detected</div>
       <div class="hero-chip c2"><span class="sw" style="background:var(--teal); box-shadow:0 0 8px var(--teal);"></span>Rerouted +29km safer</div>
-      <svg viewBox="0 0 340 300" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 340 300" xmlns="http://www.w3.org/2000/svg" id="heroSvg">
         <defs>
           <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="4" result="blur"/>
@@ -873,16 +938,30 @@ footer a:hover { color: var(--text-muted); }
             </feMerge>
           </filter>
         </defs>
-        <path class="route-risk" d="M20 250 Q 90 180 140 200 T 260 130 Q 300 100 320 60" fill="none" stroke="#ff6b6b" stroke-width="3" stroke-linecap="round"/>
-        <path class="route-safe" filter="url(#glow)" d="M20 250 Q 70 230 100 245 Q 150 270 180 230 Q 210 190 190 150 Q 170 105 210 85 Q 260 60 320 60" fill="none" stroke="url(#safeGrad)" stroke-width="4" stroke-linecap="round"/>
         <linearGradient id="safeGrad" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stop-color="#33e0ff"/>
           <stop offset="100%" stop-color="#2dd9b0"/>
         </linearGradient>
+
+        <path id="riskPath" class="route-risk" d="M20 250 Q 90 180 140 200 T 260 130 Q 300 100 320 60" fill="none" stroke="#ff6b6b" stroke-width="3" stroke-linecap="round"/>
+        <path id="safePath" class="route-safe" filter="url(#glow)" d="M20 250 Q 70 230 100 245 Q 150 270 180 230 Q 210 190 190 150 Q 170 105 210 85 Q 260 60 320 60" fill="none" stroke="url(#safeGrad)" stroke-width="4" stroke-linecap="round"/>
+
+        <path id="riskHit" class="route-hit" d="M20 250 Q 90 180 140 200 T 260 130 Q 300 100 320 60"/>
+        <path id="safeHit" class="route-hit" d="M20 250 Q 70 230 100 245 Q 150 270 180 230 Q 210 190 190 150 Q 170 105 210 85 Q 260 60 320 60"/>
+
         <circle class="pulse-node" cx="20" cy="250" r="6" fill="#eef2f7"/>
         <circle class="pulse-node" cx="320" cy="60" r="6" fill="#eef2f7"/>
-        <circle cx="190" cy="150" r="5" fill="#ff6b6b" filter="url(#glow)"/>
+
+        <circle id="riskDot" class="route-dot" r="5.5" fill="#ff6b6b"/>
+        <circle id="safeDot" class="route-dot" r="5.5" fill="#33e0ff"/>
+
+        <g id="extremeMarker" class="extreme-marker">
+          <circle class="ring" cx="197" cy="191" r="7"/>
+          <circle cx="197" cy="191" r="5.5" fill="#ff6b6b"/>
+          <text x="207" y="187">EXTREME</text>
+        </g>
       </svg>
+      <div class="hero-art-hint">↝ hover a route to trace it</div>
     </div>
   </div>
 </header>
@@ -1098,6 +1177,119 @@ const revealObserver = new IntersectionObserver((entries) => {
     });
 }, { threshold: 0.15 });
 revealEls.forEach((el) => revealObserver.observe(el));
+
+// ---------------------------------------------------------------
+// HERO ROUTE TRACING
+//
+// Hovering either route animates a dot traveling along that exact
+// curve (sampled live from the real SVG path via getPointAtLength,
+// not a canned CSS animation), dims the other route, and reveals
+// the EXTREME marker at the precise moment the traveling dot passes
+// the point where both routes come close to the hazard.
+// ---------------------------------------------------------------
+
+function initHeroTracing() {
+
+    const riskPath = document.getElementById('riskPath');
+    const safePath = document.getElementById('safePath');
+    const riskHit = document.getElementById('riskHit');
+    const safeHit = document.getElementById('safeHit');
+    const riskDot = document.getElementById('riskDot');
+    const safeDot = document.getElementById('safeDot');
+    const extremeMarker = document.getElementById('extremeMarker');
+
+    if (!riskPath || !safePath || !riskHit || !safeHit) return;
+
+    const EXTREME_POINT = { x: 197, y: 191 };
+    const REVEAL_THRESHOLD = 14;
+
+    function makeTracer(pathEl, dotEl, otherPathEl, durationMs) {
+
+        let generation = 0;
+
+        function start() {
+
+            generation += 1;
+            const myGeneration = generation;
+
+            let total;
+            try {
+                total = pathEl.getTotalLength();
+            } catch (error) {
+                return;
+            }
+
+            const startTime = performance.now();
+            let revealed = false;
+
+            dotEl.style.opacity = '1';
+            pathEl.classList.add('route-active');
+            otherPathEl.classList.add('route-dimmed');
+
+            function frame(now) {
+
+                if (myGeneration !== generation) return;
+
+                const elapsed = now - startTime;
+                const t = Math.min(elapsed / durationMs, 1);
+                const point = pathEl.getPointAtLength(t * total);
+
+                dotEl.setAttribute('cx', point.x);
+                dotEl.setAttribute('cy', point.y);
+
+                if (!revealed) {
+
+                    const dist = Math.hypot(
+                        point.x - EXTREME_POINT.x,
+                        point.y - EXTREME_POINT.y
+                    );
+
+                    if (dist < REVEAL_THRESHOLD) {
+                        revealed = true;
+                        if (extremeMarker) extremeMarker.classList.add('show');
+                    }
+                }
+
+                if (t < 1) {
+                    requestAnimationFrame(frame);
+                } else {
+                    // Loop the trace while still hovered, so a longer
+                    // hover keeps showing the journey rather than
+                    // freezing at the destination.
+                    requestAnimationFrame(() => start());
+                }
+            }
+
+            requestAnimationFrame(frame);
+        }
+
+        function stop() {
+
+            generation += 1;
+            dotEl.style.opacity = '0';
+            pathEl.classList.remove('route-active');
+            otherPathEl.classList.remove('route-dimmed');
+            if (extremeMarker) extremeMarker.classList.remove('show');
+        }
+
+        return { start, stop };
+    }
+
+    const riskTracer = makeTracer(riskPath, riskDot, safePath, 1500);
+    const safeTracer = makeTracer(safePath, safeDot, riskPath, 1900);
+
+    riskHit.addEventListener('mouseenter', riskTracer.start);
+    riskHit.addEventListener('mouseleave', riskTracer.stop);
+    riskHit.addEventListener('focus', riskTracer.start);
+    riskHit.addEventListener('blur', riskTracer.stop);
+
+    safeHit.addEventListener('mouseenter', safeTracer.start);
+    safeHit.addEventListener('mouseleave', safeTracer.stop);
+    safeHit.addEventListener('focus', safeTracer.start);
+    safeHit.addEventListener('blur', safeTracer.stop);
+}
+
+initHeroTracing();
 
 </script>
 
