@@ -178,6 +178,24 @@ def _save_reports(reports):
 
 _reports = _load_reports()
 
+# Tracks which client IPs have already confirmed which report, purely
+# to stop the same visitor inflating a count by clicking repeatedly.
+# Deliberately in-memory only (not persisted) — losing this on a
+# restart just means a handful of IPs could each confirm once more,
+# which is a low-stakes trade-off for a soft, best-effort guard, not
+# a real identity system.
+_confirmed_ips_by_report = {}
+
+
+def _get_client_ip():
+
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    return request.remote_addr or "unknown"
+
 
 def _active_reports():
 
@@ -1283,8 +1301,20 @@ header a.back-link:hover {
     justify-content: space-between;
 }
 
+.confirm-count {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #6a4a00;
+}
+
+.report-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
 .resolve-btn {
-    margin-top: 10px;
     padding: 7px 12px;
     border: 1px solid #2e7d32;
     border-radius: 8px;
@@ -1297,6 +1327,26 @@ header a.back-link:hover {
 
 .resolve-btn:hover {
     background: #d5ecd6;
+}
+
+.confirm-btn {
+    padding: 7px 12px;
+    border: 1px solid #b8860b;
+    border-radius: 8px;
+    background: #fff8e1;
+    color: #8a6300;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.confirm-btn:hover {
+    background: #ffedb3;
+}
+
+.confirm-btn:disabled {
+    opacity: 0.65;
+    cursor: default;
 }
 
 .empty-state {
@@ -1407,6 +1457,65 @@ async function resolveReport(id) {
     }
 }
 
+function getConfirmedReportIds() {
+
+    try {
+        const raw = localStorage.getItem("floodsafeConfirmedReports");
+        return raw ? JSON.parse(raw) : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+function markReportConfirmedLocally(id) {
+
+    try {
+
+        const ids = getConfirmedReportIds();
+
+        if (!ids.includes(id)) {
+            ids.push(id);
+            localStorage.setItem(
+                "floodsafeConfirmedReports",
+                JSON.stringify(ids)
+            );
+        }
+
+    } catch (error) {
+        // Private browsing / storage disabled -- just skip remembering it.
+    }
+}
+
+async function confirmReportCard(id, e) {
+
+    if (e) e.stopPropagation();
+
+    try {
+
+        const response = await fetch(
+            "/report/" + encodeURIComponent(id) + "/confirm",
+            { method: "POST" }
+        );
+
+        const data = await response.json().catch(function() {
+            return null;
+        });
+
+        if (!response.ok) {
+            alert((data && data.error) || "Failed to confirm this report.");
+            return;
+        }
+
+        markReportConfirmedLocally(id);
+        loadReportsView();
+
+    } catch (error) {
+
+        console.error(error);
+        alert("Failed to confirm this report. Please try again.");
+    }
+}
+
 async function loadReportsView() {
 
     const summaryBar = document.getElementById("summaryBar");
@@ -1459,6 +1568,19 @@ async function loadReportsView() {
 
             markers[report.id] = marker;
 
+            const confirmations = Number(report.confirmations) || 0;
+
+            const confirmCountText = confirmations > 0 ?
+                "Confirmed by " + confirmations +
+                (confirmations === 1 ? " other traveler" : " other travelers") :
+                "Not yet confirmed by anyone else";
+
+            const alreadyConfirmed = getConfirmedReportIds().includes(report.id);
+
+            const confirmBtnHtml = alreadyConfirmed ?
+                '<button class="confirm-btn" disabled>✓ You confirmed this</button>' :
+                '<button class="confirm-btn">👍 Still an issue?</button>';
+
             const card = document.createElement("div");
             card.className = "report-card";
             card.onclick = function() { focusReport(report.id); };
@@ -1473,7 +1595,11 @@ async function loadReportsView() {
                 '<span>' + report.lat.toFixed(5) + ', ' +
                 report.lon.toFixed(5) + '</span>' +
                 '</div>' +
-                '<button class="resolve-btn">✓ Mark resolved — road is clear</button>';
+                '<div class="confirm-count">' + confirmCountText + '</div>' +
+                '<div class="report-actions">' +
+                confirmBtnHtml +
+                '<button class="resolve-btn">✓ Mark resolved — road is clear</button>' +
+                '</div>';
 
             const resolveBtn = card.querySelector(".resolve-btn");
 
@@ -1481,6 +1607,14 @@ async function loadReportsView() {
                 e.stopPropagation();
                 resolveReport(report.id);
             };
+
+            const confirmBtn = card.querySelector(".confirm-btn");
+
+            if (confirmBtn && !confirmBtn.disabled) {
+                confirmBtn.onclick = function(e) {
+                    confirmReportCard(report.id, e);
+                };
+            }
 
             listEl.appendChild(card);
         });
@@ -1583,7 +1717,8 @@ def post_report():
         "place_name": place_name,
         "description": description,
         "reporter_name": reporter_name,
-        "timestamp": time.time()
+        "timestamp": time.time(),
+        "confirmations": 0
     }
 
     print()
@@ -1634,7 +1769,55 @@ def resolve_report(report_id):
     print()
     print("Report resolved:", report_id)
 
+    _confirmed_ips_by_report.pop(report_id, None)
+
     return jsonify({"status": "ok", "id": report_id})
+
+
+# ============================================================
+# CONFIRM REPORT
+#
+# A lightweight "still an issue" signal, separate from resolving.
+# Turns a lone, unverifiable report into a visible trust signal
+# ("confirmed by 3 travelers") without requiring accounts. Confirming
+# doesn't change routing at all — the road is already blocked by the
+# report's mere existence — it only affects the displayed count.
+# ============================================================
+
+@app.route("/report/<report_id>/confirm", methods=["POST"])
+def confirm_report(report_id):
+
+    report = next(
+        (r for r in _reports if r.get("id") == report_id),
+        None
+    )
+
+    if report is None:
+
+        return jsonify({
+            "status": "error",
+            "error":
+                "Report not found — it may have already been resolved "
+                "or expired."
+        }), 404
+
+    client_ip = _get_client_ip()
+    already_confirmed_ips = _confirmed_ips_by_report.setdefault(report_id, set())
+
+    already_confirmed = client_ip in already_confirmed_ips
+
+    if not already_confirmed:
+
+        already_confirmed_ips.add(client_ip)
+        report["confirmations"] = int(report.get("confirmations", 0)) + 1
+        _save_reports(_reports)
+
+    return jsonify({
+        "status": "ok",
+        "id": report_id,
+        "confirmations": report.get("confirmations", 0),
+        "already_confirmed": already_confirmed
+    })
 
 
 # ============================================================

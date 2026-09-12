@@ -56,7 +56,12 @@ produced a route distinct from both Fastest and Safest.
   also auto-expire after 6 hours, or anyone can mark one "resolved" early
   (from its map popup or the reports page) once the road is actually
   clear, which removes it for everyone immediately and re-checks nearby
-  routes in case a shorter path just opened up.
+  routes in case a shorter path just opened up. Anyone can also confirm
+  a report ("Still an issue?") to turn a lone, unverifiable claim into a
+  visible trust signal ("Confirmed by 3 other travelers") — guarded
+  per-report by a combination of local browser state and a server-side
+  IP check so the same visitor can't inflate the count by clicking
+  repeatedly.
 - **Route comparison** — see Fastest and Safest side by side on one map, with
   a stats card showing the extra distance the safe route costs and how many
   extreme-risk segments it avoids.

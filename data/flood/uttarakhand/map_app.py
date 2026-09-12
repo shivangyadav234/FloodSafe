@@ -1284,8 +1284,21 @@ css = """
     background: #006970;
 }
 
-.fs-resolve-btn {
+.fs-confirm-count {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #6a4a00;
+}
+
+.fs-hazard-actions {
+    display: flex;
+    gap: 6px;
     margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.fs-resolve-btn {
     padding: 6px 10px;
     border: 1px solid #2e7d32;
     border-radius: 8px;
@@ -1298,6 +1311,26 @@ css = """
 
 .fs-resolve-btn:hover {
     background: #d5ecd6;
+}
+
+.fs-confirm-btn {
+    padding: 6px 10px;
+    border: 1px solid #b8860b;
+    border-radius: 8px;
+    background: #fff8e1;
+    color: #8a6300;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.fs-confirm-btn:hover {
+    background: #ffedb3;
+}
+
+.fs-confirm-btn:disabled {
+    opacity: 0.65;
+    cursor: default;
 }
 
 
@@ -3443,12 +3476,36 @@ function hazardIcon() {
     });
 }
 
-function addHazardMarker(report) {
+function getConfirmedReportIds() {
 
-    const marker = L.marker(
-        [report.lat, report.lon],
-        { icon: hazardIcon() }
-    ).addTo(FLOODSAFE_MAP);
+    try {
+        const raw = localStorage.getItem("floodsafeConfirmedReports");
+        return raw ? JSON.parse(raw) : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+function markReportConfirmedLocally(reportId) {
+
+    try {
+
+        const ids = getConfirmedReportIds();
+
+        if (!ids.includes(reportId)) {
+            ids.push(reportId);
+            localStorage.setItem(
+                "floodsafeConfirmedReports",
+                JSON.stringify(ids)
+            );
+        }
+
+    } catch (error) {
+        // Private browsing / storage disabled -- just skip remembering it.
+    }
+}
+
+function hazardPopupHtml(report) {
 
     const placeLabel = report.place_name ?
         report.place_name.split(",").slice(0, 2).join(",") :
@@ -3458,29 +3515,104 @@ function addHazardMarker(report) {
         "Reported by " + escapeHtml(report.reporter_name) :
         "Reported anonymously";
 
-    marker.bindPopup(
+    const confirmations = Number(report.confirmations) || 0;
+    const alreadyConfirmed = getConfirmedReportIds().includes(report.id);
+
+    const confirmCountText = confirmations > 0 ?
+        "Confirmed by " + confirmations +
+        (confirmations === 1 ? " other traveler" : " other travelers") :
+        "Not yet confirmed by anyone else";
+
+    const confirmBtnHtml = alreadyConfirmed ?
+        "<button class='fs-confirm-btn' disabled>✓ You confirmed this</button>" :
+        "<button class='fs-confirm-btn'>👍 Still an issue?</button>";
+
+    return (
         "<div class='fs-hazard-popup'>" +
         "<b>Reported hazard</b>" +
         (placeLabel ? "<br>" + escapeHtml(placeLabel) : "") +
         "<br>" + escapeHtml(report.description) +
         "<br><span style='color:#888; font-size:12px;'>" +
         reporterLabel + "</span>" +
-        "<br><button class='fs-resolve-btn'>✓ Road is clear now</button>" +
+        "<br><span class='fs-confirm-count'>" + confirmCountText + "</span>" +
+        "<div class='fs-hazard-actions'>" +
+        confirmBtnHtml +
+        "<button class='fs-resolve-btn'>✓ Road is clear now</button>" +
+        "</div>" +
         "</div>"
     );
+}
+
+function wireHazardPopupButtons(marker, report) {
+
+    const resolveBtn = document.querySelector(".fs-hazard-popup .fs-resolve-btn");
+
+    if (resolveBtn) {
+        resolveBtn.onclick = function() {
+            resolveReport(report.id, marker);
+        };
+    }
+
+    const confirmBtn = document.querySelector(".fs-hazard-popup .fs-confirm-btn");
+
+    if (confirmBtn && !confirmBtn.disabled) {
+        confirmBtn.onclick = function() {
+            confirmReport(report, marker);
+        };
+    }
+}
+
+function addHazardMarker(report) {
+
+    const marker = L.marker(
+        [report.lat, report.lon],
+        { icon: hazardIcon() }
+    ).addTo(FLOODSAFE_MAP);
+
+    marker.bindPopup(hazardPopupHtml(report));
 
     marker.on("popupopen", function() {
-
-        const btn = document.querySelector(".fs-hazard-popup .fs-resolve-btn");
-
-        if (btn) {
-            btn.onclick = function() {
-                resolveReport(report.id, marker);
-            };
-        }
+        wireHazardPopupButtons(marker, report);
     });
 
     hazardMarkers.push(marker);
+}
+
+async function confirmReport(report, marker) {
+
+    try {
+
+        const response = await fetchWithTimeout(
+            "/report/" + encodeURIComponent(report.id) + "/confirm",
+            { method: "POST" },
+            10000
+        );
+
+        let data;
+
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            data = null;
+        }
+
+        if (!response.ok) {
+            alert((data && data.error) || "Failed to confirm this report.");
+            return;
+        }
+
+        report.confirmations = data.confirmations;
+        markReportConfirmedLocally(report.id);
+
+        if (marker && marker.isPopupOpen()) {
+            marker.setPopupContent(hazardPopupHtml(report));
+            wireHazardPopupButtons(marker, report);
+        }
+
+    } catch (error) {
+        console.error(error);
+        alert("Failed to confirm this report. Please try again.");
+    }
 }
 
 async function resolveReport(reportId, marker) {
