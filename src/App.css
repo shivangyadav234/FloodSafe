@@ -155,8 +155,10 @@ body {
       transparent 69px
     );
 
-  animation:
-    radarRotate 24s linear infinite;
+  /* Static -- a rotationally-symmetric ring pattern looks identical at
+     any rotation angle, so the animation was a no-op visually while
+     still costing a continuous full-viewport compositor layer. See the
+     note on .app-background::before for the broader flicker fix. */
 
   pointer-events: none;
 
@@ -193,8 +195,6 @@ body {
 
   z-index: 0;
 
-  /* Isolate each blob on its own compositor layer */
-  will-change: transform;
   contain: layout style paint;
 }
 
@@ -214,8 +214,10 @@ body {
   top: -200px;
   left: -160px;
 
-  animation:
-    orbOne 14s ease-in-out infinite alternate;
+  /* Static, not animated -- see the note on .app-background::before:
+     too many simultaneously-animating full-viewport layers (3 blobs +
+     grid + radar, on top of the WebGL map and the modal overlays) was
+     overloading the compositor and causing visible tearing/flicker. */
 }
 
 
@@ -232,9 +234,6 @@ body {
 
   right: -240px;
   bottom: -220px;
-
-  animation:
-    orbTwo 18s ease-in-out infinite alternate;
 }
 
 
@@ -251,9 +250,6 @@ body {
 
   left: 52%;
   top: 40%;
-
-  animation:
-    orbThree 16s ease-in-out infinite alternate;
 }
 
 
