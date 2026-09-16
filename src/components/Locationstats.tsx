@@ -3,6 +3,11 @@ import {
   useState
 } from "react";
 
+// Same SOS backend base URL as sosApiService.ts -- there's no dev-server
+// proxy for a production static build, so these can't be relative "/api/..."
+// paths (they'd hit this site's own origin instead of the backend).
+const SOS_API_BASE = import.meta.env.VITE_SOS_API_URL ?? "/api";
+
 
 type UserLocation = {
   place: string;
@@ -271,7 +276,7 @@ function LocationStats({
         // Try backend proxy first, fallback to Overpass public
         let data: any = null;
         try {
-          const res = await fetch(`/api/shelters?lat=${lat}&lon=${lon}`);
+          const res = await fetch(`${SOS_API_BASE}/shelters?lat=${lat}&lon=${lon}`);
           if (res.ok) {
             data = await res.json();
           }
@@ -308,7 +313,7 @@ function LocationStats({
       try {
         let alertArray: any[] = [];
         try {
-          const response = await fetch("/api/alerts/sachet");
+          const response = await fetch(`${SOS_API_BASE}/alerts/sachet`);
           if (response.ok) {
             const data = await response.json();
             if (Array.isArray(data)) alertArray = data;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getWardDetail, type WardDetail } from "../services/ffgsApiService";
+import { getWardDetail, FfgsApiError, type WardDetail } from "../services/ffgsApiService";
 import RainfallPanel from "./RainfallPanel";
 import "./WardDetailPanel.css";
 
@@ -41,18 +41,27 @@ interface WardDetailPanelProps {
 function WardDetailPanel({ wardId, onClose }: WardDetailPanelProps) {
   const [detail, setDetail] = useState<WardDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A 404 here means this ward has no scored risk data yet (e.g. uninhabited
+  // terrain) -- expected per the API's own docs, not a real error.
+  const [noData, setNoData] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setDetail(null);
     setError(null);
+    setNoData(false);
 
     getWardDetail(wardId)
       .then((d) => {
         if (!cancelled) setDetail(d);
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message || "Failed to load ward data.");
+        if (cancelled) return;
+        if (err instanceof FfgsApiError && err.status === 404) {
+          setNoData(true);
+        } else {
+          setError(err.message || "Failed to load ward data.");
+        }
       });
 
     return () => {
@@ -65,7 +74,13 @@ function WardDetailPanel({ wardId, onClose }: WardDetailPanelProps) {
       <div className="ward-panel" onClick={(e) => e.stopPropagation()}>
         {error && <div className="ward-panel-error">⚠ {error}</div>}
 
-        {!error && !detail && <div className="ward-panel-loading">Loading ward data…</div>}
+        {noData && (
+          <div className="ward-panel-loading">
+            No flood-risk data is available yet for this ward.
+          </div>
+        )}
+
+        {!error && !noData && !detail && <div className="ward-panel-loading">Loading ward data…</div>}
 
         {detail && (
           <>

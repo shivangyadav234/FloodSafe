@@ -6,6 +6,14 @@
 
 const FFGS_API_URL = import.meta.env.VITE_FFGS_API_URL || "/ffgs-api";
 
+export class FfgsApiError extends Error {
+  status: number;
+  constructor(path: string, status: number) {
+    super(`FFGS API ${path} returned ${status}`);
+    this.status = status;
+  }
+}
+
 export interface WardFeatureProperties {
   ward_id: number;
   ward_name: string;
@@ -66,7 +74,7 @@ export interface ActiveAlert {
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${FFGS_API_URL}${path}`);
   if (!res.ok) {
-    throw new Error(`FFGS API ${path} returned ${res.status}`);
+    throw new FfgsApiError(path, res.status);
   }
   return res.json();
 }
