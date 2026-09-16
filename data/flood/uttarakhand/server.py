@@ -552,6 +552,13 @@ table.stats-table .stat-value {
   color: var(--navy);
 }
 
+.stat-station {
+  font-family: -apple-system, "Segoe UI", Verdana, Arial, sans-serif;
+  font-weight: 400;
+  font-size: 0.78125rem;
+  color: var(--muted);
+}
+
 .legend-row {
   display: flex; gap: 18px; flex-wrap: wrap;
   font-size: 0.78125rem; color: var(--muted);
@@ -781,7 +788,8 @@ footer.site-footer .disclaimer {
         <tr><td data-i18n="statNodesLabel">Road network nodes covered</td><td class="stat-value" id="statNodes">—</td></tr>
         <tr><td data-i18n="statSheltersLabel">Shelters &amp; hospitals mapped</td><td class="stat-value" id="statShelters">—</td></tr>
         <tr><td data-i18n="statReportsLabel">Active hazard reports right now</td><td class="stat-value" id="statReports">—</td></tr>
-        <tr><td data-i18n="statWeatherLabel">Live rainfall — Dehradun reference point</td><td class="stat-value" id="statWeather">—</td></tr>
+        <tr><td data-i18n="statWeatherWetLabel">Live rainfall — currently wettest station</td><td class="stat-value"><span id="statWeatherWet">—</span> <span class="stat-station" id="statWeatherWetName"></span></td></tr>
+        <tr><td data-i18n="statWeatherDryLabel">Live rainfall — currently driest station</td><td class="stat-value"><span id="statWeatherDry">—</span> <span class="stat-station" id="statWeatherDryName"></span></td></tr>
       </tbody>
     </table>
     <div class="legend-row">
@@ -921,7 +929,8 @@ const translations = {
     statNodesLabel: "Road network nodes covered",
     statSheltersLabel: "Shelters & hospitals mapped",
     statReportsLabel: "Active hazard reports right now",
-    statWeatherLabel: "Live rainfall — Dehradun reference point",
+    statWeatherWetLabel: "Live rainfall — currently wettest station",
+    statWeatherDryLabel: "Live rainfall — currently driest station",
     hazardLow: "LOW hazard",
     hazardModerate: "MODERATE hazard",
     hazardSignificant: "SIGNIFICANT hazard",
@@ -995,7 +1004,8 @@ const translations = {
     statNodesLabel: "सड़क नेटवर्क नोड्स शामिल",
     statSheltersLabel: "आश्रय स्थल और अस्पताल मैप किए गए",
     statReportsLabel: "अभी सक्रिय खतरा रिपोर्टें",
-    statWeatherLabel: "लाइव वर्षा — देहरादून संदर्भ बिंदु",
+    statWeatherWetLabel: "लाइव वर्षा — अभी सबसे अधिक वर्षा वाला स्टेशन",
+    statWeatherDryLabel: "लाइव वर्षा — अभी सबसे कम वर्षा वाला स्टेशन",
     hazardLow: "कम खतरा",
     hazardModerate: "मध्यम खतरा",
     hazardSignificant: "उच्च खतरा",
@@ -1093,7 +1103,10 @@ function renderDynamicText() {
         document.getElementById('statusText').textContent = t(statusStateKey);
     }
     if (weatherStateKey) {
-        document.getElementById('statWeather').textContent = t(weatherStateKey);
+        document.getElementById('statWeatherWet').textContent = t(weatherStateKey);
+        document.getElementById('statWeatherDry').textContent = t(weatherStateKey);
+        document.getElementById('statWeatherWetName').textContent = '';
+        document.getElementById('statWeatherDryName').textContent = '';
     }
 }
 
@@ -1138,6 +1151,23 @@ document.getElementById('textReset').addEventListener('click', function() {
 });
 
 // ---- Live status strip ----
+
+// A spread of towns across different districts of Uttarakhand, used
+// to show the current wettest and driest reporting points side by
+// side (see loadLiveStrip below) rather than one fixed reference
+// point, so the live-data claim is visibly demonstrated rather than
+// just asserted.
+const RAINFALL_STATIONS = [
+    { name: 'Dehradun', lat: 30.3165, lon: 78.0322 },
+    { name: 'Rishikesh', lat: 30.0869, lon: 78.2676 },
+    { name: 'Haridwar', lat: 29.9457, lon: 78.1642 },
+    { name: 'Mussoorie', lat: 30.4598, lon: 78.0664 },
+    { name: 'Nainital', lat: 29.3803, lon: 79.4636 },
+    { name: 'Haldwani', lat: 29.2183, lon: 79.5130 },
+    { name: 'Almora', lat: 29.5892, lon: 79.6467 },
+    { name: 'Pithoragarh', lat: 29.5822, lon: 80.2181 },
+    { name: 'Joshimath', lat: 30.5551, lon: 79.5643 }
+];
 
 function animateCount(el, target, suffix, duration) {
     suffix = suffix || '';
@@ -1186,27 +1216,49 @@ async function loadLiveStrip() {
     try {
         // Called directly from the browser, not proxied through this
         // server — see fetchLiveConditions() in map_app.py for why.
-        const payload = await (await fetch(
-            'https://api.open-meteo.com/v1/forecast?latitude=30.3165&longitude=78.0322' +
-            '&current=precipitation&hourly=precipitation&forecast_days=1&timezone=auto'
-        )).json();
+        // Checking several towns spread across the state (rather than
+        // one fixed point) and showing the current wettest and driest
+        // side by side makes it obvious this is a live reading, not a
+        // hard-coded number — if it isn't raining anywhere right now,
+        // both will genuinely show 0.0mm rather than looking stuck.
+        const results = await Promise.all(RAINFALL_STATIONS.map(function(station) {
+            return fetch(
+                'https://api.open-meteo.com/v1/forecast?latitude=' + station.lat +
+                '&longitude=' + station.lon +
+                '&current=precipitation&hourly=precipitation&forecast_days=1&timezone=auto'
+            )
+                .then(function(r) { return r.json(); })
+                .then(function(payload) {
+                    if (!payload || !payload.current) return null;
+                    const currentMm = Number(payload.current.precipitation || 0);
+                    const hourlyTimes = (payload.hourly && payload.hourly.time) || [];
+                    const hourlyPrecip = (payload.hourly && payload.hourly.precipitation) || [];
+                    const currentTime = payload.current.time;
+                    let next3hMm = 0;
+                    if (currentTime && hourlyTimes.length) {
+                        let startIndex = hourlyTimes.indexOf(currentTime);
+                        if (startIndex === -1) startIndex = 0;
+                        next3hMm = hourlyPrecip
+                            .slice(startIndex, startIndex + 3)
+                            .reduce((sum, v) => sum + (Number(v) || 0), 0);
+                    }
+                    return { name: station.name, mm: currentMm + next3hMm };
+                })
+                .catch(function() { return null; });
+        }));
 
-        const el = document.getElementById('statWeather');
+        const valid = results.filter(function(r) { return r !== null; });
 
-        if (payload && payload.current) {
-            const currentMm = Number(payload.current.precipitation || 0);
-            const hourlyTimes = (payload.hourly && payload.hourly.time) || [];
-            const hourlyPrecip = (payload.hourly && payload.hourly.precipitation) || [];
-            const currentTime = payload.current.time;
-            let next3hMm = 0;
-            if (currentTime && hourlyTimes.length) {
-                let startIndex = hourlyTimes.indexOf(currentTime);
-                if (startIndex === -1) startIndex = 0;
-                next3hMm = hourlyPrecip
-                    .slice(startIndex, startIndex + 3)
-                    .reduce((sum, v) => sum + (Number(v) || 0), 0);
-            }
-            el.textContent = (currentMm + next3hMm).toFixed(1) + ' mm';
+        if (valid.length > 0) {
+            valid.sort(function(a, b) { return b.mm - a.mm; });
+            const wettest = valid[0];
+            const driest = valid[valid.length - 1];
+
+            document.getElementById('statWeatherWet').textContent = wettest.mm.toFixed(1) + ' mm';
+            document.getElementById('statWeatherWetName').textContent = '(' + wettest.name + ')';
+            document.getElementById('statWeatherDry').textContent = driest.mm.toFixed(1) + ' mm';
+            document.getElementById('statWeatherDryName').textContent = '(' + driest.name + ')';
+
             weatherStateKey = null;
         } else {
             weatherStateKey = 'weatherUnavailable';
