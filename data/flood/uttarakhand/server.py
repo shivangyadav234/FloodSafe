@@ -1230,19 +1230,14 @@ async function loadLiveStrip() {
                 .then(function(r) { return r.json(); })
                 .then(function(payload) {
                     if (!payload || !payload.current) return null;
+                    // Current conditions only — not blended with the next
+                    // few hours' forecast. This figure exists specifically
+                    // to demonstrate live data, so it needs to match what
+                    // a visitor can independently verify is happening
+                    // right now (e.g. against any weather app), not read
+                    // as "raining" purely because rain is forecast soon.
                     const currentMm = Number(payload.current.precipitation || 0);
-                    const hourlyTimes = (payload.hourly && payload.hourly.time) || [];
-                    const hourlyPrecip = (payload.hourly && payload.hourly.precipitation) || [];
-                    const currentTime = payload.current.time;
-                    let next3hMm = 0;
-                    if (currentTime && hourlyTimes.length) {
-                        let startIndex = hourlyTimes.indexOf(currentTime);
-                        if (startIndex === -1) startIndex = 0;
-                        next3hMm = hourlyPrecip
-                            .slice(startIndex, startIndex + 3)
-                            .reduce((sum, v) => sum + (Number(v) || 0), 0);
-                    }
-                    return { name: station.name, mm: currentMm + next3hMm };
+                    return { name: station.name, mm: currentMm };
                 })
                 .catch(function() { return null; });
         }));
