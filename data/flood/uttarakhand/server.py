@@ -252,12 +252,16 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
 
 * { box-sizing: border-box; }
 
+html {
+  font-size: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
   font-family: -apple-system, "Segoe UI", Verdana, Arial, sans-serif;
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.55;
 }
 
@@ -293,7 +297,7 @@ code, .mono { font-family: 'Consolas', 'Courier New', monospace; }
 .utility-bar {
   background: var(--navy-dark);
   color: #cfe0ee;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .utility-bar .wrap {
   display: flex;
@@ -313,7 +317,7 @@ code, .mono { font-family: 'Consolas', 'Courier New', monospace; }
   background: transparent;
   border: none;
   color: #9db4c9;
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: pointer;
   padding: 2px 3px;
   font-family: inherit;
@@ -333,7 +337,7 @@ code, .mono { font-family: 'Consolas', 'Courier New', monospace; }
   border-radius: 3px;
   padding: 1px 7px;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .text-size-controls button:hover { background: #123553; }
 
@@ -358,19 +362,19 @@ header.site-header .wrap {
   border: 2px solid var(--navy);
   border-radius: 4px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
+  font-size: 1.25rem;
   color: var(--navy);
   background: #eef3f7;
   flex-shrink: 0;
 }
-.brand-text .name { font-size: 19px; font-weight: 700; color: var(--navy); line-height: 1.1; }
-.brand-text .tagline { font-size: 12px; color: var(--muted); }
+.brand-text .name { font-size: 1.1875rem; font-weight: 700; color: var(--navy); line-height: 1.1; }
+.brand-text .tagline { font-size: 0.75rem; color: var(--muted); }
 
 nav.main-nav { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
 nav.main-nav a.nav-link {
   color: var(--ink);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   border-bottom: 2px solid transparent;
   padding-bottom: 3px;
@@ -383,7 +387,7 @@ nav.main-nav a.nav-link:hover { border-bottom-color: var(--navy); }
   color: white !important;
   border: 1px solid var(--navy);
   padding: 8px 16px;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   font-weight: 700;
   text-decoration: none;
   border-radius: 3px;
@@ -396,7 +400,7 @@ nav.main-nav a.nav-link:hover { border-bottom-color: var(--navy); }
   color: var(--navy) !important;
   border: 1px solid var(--navy);
   padding: 8px 16px;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   font-weight: 700;
   text-decoration: none;
   border-radius: 3px;
@@ -411,7 +415,7 @@ main section {
 }
 
 .section-label {
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -433,7 +437,7 @@ main section {
   border-left: 5px solid var(--notice-border);
   border-radius: 2px;
   padding: 10px 14px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: #5c4300;
   margin-bottom: 18px;
   display: flex;
@@ -451,13 +455,13 @@ main section {
 }
 
 .hero h1 {
-  font-size: 32px;
+  font-size: 2rem;
   line-height: 1.25;
 }
 .hero h1 em { font-style: normal; color: var(--safe); }
 
 .hero p.sub {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   color: var(--muted);
   max-width: 480px;
   margin: 14px 0 20px;
@@ -471,7 +475,7 @@ main section {
   padding: 14px;
 }
 .diagram-panel .diagram-caption {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted);
   margin-bottom: 8px;
   text-align: center;
@@ -489,14 +493,14 @@ main section {
 .extreme-marker.show { opacity: 1; }
 .extreme-marker text {
   font-family: 'Consolas', monospace;
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   fill: var(--risk);
 }
 
 .diagram-legend {
   display: flex; gap: 16px; justify-content: center;
-  font-size: 12px; color: var(--muted);
+  font-size: 0.75rem; color: var(--muted);
   margin-top: 8px; flex-wrap: wrap;
 }
 .diagram-legend span { display: inline-flex; align-items: center; gap: 5px; }
@@ -504,7 +508,7 @@ main section {
 
 .diagram-hint {
   text-align: center;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   color: var(--faint);
   margin-top: 6px;
 }
@@ -513,7 +517,7 @@ main section {
 
 .status-line {
   display: flex; align-items: center; gap: 8px;
-  font-size: 13px; color: var(--muted);
+  font-size: 0.8125rem; color: var(--muted);
   margin-bottom: 14px;
 }
 .status-dot {
@@ -526,7 +530,7 @@ main section {
 table.stats-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
 }
 table.stats-table th, table.stats-table td {
   border: 1px solid var(--border);
@@ -536,7 +540,7 @@ table.stats-table th, table.stats-table td {
 table.stats-table th {
   background: var(--navy);
   color: white;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -544,13 +548,13 @@ table.stats-table tr:nth-child(even) td { background: #f7f9fa; }
 table.stats-table .stat-value {
   font-family: 'Consolas', monospace;
   font-weight: 700;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: var(--navy);
 }
 
 .legend-row {
   display: flex; gap: 18px; flex-wrap: wrap;
-  font-size: 12.5px; color: var(--muted);
+  font-size: 0.78125rem; color: var(--muted);
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px dashed var(--border);
@@ -563,7 +567,7 @@ table.stats-table .stat-value {
 table.compare-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   margin-top: 14px;
 }
 table.compare-table th, table.compare-table td {
@@ -574,7 +578,7 @@ table.compare-table th, table.compare-table td {
 table.compare-table th {
   background: var(--navy);
   color: white;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   text-transform: uppercase;
 }
 table.compare-table td.num { font-family: 'Consolas', monospace; text-align: right; }
@@ -582,7 +586,7 @@ table.compare-table tr.row-safe td { background: var(--safe-bg); }
 table.compare-table tr.row-risk td { background: var(--risk-bg); }
 
 .compare-note {
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--muted);
   margin-top: 8px;
   font-style: italic;
@@ -607,7 +611,7 @@ table.compare-table tr.row-risk td { background: var(--risk-bg); }
 }
 .feature-item:nth-child(2n) { border-right: none; }
 .feature-item h3 {
-  font-size: 14.5px;
+  font-size: 0.90625rem;
   margin-bottom: 6px;
   display: flex; align-items: center; gap: 7px;
 }
@@ -616,17 +620,17 @@ table.compare-table tr.row-risk td { background: var(--risk-bg); }
   width: 20px; height: 20px;
   border: 1px solid var(--navy);
   color: var(--navy);
-  font-size: 11px; font-weight: 700;
+  font-size: 0.6875rem; font-weight: 700;
   border-radius: 2px;
   flex-shrink: 0;
 }
-.feature-item p { font-size: 13px; color: var(--muted); margin: 0; }
+.feature-item p { font-size: 0.8125rem; color: var(--muted); margin: 0; }
 
 /* ---------------- SOURCES ---------------- */
 
 .sources-list {
   margin-top: 10px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--muted);
 }
 .sources-list dt { font-weight: 700; color: var(--ink); float: left; clear: left; width: 130px; }
@@ -635,15 +639,15 @@ table.compare-table tr.row-risk td { background: var(--risk-bg); }
 /* ---------------- FINAL CTA ---------------- */
 
 .final-cta { text-align: center; padding: 36px 0; }
-.final-cta h2 { font-size: 22px; margin-bottom: 8px; }
-.final-cta p { color: var(--muted); margin: 0 0 16px; font-size: 13.5px; }
+.final-cta h2 { font-size: 1.375rem; margin-bottom: 8px; }
+.final-cta p { color: var(--muted); margin: 0 0 16px; font-size: 0.84375rem; }
 
 /* ---------------- FOOTER ---------------- */
 
 footer.site-footer {
   background: var(--navy-dark);
   color: #b9cce0;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   padding: 22px 0;
 }
 footer.site-footer .footer-links {
@@ -657,7 +661,7 @@ footer.site-footer .disclaimer {
   padding-top: 10px;
   margin-top: 10px;
   color: #92a8bd;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   line-height: 1.6;
 }
 
@@ -794,7 +798,7 @@ footer.site-footer .disclaimer {
   <div class="wrap">
     <div class="section-label" data-i18n="caseLabel">Case Reference</div>
     <h2 data-i18n="caseTitle">Route comparison: Pachora to Chamun, Pithoragarh District</h2>
-    <p style="color:var(--muted); font-size:13.5px; max-width:640px;" data-i18n="caseText">The direct road between these two points crosses 10 road segments classified EXTREME. The advisory system reroutes around all of them for a 32% longer, but demonstrably safer, trip.</p>
+    <p style="color:var(--muted); font-size:0.84375rem; max-width:640px;" data-i18n="caseText">The direct road between these two points crosses 10 road segments classified EXTREME. The advisory system reroutes around all of them for a 32% longer, but demonstrably safer, trip.</p>
     <table class="compare-table">
       <thead>
         <tr><th data-i18n="compareMode">Route Mode</th><th data-i18n="compareDistance">Distance</th><th data-i18n="compareSegments">Extreme-Risk Segments Crossed</th></tr>
@@ -858,7 +862,7 @@ footer.site-footer .disclaimer {
   <div class="wrap">
     <h2 data-i18n="finalTitle">Access the flood-aware map tool</h2>
     <p data-i18n="finalText">No registration required. Available to all road users in Uttarakhand.</p>
-    <a class="btn-official" href="/app" style="padding:11px 22px; font-size:14.5px;" data-i18n="finalCta">Open FloodSafe Map Tool →</a>
+    <a class="btn-official" href="/app" style="padding:11px 22px; font-size:0.90625rem;" data-i18n="finalCta">Open FloodSafe Map Tool →</a>
   </div>
 </section>
 
@@ -1114,7 +1118,10 @@ document.querySelectorAll('.lang-toggle button').forEach(function(btn) {
 let fontStep = 0;
 
 function applyFontStep() {
-    document.body.style.fontSize = (15 + fontStep * 1.5) + 'px';
+    // Scales the root element, not body — every font-size in this
+    // stylesheet is in rem (relative to the root), so this single line
+    // resizes the entire page proportionally, not just body's own text.
+    document.documentElement.style.fontSize = (100 + fontStep * 12.5) + '%';
 }
 
 document.getElementById('textSmaller').addEventListener('click', function() {
