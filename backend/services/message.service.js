@@ -36,6 +36,8 @@ function generateSOSMessage({ userName, location, timestamp, isTest }) {
     '',
     `Sender: ${userName}`,
     `Time: ${time}`,
+    '',
+    `Track flood risk & safe routes: https://floodsafe-u207.onrender.com/`,
   ].join('\n');
 }
 
