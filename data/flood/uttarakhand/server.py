@@ -228,858 +228,665 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FloodSafe — flood-aware navigation for Uttarakhand</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<title>FloodSafe — flood-aware road advisory for Uttarakhand</title>
 <style>
 
 :root {
-  --bg: #06090f;
-  --bg-2: #0a0f18;
-  --surface: rgba(255,255,255,0.035);
-  --surface-2: rgba(255,255,255,0.06);
-  --border: rgba(255,255,255,0.09);
-  --border-strong: rgba(255,255,255,0.18);
-  --text: #eef2f7;
-  --text-muted: #93a0b4;
-  --text-faint: #57627a;
-  --cyan: #33e0ff;
-  --teal: #2dd9b0;
-  --violet: #9b8cff;
-  --amber: #ffb84d;
-  --red: #ff6b6b;
-  --shadow-glow: 0 0 0 1px rgba(255,255,255,0.06), 0 20px 60px rgba(0,0,0,0.55);
+  --navy: #0b3558;
+  --navy-dark: #062338;
+  --ink: #1a1f24;
+  --muted: #4a5560;
+  --faint: #6b7680;
+  --border: #c9d2d9;
+  --border-strong: #9fb0bd;
+  --bg: #f3f5f6;
+  --panel: #ffffff;
+  --notice-bg: #fff8e1;
+  --notice-border: #b5860f;
+  --safe: #14532d;
+  --safe-bg: #eaf3ec;
+  --risk: #7a1f1f;
+  --risk-bg: #f7eceb;
+  --link: #0b3558;
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--text);
-  font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 16.5px;
-  line-height: 1.6;
-  position: relative;
-  overflow-x: hidden;
-}
-
-/* ambient background: grid + drifting glow orbs + grain */
-
-.bg-fixed {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.bg-grid {
-  position: absolute;
-  inset: -2px;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 0%, transparent 75%);
-}
-
-.orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.5;
-  animation: drift 22s ease-in-out infinite alternate;
-}
-
-.orb.o1 { width: 560px; height: 560px; top: -220px; left: -140px; background: radial-gradient(circle, var(--cyan), transparent 70%); }
-.orb.o2 { width: 460px; height: 460px; top: 80px; right: -160px; background: radial-gradient(circle, var(--violet), transparent 70%); animation-duration: 28s; animation-delay: -6s; }
-.orb.o3 { width: 500px; height: 500px; top: 1400px; left: 30%; background: radial-gradient(circle, var(--teal), transparent 70%); opacity: 0.28; animation-duration: 26s; }
-
-@keyframes drift {
-  0% { transform: translate(0,0) scale(1); }
-  100% { transform: translate(40px,60px) scale(1.08); }
-}
-
-.grain {
-  position: absolute; inset: 0;
-  opacity: 0.05;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", Verdana, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 h1, h2, h3 {
-  font-family: 'Bricolage Grotesque', 'Source Sans 3', sans-serif;
-  color: var(--text);
-  text-wrap: balance;
+  color: var(--navy);
   margin: 0;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  text-wrap: balance;
 }
 
-code, .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+a { color: var(--link); }
+a:hover { text-decoration: none; }
 
-a { color: var(--cyan); }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
 
-.wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 1; }
+code, .mono { font-family: 'Consolas', 'Courier New', monospace; }
 
-.grad-text {
-  background: linear-gradient(90deg, var(--cyan), var(--teal));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+/* ---------------- SKIP LINK ---------------- */
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  background: var(--navy);
+  color: white;
+  padding: 8px 14px;
+  z-index: 100;
+}
+.skip-link:focus { left: 8px; top: 8px; }
+
+/* ---------------- UTILITY BAR ---------------- */
+
+.utility-bar {
+  background: var(--navy-dark);
+  color: #cfe0ee;
+  font-size: 12px;
+}
+.utility-bar .wrap {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 20px;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.utility-bar a { color: #cfe0ee; text-decoration: none; }
+.utility-bar a:hover { text-decoration: underline; }
+.text-size-controls { display: flex; align-items: center; gap: 6px; }
+.text-size-controls button {
+  background: transparent;
+  border: 1px solid #3a5674;
+  color: #cfe0ee;
+  border-radius: 3px;
+  padding: 1px 7px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.text-size-controls button:hover { background: #123553; }
+
+/* ---------------- HEADER ---------------- */
+
+header.site-header {
+  background: var(--panel);
+  border-bottom: 3px solid var(--navy);
+}
+header.site-header .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.reveal {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s ease, transform 0.7s ease;
+.brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.brand .mark {
+  width: 42px; height: 42px;
+  border: 2px solid var(--navy);
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  color: var(--navy);
+  background: #eef3f7;
+  flex-shrink: 0;
 }
-.reveal.in {
-  opacity: 1;
-  transform: translateY(0);
+.brand-text .name { font-size: 19px; font-weight: 700; color: var(--navy); line-height: 1.1; }
+.brand-text .tagline { font-size: 12px; color: var(--muted); }
+
+nav.main-nav { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+nav.main-nav a.nav-link {
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  padding-bottom: 3px;
 }
+nav.main-nav a.nav-link:hover { border-bottom-color: var(--navy); }
 
-/* ---------------- NAV ---------------- */
+.btn-official {
+  display: inline-block;
+  background: var(--navy);
+  color: white !important;
+  border: 1px solid var(--navy);
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 3px;
+}
+.btn-official:hover { background: var(--navy-dark); }
 
-nav {
-  position: sticky; top: 0; z-index: 30;
-  background: rgba(6,9,15,0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+.btn-outline {
+  display: inline-block;
+  background: white;
+  color: var(--navy) !important;
+  border: 1px solid var(--navy);
+  padding: 8px 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 3px;
+}
+.btn-outline:hover { background: #eef3f7; }
+
+/* ---------------- SECTIONS (shared) ---------------- */
+
+main section {
+  padding: 30px 0;
   border-bottom: 1px solid var(--border);
 }
 
-nav .wrap {
-  display: flex; align-items: center; justify-content: space-between;
-  padding-top: 16px; padding-bottom: 16px;
-}
-
-.brand {
-  display: flex; align-items: center; gap: 10px;
-  font-family: 'Bricolage Grotesque', sans-serif;
-  font-weight: 700; font-size: 19px; color: var(--text);
-  text-decoration: none;
-}
-
-.brand .mark {
-  width: 30px; height: 30px; border-radius: 9px;
-  background: linear-gradient(155deg, var(--cyan), var(--violet));
-  display: inline-flex; align-items: center; justify-content: center;
-  color: #06090f; font-size: 15px;
-  box-shadow: 0 0 24px rgba(51,224,255,0.35);
-}
-
-.nav-links { display: flex; align-items: center; gap: 26px; }
-.nav-links a.plain { color: var(--text-muted); text-decoration: none; font-size: 14.5px; transition: color .15s ease; }
-.nav-links a.plain:hover { color: var(--text); }
-
-.btn-primary {
-  background: linear-gradient(90deg, var(--cyan), var(--teal));
-  color: #04121a !important;
-  padding: 10px 20px;
-  border-radius: 999px;
-  text-decoration: none;
+.section-label {
+  font-size: 11.5px;
   font-weight: 700;
-  font-size: 14.5px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transition: transform .18s ease, box-shadow .18s ease;
-  box-shadow: 0 0 0 1px rgba(51,224,255,0.25), 0 10px 30px -8px rgba(51,224,255,0.55);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
 }
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(51,224,255,0.4), 0 16px 36px -6px rgba(51,224,255,0.7); }
 
-.btn-glass {
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  color: var(--text) !important;
-  padding: 10px 20px;
-  border-radius: 999px;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 14.5px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
 }
-.btn-glass:hover { background: var(--surface-2); border-color: rgba(255,255,255,0.3); transform: translateY(-2px); }
 
 /* ---------------- HERO ---------------- */
 
-.hero {
-  padding: 84px 0 56px;
-  position: relative;
+.advisory-box {
+  background: var(--notice-bg);
+  border: 1px solid var(--notice-border);
+  border-left: 5px solid var(--notice-border);
+  border-radius: 2px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #5c4300;
+  margin-bottom: 18px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
 }
+.advisory-box b { color: #4a3600; }
 
 .hero-grid {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 54px;
-  align-items: center;
-}
-
-.eyebrow {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 12.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--cyan);
-  background: rgba(51,224,255,0.1);
-  border: 1px solid rgba(51,224,255,0.25);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 13px;
-  border-radius: 999px;
-  margin-bottom: 22px;
-}
-
-.eyebrow .dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--cyan);
-  box-shadow: 0 0 8px var(--cyan);
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 30px;
+  align-items: start;
+  padding-top: 8px;
 }
 
 .hero h1 {
-  font-size: 58px;
-  line-height: 1.04;
-  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.25;
 }
-
-.hero h1 em {
-  font-style: normal;
-}
+.hero h1 em { font-style: normal; color: var(--safe); }
 
 .hero p.sub {
-  font-size: 18.5px;
-  color: var(--text-muted);
-  max-width: 490px;
-  margin: 20px 0 30px;
+  font-size: 14.5px;
+  color: var(--muted);
+  max-width: 480px;
+  margin: 14px 0 20px;
 }
 
-.hero-ctas { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.hero-ctas { display: flex; gap: 10px; flex-wrap: wrap; }
 
-/* hero art: mock "product" card */
+/* ---------------- DIAGRAM PANEL ---------------- */
 
-.hero-art {
-  background: linear-gradient(165deg, #0d1420, #070b12);
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  box-shadow: var(--shadow-glow);
-  padding: 0;
-  aspect-ratio: 1 / 0.95;
-  position: relative;
-  overflow: hidden;
+.diagram-panel {
+  padding: 14px;
 }
-
-.hero-art .grid-pattern {
-  position: absolute; inset: 0;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: radial-gradient(ellipse 90% 70% at 50% 40%, black 30%, transparent 90%);
-}
-
-.hero-art .blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-}
-.hero-art .blob.b1 { width: 220px; height: 220px; top: -40px; right: -40px; background: radial-gradient(circle, rgba(155,140,255,0.4), transparent 70%); }
-.hero-art .blob.b2 { width: 260px; height: 260px; bottom: -60px; left: -60px; background: radial-gradient(circle, rgba(51,224,255,0.32), transparent 70%); }
-
-.hero-art svg { width: 100%; height: 100%; position: relative; z-index: 1; }
-
-.route-safe {
-  stroke-dasharray: 700;
-  stroke-dashoffset: 700;
-  animation: draw 2.2s ease-out 0.3s forwards;
-  transition: opacity .25s ease, stroke-width .25s ease;
-}
-.route-risk {
-  stroke-dasharray: 6 8;
-  opacity: 0;
-  animation: fadein 1s ease 1.6s forwards;
-  transition: opacity .25s ease, stroke-width .25s ease;
-}
-@keyframes draw { to { stroke-dashoffset: 0; } }
-@keyframes fadein { to { opacity: 0.85; } }
-
-.route-hit {
-  fill: none;
-  stroke: transparent;
-  stroke-width: 22;
-  cursor: pointer;
-  pointer-events: stroke;
-}
-
-.route-dimmed { opacity: 0.22 !important; }
-.route-active { stroke-width: 5.5; filter: url(#glow); }
-.route-risk.route-active { opacity: 0.95 !important; stroke-width: 4.5; }
-
-.route-dot {
-  opacity: 0;
-  filter: url(#glow);
-  pointer-events: none;
-}
-
-.extreme-marker {
-  opacity: 0;
-  transform: scale(0.6);
-  transform-box: fill-box;
-  transform-origin: center;
-  transition: opacity .25s ease, transform .25s cubic-bezier(.34,1.56,.64,1);
-  pointer-events: none;
-}
-.extreme-marker.show {
-  opacity: 1;
-  transform: scale(1);
-}
-.extreme-marker circle { filter: url(#glow); }
-.extreme-marker circle.ring {
-  fill: none;
-  stroke: #ff6b6b;
-  stroke-width: 2;
-  opacity: 0.6;
-  animation: ringpulse 1.4s ease-out infinite;
-}
-@keyframes ringpulse {
-  0% { r: 7; opacity: 0.7; }
-  100% { r: 16; opacity: 0; }
-}
-.extreme-marker text {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 10px;
-  font-weight: 600;
-  fill: #ffb3ac;
-  letter-spacing: 0.04em;
-}
-
-.hero-art-hint {
-  position: absolute;
-  left: 0; right: 0; bottom: 14px;
+.diagram-panel .diagram-caption {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
   text-align: center;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  color: var(--text-faint);
-  z-index: 2;
-  opacity: 0;
-  animation: chipin .6s ease 2.6s forwards;
-  pointer-events: none;
+}
+.diagram-panel svg { width: 100%; height: auto; display: block; }
+
+.route-hit { fill: none; stroke: transparent; stroke-width: 22; cursor: pointer; pointer-events: stroke; }
+.route-safe-line { transition: opacity .2s ease, stroke-width .2s ease; }
+.route-risk-line { transition: opacity .2s ease, stroke-width .2s ease; stroke-dasharray: 5 6; }
+.route-dimmed { opacity: 0.25 !important; }
+.route-active { stroke-width: 4.5; }
+.route-dot { opacity: 0; pointer-events: none; }
+
+.extreme-marker { opacity: 0; transition: opacity .2s ease; pointer-events: none; }
+.extreme-marker.show { opacity: 1; }
+.extreme-marker text {
+  font-family: 'Consolas', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--risk);
 }
 
-.pulse-node {
-  animation: nodepulse 2.4s ease-in-out infinite;
+.diagram-legend {
+  display: flex; gap: 16px; justify-content: center;
+  font-size: 12px; color: var(--muted);
+  margin-top: 8px; flex-wrap: wrap;
 }
-@keyframes nodepulse {
-  0%, 100% { r: 6; opacity: 1; }
-  50% { r: 8.5; opacity: 0.7; }
-}
+.diagram-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.diagram-legend .sw { width: 14px; height: 3px; display: inline-block; }
 
-.hero-chip {
-  position: absolute;
-  background: rgba(10,15,24,0.85);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  padding: 9px 13px;
-  font-family: 'IBM Plex Mono', monospace;
+.diagram-hint {
+  text-align: center;
   font-size: 11.5px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.45);
-  z-index: 2;
-  opacity: 0;
-  animation: chipin 0.6s ease forwards;
-}
-.hero-chip .sw { width: 8px; height: 8px; border-radius: 50%; }
-.hero-chip.c1 { top: 24px; left: 22px; animation-delay: 0.4s; }
-.hero-chip.c2 { bottom: 60px; right: 20px; animation-delay: 2.1s; }
-@keyframes chipin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-/* ---------------- LIVE STRIP ---------------- */
-
-.live-strip {
-  padding: 30px 0 8px;
+  color: var(--faint);
+  margin-top: 6px;
 }
 
-.live-status-pill {
-  display: inline-flex; align-items: center; gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 8px 16px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 12.5px;
-  color: var(--text-muted);
-  margin-bottom: 22px;
-}
+/* ---------------- LIVE STATUS ---------------- */
 
-.pulse-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--teal);
-  box-shadow: 0 0 10px var(--teal);
-  animation: pulse 2.2s infinite;
-}
-.pulse-dot.off { background: var(--red); box-shadow: 0 0 10px var(--red); animation: none; }
-
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(45,217,176,0.55); }
-  70% { box-shadow: 0 0 0 10px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
-}
-
-.live-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
-
-.live-tile {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px 20px 18px;
-  position: relative;
-  overflow: hidden;
-  transition: border-color .2s ease, transform .2s ease;
-}
-.live-tile:hover { border-color: var(--border-strong); transform: translateY(-3px); }
-
-.live-tile .lv-icon {
-  width: 34px; height: 34px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
+.status-line {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--muted);
   margin-bottom: 14px;
 }
-.live-tile.t1 .lv-icon { background: rgba(51,224,255,0.14); }
-.live-tile.t2 .lv-icon { background: rgba(155,140,255,0.14); }
-.live-tile.t3 .lv-icon { background: rgba(255,184,77,0.14); }
-.live-tile.t4 .lv-icon { background: rgba(45,217,176,0.14); }
-
-.live-tile .lv-num {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 28px;
-  font-weight: 600;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-  min-height: 34px;
+.status-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--safe);
+  border: 1px solid #0d3d1f;
 }
+.status-dot.off { background: var(--risk); border-color: #5c1414; }
 
-.live-tile .lv-label {
-  font-size: 12.5px;
-  color: var(--text-faint);
-  margin-top: 4px;
-}
-
-.skeleton { opacity: 0.25; }
-
-/* ---------------- HAZARD LEGEND ---------------- */
-
-.legend-band {
-  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-  padding: 26px 0;
-  margin-top: 10px;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-
-.legend-band .lb-label { color: var(--text); font-weight: 600; margin-right: 4px; }
-.legend-sw { display: inline-flex; align-items: center; gap: 7px; }
-.legend-sw .dot { width: 9px; height: 9px; border-radius: 3px; box-shadow: 0 0 8px currentColor; }
-
-/* ---------------- STORY ---------------- */
-
-.story {
-  padding: 72px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.story-grid {
-  display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
-  gap: 48px;
-  align-items: start;
-}
-
-.section-kicker {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 12px;
-  color: var(--amber);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin-bottom: 12px;
-  display: flex; align-items: center; gap: 8px;
-}
-.section-kicker::before {
-  content: '';
-  width: 16px; height: 1px;
-  background: var(--amber);
-}
-
-.story h2 { font-size: 32px; margin-bottom: 16px; }
-.story p { color: var(--text-muted); font-size: 15.5px; }
-
-.compare-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  box-shadow: var(--shadow-glow);
-  padding: 26px 28px;
-}
-
-.compare-card .route-label {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 12px;
-  color: var(--text-faint);
-  margin-bottom: 18px;
-  letter-spacing: 0.03em;
-}
-
-.compare-rows { display: flex; flex-direction: column; gap: 12px; }
-
-.compare-row {
-  display: grid;
-  grid-template-columns: 92px 1fr 74px;
-  align-items: center;
-  gap: 12px;
+table.stats-table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 13.5px;
 }
-
-.compare-row .bar-track {
-  background: rgba(255,255,255,0.05);
-  border-radius: 8px;
-  height: 26px;
-  position: relative;
-  overflow: hidden;
+table.stats-table th, table.stats-table td {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+}
+table.stats-table th {
+  background: var(--navy);
+  color: white;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+table.stats-table tr:nth-child(even) td { background: #f7f9fa; }
+table.stats-table .stat-value {
+  font-family: 'Consolas', monospace;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--navy);
 }
 
-.compare-row .bar-fill {
-  position: absolute; left: 0; top: 0; bottom: 0;
-  border-radius: 8px;
-  display: flex; align-items: center;
-  padding-left: 10px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  color: #04121a;
-  font-weight: 600;
-  white-space: nowrap;
-  width: 0;
-  animation: growbar 1.4s cubic-bezier(.2,.8,.2,1) forwards;
-  animation-delay: 0.3s;
+.legend-row {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--muted);
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
 }
+.legend-row span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-row .dot { width: 10px; height: 10px; border-radius: 2px; }
 
-.compare-row.fastest .bar-fill { background: linear-gradient(90deg, #ff8a80, var(--red)); --target: 76%; }
-.compare-row.safest .bar-fill { background: linear-gradient(90deg, var(--teal), var(--cyan)); --target: 100%; animation-delay: 0.6s; }
+/* ---------------- COMPARISON TABLE ---------------- */
 
-@keyframes growbar { to { width: var(--target); } }
+table.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  margin-top: 14px;
+}
+table.compare-table th, table.compare-table td {
+  border: 1px solid var(--border);
+  padding: 9px 12px;
+  text-align: left;
+}
+table.compare-table th {
+  background: var(--navy);
+  color: white;
+  font-size: 11.5px;
+  text-transform: uppercase;
+}
+table.compare-table td.num { font-family: 'Consolas', monospace; text-align: right; }
+table.compare-table tr.row-safe td { background: var(--safe-bg); }
+table.compare-table tr.row-risk td { background: var(--risk-bg); }
 
-.compare-row .val { font-family: 'IBM Plex Mono', monospace; text-align: right; font-weight: 700; color: var(--text); }
-
-.compare-foot {
-  margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border);
-  font-size: 12.5px; color: var(--text-faint); font-family: 'IBM Plex Mono', monospace;
+.compare-note {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 8px;
+  font-style: italic;
 }
 
 /* ---------------- FEATURES ---------------- */
 
-.features { padding: 72px 0; border-bottom: 1px solid var(--border); }
-
-.features h2 { font-size: 32px; margin-bottom: 10px; }
-.features > .wrap > p.lede { color: var(--text-muted); margin: 0 0 36px; font-size: 15.5px; max-width: 560px; }
-
-.feature-grid {
+.feature-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
-}
-
-.feature-card {
-  background: var(--surface);
+  gap: 0;
+  margin-top: 14px;
   border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 24px;
-  transition: border-color .2s ease, transform .2s ease, background .2s ease;
-  position: relative;
+  border-radius: 3px;
+  overflow: hidden;
 }
-.feature-card:hover { border-color: var(--border-strong); transform: translateY(-4px); background: var(--surface-2); }
-
-.feature-card .ic {
-  width: 42px; height: 42px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 19px; margin-bottom: 16px;
+.feature-item {
+  padding: 16px 18px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
 }
-.feature-card:nth-child(1) .ic { background: linear-gradient(155deg, rgba(51,224,255,0.25), rgba(51,224,255,0.05)); }
-.feature-card:nth-child(2) .ic { background: linear-gradient(155deg, rgba(155,140,255,0.25), rgba(155,140,255,0.05)); }
-.feature-card:nth-child(3) .ic { background: linear-gradient(155deg, rgba(255,184,77,0.25), rgba(255,184,77,0.05)); }
-.feature-card:nth-child(4) .ic { background: linear-gradient(155deg, rgba(255,107,107,0.25), rgba(255,107,107,0.05)); }
-
-.feature-card h3 { font-size: 17px; font-family: 'Source Sans 3',sans-serif; font-weight: 700; margin-bottom: 7px; }
-.feature-card p { font-size: 14px; color: var(--text-muted); margin: 0; line-height: 1.55; }
+.feature-item:nth-child(2n) { border-right: none; }
+.feature-item h3 {
+  font-size: 14.5px;
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 7px;
+}
+.feature-item .num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  border: 1px solid var(--navy);
+  color: var(--navy);
+  font-size: 11px; font-weight: 700;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.feature-item p { font-size: 13px; color: var(--muted); margin: 0; }
 
 /* ---------------- SOURCES ---------------- */
 
-.sources-band {
-  padding: 44px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.sources-band .sb-label {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--text-faint);
-  margin-bottom: 18px;
-}
-
-.pill-row { display: flex; gap: 10px; flex-wrap: wrap; }
-
-.src-pill {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 8px 15px;
+.sources-list {
+  margin-top: 10px;
   font-size: 13px;
-  color: var(--text-muted);
-  display: flex; align-items: center; gap: 7px;
-  transition: border-color .2s ease;
+  color: var(--muted);
 }
-.src-pill:hover { border-color: var(--border-strong); }
-.src-pill b { color: var(--text); font-weight: 600; }
+.sources-list dt { font-weight: 700; color: var(--ink); float: left; clear: left; width: 130px; }
+.sources-list dd { margin: 0 0 6px 140px; }
 
 /* ---------------- FINAL CTA ---------------- */
 
-.final-cta {
-  padding: 88px 0 72px;
-  text-align: center;
-  position: relative;
+.final-cta { text-align: center; padding: 36px 0; }
+.final-cta h2 { font-size: 22px; margin-bottom: 8px; }
+.final-cta p { color: var(--muted); margin: 0 0 16px; font-size: 13.5px; }
+
+/* ---------------- FOOTER ---------------- */
+
+footer.site-footer {
+  background: var(--navy-dark);
+  color: #b9cce0;
+  font-size: 12.5px;
+  padding: 22px 0;
+}
+footer.site-footer .footer-links {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+footer.site-footer a { color: #cfe0ee; text-decoration: none; }
+footer.site-footer a:hover { text-decoration: underline; }
+footer.site-footer .disclaimer {
+  border-top: 1px solid #1c3f5c;
+  padding-top: 10px;
+  margin-top: 10px;
+  color: #92a8bd;
+  font-size: 11.5px;
+  line-height: 1.6;
 }
 
-.final-cta h2 { font-size: 40px; margin-bottom: 14px; }
-.final-cta p { color: var(--text-muted); margin: 0 0 30px; font-size: 16px; }
-
-footer {
-  border-top: 1px solid var(--border);
-  padding: 28px 0 44px;
-  display: flex; justify-content: space-between; align-items: center;
-  flex-wrap: wrap; gap: 10px;
-  font-size: 13px; color: var(--text-faint);
-  position: relative; z-index: 1;
-}
-
-footer a { color: var(--text-faint); }
-footer a:hover { color: var(--text-muted); }
-
-@media (max-width: 860px) {
+@media (max-width: 820px) {
   .hero-grid { grid-template-columns: 1fr; }
-  .hero h1 { font-size: 42px; }
-  .live-grid { grid-template-columns: repeat(2, 1fr); }
-  .story-grid { grid-template-columns: 1fr; }
-  .feature-grid { grid-template-columns: 1fr; }
-  .nav-links a.plain { display: none; }
-  .hero-chip.c2 { right: auto; left: 20px; bottom: 20px; }
+  .feature-list { grid-template-columns: 1fr; }
+  .feature-item:nth-child(2n) { border-right: 1px solid var(--border); }
+  .sources-list dt { float: none; width: auto; }
+  .sources-list dd { margin-left: 0; }
 }
 
 </style>
 </head>
 <body>
 
-<div class="bg-fixed">
-  <div class="bg-grid"></div>
-  <div class="orb o1"></div>
-  <div class="orb o2"></div>
-  <div class="orb o3"></div>
-  <div class="grain"></div>
-</div>
+<a class="skip-link" href="#main-content">Skip to main content</a>
 
-<nav>
+<div class="utility-bar">
   <div class="wrap">
-    <a class="brand" href="/"><span class="mark">🌊</span> FloodSafe</a>
-    <div class="nav-links">
-      <a class="plain" href="#live">Live status</a>
-      <a class="plain" href="#features">Features</a>
-      <a class="plain" href="/reports-view">Reports</a>
-      <a class="btn-primary" href="/app">Launch app →</a>
+    <span>FloodSafe Portal — Flood-Aware Road Advisory Service</span>
+    <div class="text-size-controls">
+      <span>Text size:</span>
+      <button type="button" id="textSmaller" aria-label="Decrease text size">A-</button>
+      <button type="button" id="textReset" aria-label="Reset text size">A</button>
+      <button type="button" id="textLarger" aria-label="Increase text size">A+</button>
     </div>
   </div>
-</nav>
+</div>
 
-<header class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <span class="eyebrow"><span class="dot"></span>Uttarakhand &middot; live routing</span>
-      <h1>Fastest isn't<br>always <em class="grad-text">safe</em>.</h1>
-      <p class="sub">FloodSafe routes you around flood-hazard roads using a real government hazard atlas, not just distance &mdash; on a live graph of 2 million road nodes across Uttarakhand.</p>
-      <div class="hero-ctas">
-        <a class="btn-primary" href="/app">Open the map →</a>
-        <a class="btn-glass" href="#live">See it working live ↓</a>
-      </div>
-    </div>
-    <div class="hero-art">
-      <div class="grid-pattern"></div>
-      <div class="blob b1"></div>
-      <div class="blob b2"></div>
-      <div class="hero-chip c1"><span class="sw" style="background:var(--red); box-shadow:0 0 8px var(--red);"></span>EXTREME risk detected</div>
-      <div class="hero-chip c2"><span class="sw" style="background:var(--teal); box-shadow:0 0 8px var(--teal);"></span>Rerouted +29km safer</div>
-      <svg viewBox="0 0 340 300" xmlns="http://www.w3.org/2000/svg" id="heroSvg">
-        <defs>
-          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur"/>
-            <feMerge>
-              <feMergeNode in="blur"/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
-          </filter>
-        </defs>
-        <linearGradient id="safeGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#33e0ff"/>
-          <stop offset="100%" stop-color="#2dd9b0"/>
-        </linearGradient>
-
-        <path id="riskPath" class="route-risk" d="M20 250 Q 90 180 140 200 T 260 130 Q 300 100 320 60" fill="none" stroke="#ff6b6b" stroke-width="3" stroke-linecap="round"/>
-        <path id="safePath" class="route-safe" filter="url(#glow)" d="M20 250 Q 70 230 100 245 Q 150 270 180 230 Q 210 190 190 150 Q 170 105 210 85 Q 260 60 320 60" fill="none" stroke="url(#safeGrad)" stroke-width="4" stroke-linecap="round"/>
-
-        <path id="riskHit" class="route-hit" d="M20 250 Q 90 180 140 200 T 260 130 Q 300 100 320 60"/>
-        <path id="safeHit" class="route-hit" d="M20 250 Q 70 230 100 245 Q 150 270 180 230 Q 210 190 190 150 Q 170 105 210 85 Q 260 60 320 60"/>
-
-        <circle class="pulse-node" cx="20" cy="250" r="6" fill="#eef2f7"/>
-        <circle class="pulse-node" cx="320" cy="60" r="6" fill="#eef2f7"/>
-
-        <circle id="riskDot" class="route-dot" r="5.5" fill="#ff6b6b"/>
-        <circle id="safeDot" class="route-dot" r="5.5" fill="#33e0ff"/>
-
-        <g id="extremeMarker" class="extreme-marker">
-          <circle class="ring" cx="197" cy="191" r="7"/>
-          <circle cx="197" cy="191" r="5.5" fill="#ff6b6b"/>
-          <text x="207" y="187">EXTREME</text>
-        </g>
-      </svg>
-      <div class="hero-art-hint">↝ hover a route to trace it</div>
-    </div>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <span class="mark">⚑</span>
+      <span class="brand-text">
+        <span class="name">FloodSafe</span>
+        <span class="tagline">Flood-Aware Road Advisory — Uttarakhand</span>
+      </span>
+    </a>
+    <nav class="main-nav">
+      <a class="nav-link" href="#status">Live Status</a>
+      <a class="nav-link" href="#features">Services</a>
+      <a class="nav-link" href="/reports-view">Hazard Reports</a>
+      <a class="btn-official" href="/app">Open Map Tool</a>
+    </nav>
   </div>
 </header>
 
-<section class="wrap live-strip" id="live">
-  <div class="live-status-pill"><span class="pulse-dot" id="statusDot"></span> <span id="statusText">Checking live status…</span></div>
-  <div class="live-grid">
-    <div class="live-tile t1"><div class="lv-icon">🗺️</div><div class="lv-num skeleton" id="statNodes">—</div><div class="lv-label">road nodes in the graph</div></div>
-    <div class="live-tile t2"><div class="lv-icon">⛺</div><div class="lv-num skeleton" id="statShelters">—</div><div class="lv-label">shelters &amp; hospitals mapped</div></div>
-    <div class="live-tile t3"><div class="lv-icon">🚨</div><div class="lv-num skeleton" id="statReports">—</div><div class="lv-label">active hazard reports right now</div></div>
-    <div class="live-tile t4"><div class="lv-icon">🌧️</div><div class="lv-num skeleton" id="statWeather">—</div><div class="lv-label">live rainfall, Dehradun</div></div>
-  </div>
+<main id="main-content">
 
-  <div class="legend-band">
-    <span class="lb-label">Hazard classes:</span>
-    <span class="legend-sw" style="color:#4ade80"><span class="dot" style="background:#4ade80"></span>LOW</span>
-    <span class="legend-sw" style="color:#facc15"><span class="dot" style="background:#facc15"></span>MODERATE</span>
-    <span class="legend-sw" style="color:#fb923c"><span class="dot" style="background:#fb923c"></span>SIGNIFICANT</span>
-    <span class="legend-sw" style="color:#ff6b6b"><span class="dot" style="background:#ff6b6b"></span>EXTREME</span>
-    <span style="margin-left:auto; color:var(--text-faint);">from a georeferenced state flash-flood hazard atlas</span>
-  </div>
-</section>
-
-<section class="story reveal">
-  <div class="wrap story-grid">
-    <div>
-      <div class="section-kicker">Real example</div>
-      <h2>It knows when a detour isn't worth it</h2>
-      <p>Between Pachora and Chamun in Pithoragarh district, the direct road crosses 10 extreme-risk segments. Safest mode reroutes around all of them for a reasonable 32% longer trip &mdash; a genuine, different path, not just a warning label.</p>
-      <p>But it also knows when to stop. On a different route where avoiding risk would triple the distance, Safest refuses the detour and says so, instead of sending you on an hour-long loop to dodge 300 metres of bad road.</p>
+<section class="hero">
+  <div class="wrap">
+    <div class="advisory-box">
+      <span>⚠</span>
+      <span><b>Public Advisory:</b> Road conditions can change rapidly during monsoon season. Always verify local conditions before travel.</span>
     </div>
-    <div class="compare-card">
-      <div class="route-label">PACHORA → CHAMUN, PITHORAGARH DISTRICT</div>
-      <div class="compare-rows">
-        <div class="compare-row fastest">
-          <div>⚡ Fastest</div>
-          <div class="bar-track"><div class="bar-fill">10 extreme-risk segments</div></div>
-          <div class="val">90.2 km</div>
-        </div>
-        <div class="compare-row safest">
-          <div>🛡 Safest</div>
-          <div class="bar-track"><div class="bar-fill">0 extreme-risk segments</div></div>
-          <div class="val">119.3 km</div>
+    <div class="hero-grid">
+      <div>
+        <h1>Fastest isn't always <em>safe</em>.</h1>
+        <p class="sub">FloodSafe advises road routes across Uttarakhand using a georeferenced flash-flood hazard classification, live rainfall data, and citizen-reported hazards — instead of distance alone.</p>
+        <div class="hero-ctas">
+          <a class="btn-official" href="/app">Open the Map Tool →</a>
+          <a class="btn-outline" href="#status">View Live Status</a>
         </div>
       </div>
-      <div class="compare-foot">+29 km to eliminate every extreme-risk segment on the route</div>
-    </div>
-  </div>
-</section>
+      <div class="panel diagram-panel">
+        <div class="diagram-caption">Illustrative example — hover a route below</div>
+        <svg viewBox="0 0 340 280" xmlns="http://www.w3.org/2000/svg" id="heroSvg">
+          <path id="riskPath" class="route-risk-line" d="M20 230 Q 90 160 140 180 T 260 110 Q 300 80 320 40" fill="none" stroke="#7a1f1f" stroke-width="2.5" stroke-linecap="round"/>
+          <path id="safePath" class="route-safe-line" d="M20 230 Q 70 210 100 225 Q 150 250 180 210 Q 210 170 190 130 Q 170 85 210 65 Q 260 40 320 40" fill="none" stroke="#14532d" stroke-width="3" stroke-linecap="round"/>
 
-<section class="features reveal" id="features">
-  <div class="wrap">
-    <div class="section-kicker">What it does</div>
-    <h2>Built for the moment it actually rains</h2>
-    <p class="lede">Every feature exists because a static hazard map alone isn't enough once water is actually rising.</p>
-    <div class="feature-grid">
-      <div class="feature-card">
-        <div class="ic">🛡</div>
-        <h3>Risk-weighted routing</h3>
-        <p>Fastest and Safest run on the same graph, weighted by real per-road hazard scores &mdash; not a flat "avoid this area" toggle.</p>
-      </div>
-      <div class="feature-card">
-        <div class="ic">⛺</div>
-        <h3>Evacuate to nearest shelter</h3>
-        <p>Shortlists the closest OSM-tagged shelters, then routes to each and picks the shortest real trip &mdash; not just the nearest pin on the map.</p>
-      </div>
-      <div class="feature-card">
-        <div class="ic">🌧</div>
-        <h3>Live rainfall awareness</h3>
-        <p>Current and forecast rain feed directly into Safest's routing weights, not just a banner &mdash; the route itself gets more cautious while it's raining.</p>
-      </div>
-      <div class="feature-card">
-        <div class="ic">🚨</div>
-        <h3>Crowdsourced hazard reports</h3>
-        <p>Anyone can flag a flooded or blocked road from the map. Reports hard-block that road for every routing mode and expire automatically after 6 hours.</p>
+          <path id="riskHit" class="route-hit" d="M20 230 Q 90 160 140 180 T 260 110 Q 300 80 320 40"/>
+          <path id="safeHit" class="route-hit" d="M20 230 Q 70 210 100 225 Q 150 250 180 210 Q 210 170 190 130 Q 170 85 210 65 Q 260 40 320 40"/>
+
+          <circle cx="20" cy="230" r="4.5" fill="#1a1f24"/>
+          <circle cx="320" cy="40" r="4.5" fill="#1a1f24"/>
+
+          <circle id="riskDot" class="route-dot" r="5" fill="#7a1f1f"/>
+          <circle id="safeDot" class="route-dot" r="5" fill="#14532d"/>
+
+          <g id="extremeMarker" class="extreme-marker">
+            <circle cx="197" cy="171" r="5" fill="#7a1f1f"/>
+            <text x="206" y="168">EXTREME</text>
+          </g>
+        </svg>
+        <div class="diagram-legend">
+          <span><span class="sw" style="background:#14532d;"></span>Safest route</span>
+          <span><span class="sw" style="background:#7a1f1f;"></span>Fastest route</span>
+        </div>
+        <div class="diagram-hint">Hover either route to trace it live</div>
       </div>
     </div>
   </div>
 </section>
 
-<section class="sources-band reveal">
+<section id="status">
   <div class="wrap">
-    <div class="sb-label">Built on</div>
-    <div class="pill-row">
-      <span class="src-pill"><b>Hazard data</b> &middot; state flash-flood atlas</span>
-      <span class="src-pill"><b>Roads</b> &middot; OpenStreetMap</span>
-      <span class="src-pill"><b>Weather</b> &middot; Open-Meteo</span>
-      <span class="src-pill"><b>Search</b> &middot; Nominatim</span>
-      <span class="src-pill"><b>Engine</b> &middot; SciPy sparse Dijkstra</span>
+    <div class="section-label">Live System Status</div>
+    <div class="status-line">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">Checking live status…</span>
+    </div>
+    <table class="stats-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Road network nodes covered</td><td class="stat-value" id="statNodes">—</td></tr>
+        <tr><td>Shelters &amp; hospitals mapped</td><td class="stat-value" id="statShelters">—</td></tr>
+        <tr><td>Active hazard reports right now</td><td class="stat-value" id="statReports">—</td></tr>
+        <tr><td>Live rainfall — Dehradun reference point</td><td class="stat-value" id="statWeather">—</td></tr>
+      </tbody>
+    </table>
+    <div class="legend-row">
+      <span><span class="dot" style="background:#4c8c4a"></span>LOW hazard</span>
+      <span><span class="dot" style="background:#c99a2e"></span>MODERATE hazard</span>
+      <span><span class="dot" style="background:#cf7a2a"></span>SIGNIFICANT hazard</span>
+      <span><span class="dot" style="background:#7a1f1f"></span>EXTREME hazard</span>
+      <span style="margin-left:auto;">Source: georeferenced state flash-flood hazard atlas</span>
     </div>
   </div>
 </section>
 
-<section class="final-cta reveal">
+<section>
   <div class="wrap">
-    <h2>Uttarakhand's roads, <span class="grad-text">mapped by risk.</span></h2>
-    <p>No signup. No app to install. Just open it.</p>
-    <a class="btn-primary" href="/app" style="padding:15px 30px; font-size:16px;">Launch FloodSafe →</a>
+    <div class="section-label">Case Reference</div>
+    <h2>Route comparison: Pachora to Chamun, Pithoragarh District</h2>
+    <p style="color:var(--muted); font-size:13.5px; max-width:640px;">The direct road between these two points crosses 10 road segments classified EXTREME. The advisory system reroutes around all of them for a 32% longer, but demonstrably safer, trip.</p>
+    <table class="compare-table">
+      <thead>
+        <tr><th>Route mode</th><th>Distance</th><th>Extreme-risk segments crossed</th></tr>
+      </thead>
+      <tbody>
+        <tr class="row-risk"><td>⚡ Fastest</td><td class="num">90.2 km</td><td class="num">10</td></tr>
+        <tr class="row-safe"><td>🛡 Safest</td><td class="num">119.3 km</td><td class="num">0</td></tr>
+      </tbody>
+    </table>
+    <div class="compare-note">+29 km travelled to eliminate every extreme-risk segment on this route.</div>
   </div>
 </section>
 
-<footer>
-  <div class="wrap" style="display:flex; justify-content:space-between; width:100%; flex-wrap:wrap; gap:10px;">
-    <span>FloodSafe &middot; a flood-aware navigation project for Uttarakhand, India</span>
-    <span><a href="/reports-view">Community reports</a> &middot; <a href="/status">API status</a></span>
+<section id="features">
+  <div class="wrap">
+    <div class="section-label">Available Services</div>
+    <h2>Advisory services offered</h2>
+    <div class="feature-list">
+      <div class="feature-item">
+        <h3><span class="num">1</span>Risk-weighted routing</h3>
+        <p>Fastest and Safest modes run on the same road network, weighted by official per-road hazard classification — not a flat "avoid this area" toggle.</p>
+      </div>
+      <div class="feature-item">
+        <h3><span class="num">2</span>Evacuation routing</h3>
+        <p>Routes from the traveler's current location to the nearest reachable shelter or community facility, by real road distance.</p>
+      </div>
+      <div class="feature-item">
+        <h3><span class="num">3</span>Nearest hospital routing</h3>
+        <p>The same shortlist-then-route logic, applied to the nearest reachable hospital instead of a shelter.</p>
+      </div>
+      <div class="feature-item">
+        <h3><span class="num">4</span>Live rainfall adjustment</h3>
+        <p>Current and forecast rainfall feed directly into Safest-mode routing weights — the advisory becomes more cautious while it is actively raining.</p>
+      </div>
+      <div class="feature-item">
+        <h3><span class="num">5</span>Citizen hazard reporting</h3>
+        <p>Any user may report a flooded or blocked road. Active reports block that road for every routing mode and expire automatically after 6 hours, or can be marked resolved earlier.</p>
+      </div>
+      <div class="feature-item">
+        <h3><span class="num">6</span>Live rerouting</h3>
+        <p>A new report immediately recalculates the reporting traveler's route, and every open session is checked every 30 seconds for reports submitted by others.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-label">Data Sources &amp; Attribution</div>
+    <dl class="sources-list">
+      <dt>Hazard data</dt><dd>Georeferenced state flash-flood hazard atlas</dd>
+      <dt>Road network</dt><dd>OpenStreetMap</dd>
+      <dt>Weather data</dt><dd>Open-Meteo forecast API</dd>
+      <dt>Place search</dt><dd>Nominatim (OpenStreetMap)</dd>
+      <dt>Routing engine</dt><dd>SciPy sparse-graph Dijkstra shortest-path algorithm</dd>
+    </dl>
+  </div>
+</section>
+
+<section class="final-cta" style="border-bottom:none;">
+  <div class="wrap">
+    <h2>Access the flood-aware map tool</h2>
+    <p>No registration required. Available to all road users in Uttarakhand.</p>
+    <a class="btn-official" href="/app" style="padding:11px 22px; font-size:14.5px;">Open FloodSafe Map Tool →</a>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-links">
+      <a href="/app">Map Tool</a>
+      <a href="/reports-view">Hazard Reports</a>
+      <a href="/status">System Status (API)</a>
+    </div>
+    <div>FloodSafe — Flood-Aware Road Advisory Service for Uttarakhand.</div>
+    <div class="disclaimer">
+      FloodSafe is an independent citizen-safety project and is not an official
+      service of the Government of Uttarakhand or the Government of India.
+      Hazard classifications are derived from published government flash-flood
+      hazard data; road conditions should always be independently verified
+      before travel, particularly during active monsoon or alert conditions.
+    </div>
   </div>
 </footer>
 
 <script>
 
+// ---- Text size control ----
+
+let fontStep = 0;
+
+function applyFontStep() {
+    document.body.style.fontSize = (15 + fontStep * 1.5) + 'px';
+}
+
+document.getElementById('textSmaller').addEventListener('click', function() {
+    fontStep = Math.max(fontStep - 1, -2);
+    applyFontStep();
+});
+document.getElementById('textLarger').addEventListener('click', function() {
+    fontStep = Math.min(fontStep + 1, 3);
+    applyFontStep();
+});
+document.getElementById('textReset').addEventListener('click', function() {
+    fontStep = 0;
+    applyFontStep();
+});
+
+// ---- Live status strip ----
+
 function animateCount(el, target, suffix, duration) {
     suffix = suffix || '';
-    duration = duration || 900;
+    duration = duration || 700;
     const start = performance.now();
     function tick(now) {
         const progress = Math.min((now - start) / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const value = Math.round(target * eased);
+        const value = Math.round(target * progress);
         el.textContent = value + suffix;
         if (progress < 1) requestAnimationFrame(tick);
     }
@@ -1092,9 +899,8 @@ async function loadLiveStrip() {
         const status = await (await fetch('/status')).json();
         const dot = document.getElementById('statusDot');
         const text = document.getElementById('statusText');
-
         if (status.routing === 'online') {
-            text.textContent = 'Routing engine online — live on this page right now';
+            text.textContent = 'Routing engine online — figures below are live on this page';
         } else {
             dot.classList.add('off');
             text.textContent = 'Routing engine temporarily unavailable';
@@ -1106,18 +912,14 @@ async function loadLiveStrip() {
 
     try {
         const shelters = await (await fetch('/shelters')).json();
-        const el = document.getElementById('statShelters');
-        el.classList.remove('skeleton');
-        animateCount(el, Array.isArray(shelters) ? shelters.length : 0);
+        animateCount(document.getElementById('statShelters'), Array.isArray(shelters) ? shelters.length : 0);
     } catch (error) {
         document.getElementById('statShelters').textContent = '—';
     }
 
     try {
         const reports = await (await fetch('/reports')).json();
-        const el = document.getElementById('statReports');
-        el.classList.remove('skeleton');
-        animateCount(el, Array.isArray(reports) ? reports.length : 0);
+        animateCount(document.getElementById('statReports'), Array.isArray(reports) ? reports.length : 0);
     } catch (error) {
         document.getElementById('statReports').textContent = '—';
     }
@@ -1131,7 +933,6 @@ async function loadLiveStrip() {
         )).json();
 
         const el = document.getElementById('statWeather');
-        el.classList.remove('skeleton');
 
         if (payload && payload.current) {
             const currentMm = Number(payload.current.precipitation || 0);
@@ -1148,45 +949,18 @@ async function loadLiveStrip() {
             }
             el.textContent = (currentMm + next3hMm).toFixed(1) + ' mm';
         } else {
-            el.style.fontSize = '15px';
-            el.style.color = 'var(--text-faint)';
-            el.textContent = 'unavailable right now';
+            el.textContent = 'unavailable';
         }
     } catch (error) {
-        const el = document.getElementById('statWeather');
-        el.classList.remove('skeleton');
-        el.style.fontSize = '15px';
-        el.style.color = 'var(--text-faint)';
-        el.textContent = 'unavailable right now';
+        document.getElementById('statWeather').textContent = 'unavailable';
     }
 
-    const nodesEl = document.getElementById('statNodes');
-    nodesEl.classList.remove('skeleton');
-    nodesEl.textContent = '2.02M';
+    document.getElementById('statNodes').textContent = '2,021,505';
 }
 
 loadLiveStrip();
 
-const revealEls = document.querySelectorAll('.reveal');
-const revealObserver = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-            entry.target.classList.add('in');
-            revealObserver.unobserve(entry.target);
-        }
-    });
-}, { threshold: 0.15 });
-revealEls.forEach((el) => revealObserver.observe(el));
-
-// ---------------------------------------------------------------
-// HERO ROUTE TRACING
-//
-// Hovering either route animates a dot traveling along that exact
-// curve (sampled live from the real SVG path via getPointAtLength,
-// not a canned CSS animation), dims the other route, and reveals
-// the EXTREME marker at the precise moment the traveling dot passes
-// the point where both routes come close to the hazard.
-// ---------------------------------------------------------------
+// ---- Hero diagram tracing ----
 
 function initHeroTracing() {
 
@@ -1200,7 +974,7 @@ function initHeroTracing() {
 
     if (!riskPath || !safePath || !riskHit || !safeHit) return;
 
-    const EXTREME_POINT = { x: 197, y: 191 };
+    const EXTREME_POINT = { x: 197, y: 171 };
     const REVEAL_THRESHOLD = 14;
 
     function makeTracer(pathEl, dotEl, otherPathEl, durationMs) {
@@ -1238,12 +1012,7 @@ function initHeroTracing() {
                 dotEl.setAttribute('cy', point.y);
 
                 if (!revealed) {
-
-                    const dist = Math.hypot(
-                        point.x - EXTREME_POINT.x,
-                        point.y - EXTREME_POINT.y
-                    );
-
+                    const dist = Math.hypot(point.x - EXTREME_POINT.x, point.y - EXTREME_POINT.y);
                     if (dist < REVEAL_THRESHOLD) {
                         revealed = true;
                         if (extremeMarker) extremeMarker.classList.add('show');
@@ -1253,9 +1022,6 @@ function initHeroTracing() {
                 if (t < 1) {
                     requestAnimationFrame(frame);
                 } else {
-                    // Loop the trace while still hovered, so a longer
-                    // hover keeps showing the journey rather than
-                    // freezing at the destination.
                     requestAnimationFrame(() => start());
                 }
             }
@@ -1264,7 +1030,6 @@ function initHeroTracing() {
         }
 
         function stop() {
-
             generation += 1;
             dotEl.style.opacity = '0';
             pathEl.classList.remove('route-active');
@@ -1280,13 +1045,8 @@ function initHeroTracing() {
 
     riskHit.addEventListener('mouseenter', riskTracer.start);
     riskHit.addEventListener('mouseleave', riskTracer.stop);
-    riskHit.addEventListener('focus', riskTracer.start);
-    riskHit.addEventListener('blur', riskTracer.stop);
-
     safeHit.addEventListener('mouseenter', safeTracer.start);
     safeHit.addEventListener('mouseleave', safeTracer.stop);
-    safeHit.addEventListener('focus', safeTracer.start);
-    safeHit.addEventListener('blur', safeTracer.stop);
 }
 
 initHeroTracing();
