@@ -86,7 +86,13 @@ body {
 
   position: fixed;
 
-  inset: 0;
+  /* Oversized by one tile on each side so the transform-based scroll
+     below (GPU-composited, unlike animating background-position) never
+     reveals a gap at the viewport edge. */
+  top: -60px;
+  left: -60px;
+  right: -60px;
+  bottom: -60px;
 
   background-image:
     linear-gradient(
@@ -104,6 +110,7 @@ body {
 
   animation:
     moveGrid 12s linear infinite;
+  will-change: transform;
 
   pointer-events: none;
 
@@ -113,13 +120,11 @@ body {
 
 @keyframes moveGrid {
   from {
-    background-position:
-      0 0;
+    transform: translate3d(0, 0, 0);
   }
 
   to {
-    background-position:
-      60px 60px;
+    transform: translate3d(60px, 60px, 0);
   }
 }
 
