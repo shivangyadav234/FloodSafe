@@ -305,6 +305,26 @@ code, .mono { font-family: 'Consolas', 'Courier New', monospace; }
 }
 .utility-bar a { color: #cfe0ee; text-decoration: none; }
 .utility-bar a:hover { text-decoration: underline; }
+
+.utility-right { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+
+.lang-toggle { display: flex; align-items: center; gap: 6px; }
+.lang-toggle button {
+  background: transparent;
+  border: none;
+  color: #9db4c9;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 3px;
+  font-family: inherit;
+}
+.lang-toggle button.active {
+  color: white;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.lang-toggle .sep { color: #3a5674; }
+
 .text-size-controls { display: flex; align-items: center; gap: 6px; }
 .text-size-controls button {
   background: transparent;
@@ -653,16 +673,23 @@ footer.site-footer .disclaimer {
 </head>
 <body>
 
-<a class="skip-link" href="#main-content">Skip to main content</a>
+<a class="skip-link" href="#main-content" data-i18n="skipLink">Skip to main content</a>
 
 <div class="utility-bar">
   <div class="wrap">
-    <span>FloodSafe Portal — Flood-Aware Road Advisory Service</span>
-    <div class="text-size-controls">
-      <span>Text size:</span>
-      <button type="button" id="textSmaller" aria-label="Decrease text size">A-</button>
-      <button type="button" id="textReset" aria-label="Reset text size">A</button>
-      <button type="button" id="textLarger" aria-label="Increase text size">A+</button>
+    <span data-i18n="utilityTitle">FloodSafe Portal — Flood-Aware Road Advisory Service</span>
+    <div class="utility-right">
+      <div class="lang-toggle" role="group" aria-label="Language selector">
+        <button type="button" data-lang="en" class="active">English</button>
+        <span class="sep">|</span>
+        <button type="button" data-lang="hi">हिंदी</button>
+      </div>
+      <div class="text-size-controls">
+        <span data-i18n="textSizeLabel">Text size:</span>
+        <button type="button" id="textSmaller" aria-label="Decrease text size">A-</button>
+        <button type="button" id="textReset" aria-label="Reset text size">A</button>
+        <button type="button" id="textLarger" aria-label="Increase text size">A+</button>
+      </div>
     </div>
   </div>
 </div>
@@ -673,14 +700,14 @@ footer.site-footer .disclaimer {
       <span class="mark">⚑</span>
       <span class="brand-text">
         <span class="name">FloodSafe</span>
-        <span class="tagline">Flood-Aware Road Advisory — Uttarakhand</span>
+        <span class="tagline" data-i18n="brandTagline">Flood-Aware Road Advisory — Uttarakhand</span>
       </span>
     </a>
     <nav class="main-nav">
-      <a class="nav-link" href="#status">Live Status</a>
-      <a class="nav-link" href="#features">Services</a>
-      <a class="nav-link" href="/reports-view">Hazard Reports</a>
-      <a class="btn-official" href="/app">Open Map Tool</a>
+      <a class="nav-link" href="#status" data-i18n="navStatus">Live Status</a>
+      <a class="nav-link" href="#features" data-i18n="navServices">Services</a>
+      <a class="nav-link" href="/reports-view" data-i18n="navReports">Hazard Reports</a>
+      <a class="btn-official" href="/app" data-i18n="navOpenMap">Open Map Tool</a>
     </nav>
   </div>
 </header>
@@ -691,19 +718,19 @@ footer.site-footer .disclaimer {
   <div class="wrap">
     <div class="advisory-box">
       <span>⚠</span>
-      <span><b>Public Advisory:</b> Road conditions can change rapidly during monsoon season. Always verify local conditions before travel.</span>
+      <span><b data-i18n="advisoryLabel">Public Advisory:</b> <span data-i18n="advisoryText">Road conditions can change rapidly during monsoon season. Always verify local conditions before travel.</span></span>
     </div>
     <div class="hero-grid">
       <div>
-        <h1>Fastest isn't always <em>safe</em>.</h1>
-        <p class="sub">FloodSafe advises road routes across Uttarakhand using a georeferenced flash-flood hazard classification, live rainfall data, and citizen-reported hazards — instead of distance alone.</p>
+        <h1 data-i18n-html="heroTitle">Fastest isn't always <em>safe</em>.</h1>
+        <p class="sub" data-i18n="heroSub">FloodSafe advises road routes across Uttarakhand using a georeferenced flash-flood hazard classification, live rainfall data, and citizen-reported hazards — instead of distance alone.</p>
         <div class="hero-ctas">
-          <a class="btn-official" href="/app">Open the Map Tool →</a>
-          <a class="btn-outline" href="#status">View Live Status</a>
+          <a class="btn-official" href="/app" data-i18n="heroCta1">Open the Map Tool →</a>
+          <a class="btn-outline" href="#status" data-i18n="heroCta2">View Live Status</a>
         </div>
       </div>
       <div class="panel diagram-panel">
-        <div class="diagram-caption">Illustrative example — hover a route below</div>
+        <div class="diagram-caption" data-i18n="diagramCaption">Illustrative example — hover a route below</div>
         <svg viewBox="0 0 340 280" xmlns="http://www.w3.org/2000/svg" id="heroSvg">
           <path id="riskPath" class="route-risk-line" d="M20 230 Q 90 160 140 180 T 260 110 Q 300 80 320 40" fill="none" stroke="#7a1f1f" stroke-width="2.5" stroke-linecap="round"/>
           <path id="safePath" class="route-safe-line" d="M20 230 Q 70 210 100 225 Q 150 250 180 210 Q 210 170 190 130 Q 170 85 210 65 Q 260 40 320 40" fill="none" stroke="#14532d" stroke-width="3" stroke-linecap="round"/>
@@ -723,10 +750,10 @@ footer.site-footer .disclaimer {
           </g>
         </svg>
         <div class="diagram-legend">
-          <span><span class="sw" style="background:#14532d;"></span>Safest route</span>
-          <span><span class="sw" style="background:#7a1f1f;"></span>Fastest route</span>
+          <span><span class="sw" style="background:#14532d;"></span><span data-i18n="legendSafe">Safest route</span></span>
+          <span><span class="sw" style="background:#7a1f1f;"></span><span data-i18n="legendRisk">Fastest route</span></span>
         </div>
-        <div class="diagram-hint">Hover either route to trace it live</div>
+        <div class="diagram-hint" data-i18n="diagramHint">Hover either route to trace it live</div>
       </div>
     </div>
   </div>
@@ -734,81 +761,81 @@ footer.site-footer .disclaimer {
 
 <section id="status">
   <div class="wrap">
-    <div class="section-label">Live System Status</div>
+    <div class="section-label" data-i18n="statusLabel">Live System Status</div>
     <div class="status-line">
       <span class="status-dot" id="statusDot"></span>
-      <span id="statusText">Checking live status…</span>
+      <span id="statusText" data-i18n="statusChecking">Checking live status…</span>
     </div>
     <table class="stats-table">
       <thead>
         <tr>
-          <th>Metric</th>
-          <th>Value</th>
+          <th data-i18n="tableMetric">Metric</th>
+          <th data-i18n="tableValue">Value</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td>Road network nodes covered</td><td class="stat-value" id="statNodes">—</td></tr>
-        <tr><td>Shelters &amp; hospitals mapped</td><td class="stat-value" id="statShelters">—</td></tr>
-        <tr><td>Active hazard reports right now</td><td class="stat-value" id="statReports">—</td></tr>
-        <tr><td>Live rainfall — Dehradun reference point</td><td class="stat-value" id="statWeather">—</td></tr>
+        <tr><td data-i18n="statNodesLabel">Road network nodes covered</td><td class="stat-value" id="statNodes">—</td></tr>
+        <tr><td data-i18n="statSheltersLabel">Shelters &amp; hospitals mapped</td><td class="stat-value" id="statShelters">—</td></tr>
+        <tr><td data-i18n="statReportsLabel">Active hazard reports right now</td><td class="stat-value" id="statReports">—</td></tr>
+        <tr><td data-i18n="statWeatherLabel">Live rainfall — Dehradun reference point</td><td class="stat-value" id="statWeather">—</td></tr>
       </tbody>
     </table>
     <div class="legend-row">
-      <span><span class="dot" style="background:#4c8c4a"></span>LOW hazard</span>
-      <span><span class="dot" style="background:#c99a2e"></span>MODERATE hazard</span>
-      <span><span class="dot" style="background:#cf7a2a"></span>SIGNIFICANT hazard</span>
-      <span><span class="dot" style="background:#7a1f1f"></span>EXTREME hazard</span>
-      <span style="margin-left:auto;">Source: georeferenced state flash-flood hazard atlas</span>
+      <span><span class="dot" style="background:#4c8c4a"></span><span data-i18n="hazardLow">LOW hazard</span></span>
+      <span><span class="dot" style="background:#c99a2e"></span><span data-i18n="hazardModerate">MODERATE hazard</span></span>
+      <span><span class="dot" style="background:#cf7a2a"></span><span data-i18n="hazardSignificant">SIGNIFICANT hazard</span></span>
+      <span><span class="dot" style="background:#7a1f1f"></span><span data-i18n="hazardExtreme">EXTREME hazard</span></span>
+      <span style="margin-left:auto;" data-i18n="hazardSource">Source: georeferenced state flash-flood hazard atlas</span>
     </div>
   </div>
 </section>
 
 <section>
   <div class="wrap">
-    <div class="section-label">Case Reference</div>
-    <h2>Route comparison: Pachora to Chamun, Pithoragarh District</h2>
-    <p style="color:var(--muted); font-size:13.5px; max-width:640px;">The direct road between these two points crosses 10 road segments classified EXTREME. The advisory system reroutes around all of them for a 32% longer, but demonstrably safer, trip.</p>
+    <div class="section-label" data-i18n="caseLabel">Case Reference</div>
+    <h2 data-i18n="caseTitle">Route comparison: Pachora to Chamun, Pithoragarh District</h2>
+    <p style="color:var(--muted); font-size:13.5px; max-width:640px;" data-i18n="caseText">The direct road between these two points crosses 10 road segments classified EXTREME. The advisory system reroutes around all of them for a 32% longer, but demonstrably safer, trip.</p>
     <table class="compare-table">
       <thead>
-        <tr><th>Route mode</th><th>Distance</th><th>Extreme-risk segments crossed</th></tr>
+        <tr><th data-i18n="compareMode">Route Mode</th><th data-i18n="compareDistance">Distance</th><th data-i18n="compareSegments">Extreme-Risk Segments Crossed</th></tr>
       </thead>
       <tbody>
-        <tr class="row-risk"><td>⚡ Fastest</td><td class="num">90.2 km</td><td class="num">10</td></tr>
-        <tr class="row-safe"><td>🛡 Safest</td><td class="num">119.3 km</td><td class="num">0</td></tr>
+        <tr class="row-risk"><td>⚡ <span data-i18n="modeFastest">Fastest</span></td><td class="num">90.2 km</td><td class="num">10</td></tr>
+        <tr class="row-safe"><td>🛡 <span data-i18n="modeSafest">Safest</span></td><td class="num">119.3 km</td><td class="num">0</td></tr>
       </tbody>
     </table>
-    <div class="compare-note">+29 km travelled to eliminate every extreme-risk segment on this route.</div>
+    <div class="compare-note" data-i18n="compareNote">+29 km travelled to eliminate every extreme-risk segment on this route.</div>
   </div>
 </section>
 
 <section id="features">
   <div class="wrap">
-    <div class="section-label">Available Services</div>
-    <h2>Advisory services offered</h2>
+    <div class="section-label" data-i18n="servicesLabel">Available Services</div>
+    <h2 data-i18n="servicesTitle">Advisory services offered</h2>
     <div class="feature-list">
       <div class="feature-item">
-        <h3><span class="num">1</span>Risk-weighted routing</h3>
-        <p>Fastest and Safest modes run on the same road network, weighted by official per-road hazard classification — not a flat "avoid this area" toggle.</p>
+        <h3><span class="num">1</span><span data-i18n="f1h">Risk-weighted routing</span></h3>
+        <p data-i18n="f1p">Fastest and Safest modes run on the same road network, weighted by official per-road hazard classification — not a flat "avoid this area" toggle.</p>
       </div>
       <div class="feature-item">
-        <h3><span class="num">2</span>Evacuation routing</h3>
-        <p>Routes from the traveler's current location to the nearest reachable shelter or community facility, by real road distance.</p>
+        <h3><span class="num">2</span><span data-i18n="f2h">Evacuation routing</span></h3>
+        <p data-i18n="f2p">Routes from the traveler's current location to the nearest reachable shelter or community facility, by real road distance.</p>
       </div>
       <div class="feature-item">
-        <h3><span class="num">3</span>Nearest hospital routing</h3>
-        <p>The same shortlist-then-route logic, applied to the nearest reachable hospital instead of a shelter.</p>
+        <h3><span class="num">3</span><span data-i18n="f3h">Nearest hospital routing</span></h3>
+        <p data-i18n="f3p">The same shortlist-then-route logic, applied to the nearest reachable hospital instead of a shelter.</p>
       </div>
       <div class="feature-item">
-        <h3><span class="num">4</span>Live rainfall adjustment</h3>
-        <p>Current and forecast rainfall feed directly into Safest-mode routing weights — the advisory becomes more cautious while it is actively raining.</p>
+        <h3><span class="num">4</span><span data-i18n="f4h">Live rainfall adjustment</span></h3>
+        <p data-i18n="f4p">Current and forecast rainfall feed directly into Safest-mode routing weights — the advisory becomes more cautious while it is actively raining.</p>
       </div>
       <div class="feature-item">
-        <h3><span class="num">5</span>Citizen hazard reporting</h3>
-        <p>Any user may report a flooded or blocked road. Active reports block that road for every routing mode and expire automatically after 6 hours, or can be marked resolved earlier.</p>
+        <h3><span class="num">5</span><span data-i18n="f5h">Citizen hazard reporting</span></h3>
+        <p data-i18n="f5p">Any user may report a flooded or blocked road. Active reports block that road for every routing mode and expire automatically after 6 hours, or can be marked resolved earlier.</p>
       </div>
       <div class="feature-item">
-        <h3><span class="num">6</span>Live rerouting</h3>
-        <p>A new report immediately recalculates the reporting traveler's route, and every open session is checked every 30 seconds for reports submitted by others.</p>
+        <h3><span class="num">6</span><span data-i18n="f6h">Live rerouting</span></h3>
+        <p data-i18n="f6p">A new report immediately recalculates the reporting traveler's route, and every open session is checked every 30 seconds for reports submitted by others.</p>
       </div>
     </div>
   </div>
@@ -816,22 +843,22 @@ footer.site-footer .disclaimer {
 
 <section>
   <div class="wrap">
-    <div class="section-label">Data Sources &amp; Attribution</div>
+    <div class="section-label" data-i18n="sourcesLabel">Data Sources &amp; Attribution</div>
     <dl class="sources-list">
-      <dt>Hazard data</dt><dd>Georeferenced state flash-flood hazard atlas</dd>
-      <dt>Road network</dt><dd>OpenStreetMap</dd>
-      <dt>Weather data</dt><dd>Open-Meteo forecast API</dd>
-      <dt>Place search</dt><dd>Nominatim (OpenStreetMap)</dd>
-      <dt>Routing engine</dt><dd>SciPy sparse-graph Dijkstra shortest-path algorithm</dd>
+      <dt data-i18n="src1dt">Hazard data</dt><dd data-i18n="src1dd">Georeferenced state flash-flood hazard atlas</dd>
+      <dt data-i18n="src2dt">Road network</dt><dd>OpenStreetMap</dd>
+      <dt data-i18n="src3dt">Weather data</dt><dd>Open-Meteo forecast API</dd>
+      <dt data-i18n="src4dt">Place search</dt><dd>Nominatim (OpenStreetMap)</dd>
+      <dt data-i18n="src5dt">Routing engine</dt><dd data-i18n="src5dd">SciPy sparse-graph Dijkstra shortest-path algorithm</dd>
     </dl>
   </div>
 </section>
 
 <section class="final-cta" style="border-bottom:none;">
   <div class="wrap">
-    <h2>Access the flood-aware map tool</h2>
-    <p>No registration required. Available to all road users in Uttarakhand.</p>
-    <a class="btn-official" href="/app" style="padding:11px 22px; font-size:14.5px;">Open FloodSafe Map Tool →</a>
+    <h2 data-i18n="finalTitle">Access the flood-aware map tool</h2>
+    <p data-i18n="finalText">No registration required. Available to all road users in Uttarakhand.</p>
+    <a class="btn-official" href="/app" style="padding:11px 22px; font-size:14.5px;" data-i18n="finalCta">Open FloodSafe Map Tool →</a>
   </div>
 </section>
 
@@ -840,12 +867,12 @@ footer.site-footer .disclaimer {
 <footer class="site-footer">
   <div class="wrap">
     <div class="footer-links">
-      <a href="/app">Map Tool</a>
-      <a href="/reports-view">Hazard Reports</a>
-      <a href="/status">System Status (API)</a>
+      <a href="/app" data-i18n="footerMap">Map Tool</a>
+      <a href="/reports-view" data-i18n="footerReports">Hazard Reports</a>
+      <a href="/status" data-i18n="footerStatus">System Status (API)</a>
     </div>
-    <div>FloodSafe — Flood-Aware Road Advisory Service for Uttarakhand.</div>
-    <div class="disclaimer">
+    <div data-i18n="footerTagline">FloodSafe — Flood-Aware Road Advisory Service for Uttarakhand.</div>
+    <div class="disclaimer" data-i18n="footerDisclaimer">
       FloodSafe is an independent citizen-safety project and is not an official
       service of the Government of Uttarakhand or the Government of India.
       Hazard classifications are derived from published government flash-flood
@@ -856,6 +883,231 @@ footer.site-footer .disclaimer {
 </footer>
 
 <script>
+
+// ---- Translations ----
+
+const translations = {
+  en: {
+    skipLink: "Skip to main content",
+    utilityTitle: "FloodSafe Portal — Flood-Aware Road Advisory Service",
+    textSizeLabel: "Text size:",
+    brandTagline: "Flood-Aware Road Advisory — Uttarakhand",
+    navStatus: "Live Status",
+    navServices: "Services",
+    navReports: "Hazard Reports",
+    navOpenMap: "Open Map Tool",
+    advisoryLabel: "Public Advisory:",
+    advisoryText: "Road conditions can change rapidly during monsoon season. Always verify local conditions before travel.",
+    heroTitle: "Fastest isn't always <em>safe</em>.",
+    heroSub: "FloodSafe advises road routes across Uttarakhand using a georeferenced flash-flood hazard classification, live rainfall data, and citizen-reported hazards — instead of distance alone.",
+    heroCta1: "Open the Map Tool →",
+    heroCta2: "View Live Status",
+    diagramCaption: "Illustrative example — hover a route below",
+    legendSafe: "Safest route",
+    legendRisk: "Fastest route",
+    diagramHint: "Hover either route to trace it live",
+    statusLabel: "Live System Status",
+    statusChecking: "Checking live status…",
+    statusOnline: "Routing engine online — figures below are live on this page",
+    statusOffline: "Routing engine temporarily unavailable",
+    statusUnreachable: "Could not reach the server",
+    weatherUnavailable: "unavailable",
+    tableMetric: "Metric",
+    tableValue: "Value",
+    statNodesLabel: "Road network nodes covered",
+    statSheltersLabel: "Shelters & hospitals mapped",
+    statReportsLabel: "Active hazard reports right now",
+    statWeatherLabel: "Live rainfall — Dehradun reference point",
+    hazardLow: "LOW hazard",
+    hazardModerate: "MODERATE hazard",
+    hazardSignificant: "SIGNIFICANT hazard",
+    hazardExtreme: "EXTREME hazard",
+    hazardSource: "Source: georeferenced state flash-flood hazard atlas",
+    caseLabel: "Case Reference",
+    caseTitle: "Route comparison: Pachora to Chamun, Pithoragarh District",
+    caseText: "The direct road between these two points crosses 10 road segments classified EXTREME. The advisory system reroutes around all of them for a 32% longer, but demonstrably safer, trip.",
+    compareMode: "Route Mode",
+    compareDistance: "Distance",
+    compareSegments: "Extreme-Risk Segments Crossed",
+    modeFastest: "Fastest",
+    modeSafest: "Safest",
+    compareNote: "+29 km travelled to eliminate every extreme-risk segment on this route.",
+    servicesLabel: "Available Services",
+    servicesTitle: "Advisory services offered",
+    f1h: "Risk-weighted routing",
+    f1p: 'Fastest and Safest modes run on the same road network, weighted by official per-road hazard classification — not a flat "avoid this area" toggle.',
+    f2h: "Evacuation routing",
+    f2p: "Routes from the traveler's current location to the nearest reachable shelter or community facility, by real road distance.",
+    f3h: "Nearest hospital routing",
+    f3p: "The same shortlist-then-route logic, applied to the nearest reachable hospital instead of a shelter.",
+    f4h: "Live rainfall adjustment",
+    f4p: "Current and forecast rainfall feed directly into Safest-mode routing weights — the advisory becomes more cautious while it is actively raining.",
+    f5h: "Citizen hazard reporting",
+    f5p: "Any user may report a flooded or blocked road. Active reports block that road for every routing mode and expire automatically after 6 hours, or can be marked resolved earlier.",
+    f6h: "Live rerouting",
+    f6p: "A new report immediately recalculates the reporting traveler's route, and every open session is checked every 30 seconds for reports submitted by others.",
+    sourcesLabel: "Data Sources & Attribution",
+    src1dt: "Hazard data", src1dd: "Georeferenced state flash-flood hazard atlas",
+    src2dt: "Road network",
+    src3dt: "Weather data",
+    src4dt: "Place search",
+    src5dt: "Routing engine", src5dd: "SciPy sparse-graph Dijkstra shortest-path algorithm",
+    finalTitle: "Access the flood-aware map tool",
+    finalText: "No registration required. Available to all road users in Uttarakhand.",
+    finalCta: "Open FloodSafe Map Tool →",
+    footerMap: "Map Tool",
+    footerReports: "Hazard Reports",
+    footerStatus: "System Status (API)",
+    footerTagline: "FloodSafe — Flood-Aware Road Advisory Service for Uttarakhand.",
+    footerDisclaimer: "FloodSafe is an independent citizen-safety project and is not an official service of the Government of Uttarakhand or the Government of India. Hazard classifications are derived from published government flash-flood hazard data; road conditions should always be independently verified before travel, particularly during active monsoon or alert conditions."
+  },
+  hi: {
+    skipLink: "मुख्य सामग्री पर जाएं",
+    utilityTitle: "FloodSafe पोर्टल — बाढ़-जागरूक सड़क परामर्श सेवा",
+    textSizeLabel: "टेक्स्ट आकार:",
+    brandTagline: "बाढ़-जागरूक सड़क परामर्श — उत्तराखंड",
+    navStatus: "लाइव स्थिति",
+    navServices: "सेवाएं",
+    navReports: "खतरा रिपोर्ट",
+    navOpenMap: "मानचित्र खोलें",
+    advisoryLabel: "सार्वजनिक सूचना:",
+    advisoryText: "मानसून के दौरान सड़क की स्थिति तेज़ी से बदल सकती है। यात्रा से पहले हमेशा स्थानीय परिस्थितियों की पुष्टि करें।",
+    heroTitle: "सबसे तेज़ रास्ता हमेशा <em>सुरक्षित</em> नहीं होता।",
+    heroSub: "FloodSafe केवल दूरी के बजाय, भू-संदर्भित बाढ़ खतरा वर्गीकरण, लाइव वर्षा डेटा, और नागरिकों द्वारा रिपोर्ट किए गए खतरों का उपयोग करके उत्तराखंड में सड़क मार्गों की सलाह देता है।",
+    heroCta1: "मानचित्र खोलें →",
+    heroCta2: "लाइव स्थिति देखें",
+    diagramCaption: "उदाहरण — नीचे किसी मार्ग पर कर्सर ले जाएं",
+    legendSafe: "सबसे सुरक्षित मार्ग",
+    legendRisk: "सबसे तेज़ मार्ग",
+    diagramHint: "मार्ग देखने के लिए उस पर कर्सर ले जाएं",
+    statusLabel: "लाइव सिस्टम स्थिति",
+    statusChecking: "लाइव स्थिति जांची जा रही है…",
+    statusOnline: "रूटिंग इंजन ऑनलाइन है — नीचे दिए गए आंकड़े इस पेज पर लाइव हैं",
+    statusOffline: "रूटिंग इंजन अस्थायी रूप से अनुपलब्ध है",
+    statusUnreachable: "सर्वर से संपर्क नहीं हो सका",
+    weatherUnavailable: "अनुपलब्ध",
+    tableMetric: "मापदंड",
+    tableValue: "मान",
+    statNodesLabel: "सड़क नेटवर्क नोड्स शामिल",
+    statSheltersLabel: "आश्रय स्थल और अस्पताल मैप किए गए",
+    statReportsLabel: "अभी सक्रिय खतरा रिपोर्टें",
+    statWeatherLabel: "लाइव वर्षा — देहरादून संदर्भ बिंदु",
+    hazardLow: "कम खतरा",
+    hazardModerate: "मध्यम खतरा",
+    hazardSignificant: "उच्च खतरा",
+    hazardExtreme: "अत्यधिक खतरा",
+    hazardSource: "स्रोत: भू-संदर्भित राज्य बाढ़ खतरा एटलस",
+    caseLabel: "केस संदर्भ",
+    caseTitle: "मार्ग तुलना: पचोरा से चमुन, पिथौरागढ़ जिला",
+    caseText: "इन दोनों बिंदुओं के बीच सीधी सड़क 10 सड़क खंडों से होकर गुजरती है जिन्हें अत्यधिक खतरे के रूप में वर्गीकृत किया गया है। परामर्श प्रणाली इन सभी से बचते हुए मार्ग बदलती है — दूरी 32% अधिक है, लेकिन यात्रा स्पष्ट रूप से अधिक सुरक्षित है।",
+    compareMode: "मार्ग प्रकार",
+    compareDistance: "दूरी",
+    compareSegments: "पार किए गए अत्यधिक-जोखिम खंड",
+    modeFastest: "सबसे तेज़",
+    modeSafest: "सबसे सुरक्षित",
+    compareNote: "इस मार्ग पर हर अत्यधिक-जोखिम खंड से बचने के लिए 29 किमी अतिरिक्त यात्रा की गई।",
+    servicesLabel: "उपलब्ध सेवाएं",
+    servicesTitle: "प्रदान की जाने वाली परामर्श सेवाएं",
+    f1h: "जोखिम-भारित रूटिंग",
+    f1p: 'सबसे तेज़ और सबसे सुरक्षित दोनों मोड एक ही सड़क नेटवर्क पर काम करते हैं, जिन्हें आधिकारिक प्रति-सड़क खतरा वर्गीकरण के आधार पर भारित किया जाता है — न कि केवल "इस क्षेत्र से बचें" जैसा एक सरल विकल्प।',
+    f2h: "निकासी रूटिंग",
+    f2p: "यात्री के वर्तमान स्थान से निकटतम पहुंच योग्य आश्रय स्थल या सामुदायिक सुविधा तक, वास्तविक सड़क दूरी के आधार पर मार्ग बताता है।",
+    f3h: "निकटतम अस्पताल रूटिंग",
+    f3p: "आश्रय स्थल के बजाय निकटतम पहुंच योग्य अस्पताल पर वही शॉर्टलिस्ट-फिर-रूट तर्क लागू किया जाता है।",
+    f4h: "लाइव वर्षा समायोजन",
+    f4p: "वर्तमान और पूर्वानुमानित वर्षा सीधे सबसे-सुरक्षित मोड की रूटिंग गणना में शामिल होती है — सक्रिय बारिश के दौरान परामर्श अधिक सतर्क हो जाता है।",
+    f5h: "नागरिक खतरा रिपोर्टिंग",
+    f5p: "कोई भी उपयोगकर्ता जलमग्न या अवरुद्ध सड़क की रिपोर्ट कर सकता है। सक्रिय रिपोर्टें उस सड़क को हर रूटिंग मोड के लिए अवरुद्ध कर देती हैं और 6 घंटे बाद स्वतः समाप्त हो जाती हैं, या पहले भी हल के रूप में चिह्नित की जा सकती हैं।",
+    f6h: "लाइव रीरूटिंग",
+    f6p: "नई रिपोर्ट तुरंत रिपोर्ट करने वाले यात्री के मार्ग की पुनर्गणना करती है, और हर खुला सत्र हर 30 सेकंड में दूसरों द्वारा सबमिट की गई रिपोर्टों के लिए जांचा जाता है।",
+    sourcesLabel: "डेटा स्रोत और श्रेय",
+    src1dt: "खतरा डेटा", src1dd: "भू-संदर्भित राज्य बाढ़ खतरा एटलस",
+    src2dt: "सड़क नेटवर्क",
+    src3dt: "मौसम डेटा",
+    src4dt: "स्थान खोज",
+    src5dt: "रूटिंग इंजन", src5dd: "SciPy स्पार्स-ग्राफ Dijkstra शॉर्टेस्ट-पाथ एल्गोरिथम",
+    finalTitle: "बाढ़-जागरूक मानचित्र टूल खोलें",
+    finalText: "कोई पंजीकरण आवश्यक नहीं। उत्तराखंड के सभी सड़क उपयोगकर्ताओं के लिए उपलब्ध।",
+    finalCta: "FloodSafe मानचित्र टूल खोलें →",
+    footerMap: "मानचित्र टूल",
+    footerReports: "खतरा रिपोर्ट",
+    footerStatus: "सिस्टम स्थिति (API)",
+    footerTagline: "FloodSafe — उत्तराखंड के लिए बाढ़-जागरूक सड़क परामर्श सेवा।",
+    footerDisclaimer: "FloodSafe एक स्वतंत्र नागरिक-सुरक्षा परियोजना है और यह उत्तराखंड सरकार या भारत सरकार की कोई आधिकारिक सेवा नहीं है। खतरा वर्गीकरण प्रकाशित सरकारी बाढ़ खतरा डेटा से लिया गया है; यात्रा से पहले सड़क की स्थिति की हमेशा स्वतंत्र रूप से पुष्टि करें, विशेष रूप से सक्रिय मानसून या चेतावनी की स्थिति के दौरान।"
+  }
+};
+
+let currentLang = 'en';
+
+function t(key) {
+    const dict = translations[currentLang] || translations.en;
+    return dict[key] !== undefined ? dict[key] : (translations.en[key] || key);
+}
+
+function applyLanguage(lang) {
+
+    currentLang = translations[lang] ? lang : 'en';
+    document.documentElement.lang = currentLang;
+
+    const dict = translations[currentLang];
+
+    document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key] !== undefined) el.textContent = dict[key];
+    });
+
+    document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
+        const key = el.getAttribute('data-i18n-html');
+        if (dict[key] !== undefined) el.innerHTML = dict[key];
+    });
+
+    document.querySelectorAll('.lang-toggle button').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-lang') === currentLang);
+    });
+
+    try {
+        localStorage.setItem('floodsafeLang', currentLang);
+    } catch (error) {
+        // Private browsing / storage disabled -- just skip remembering it.
+    }
+
+    // Text set asynchronously after a live fetch (status line, weather
+    // fallback) isn't covered by the data-i18n scan above since it's
+    // set imperatively in JS, not present in the page's static markup.
+    // Re-render it here too so switching languages after those fetches
+    // already resolved doesn't leave it stuck in the old language.
+    renderDynamicText();
+}
+
+// ---- Dynamic (fetched) text that also needs to track the current language ----
+
+let statusStateKey = null;
+let weatherStateKey = null;
+
+function renderDynamicText() {
+    if (statusStateKey) {
+        document.getElementById('statusText').textContent = t(statusStateKey);
+    }
+    if (weatherStateKey) {
+        document.getElementById('statWeather').textContent = t(weatherStateKey);
+    }
+}
+
+document.querySelectorAll('.lang-toggle button').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        applyLanguage(btn.getAttribute('data-lang'));
+    });
+});
+
+(function initLanguage() {
+    let saved = 'en';
+    try {
+        saved = localStorage.getItem('floodsafeLang') || 'en';
+    } catch (error) {
+        saved = 'en';
+    }
+    applyLanguage(saved);
+})();
 
 // ---- Text size control ----
 
@@ -898,17 +1150,17 @@ async function loadLiveStrip() {
     try {
         const status = await (await fetch('/status')).json();
         const dot = document.getElementById('statusDot');
-        const text = document.getElementById('statusText');
         if (status.routing === 'online') {
-            text.textContent = 'Routing engine online — figures below are live on this page';
+            statusStateKey = 'statusOnline';
         } else {
             dot.classList.add('off');
-            text.textContent = 'Routing engine temporarily unavailable';
+            statusStateKey = 'statusOffline';
         }
     } catch (error) {
         document.getElementById('statusDot').classList.add('off');
-        document.getElementById('statusText').textContent = 'Could not reach the server';
+        statusStateKey = 'statusUnreachable';
     }
+    renderDynamicText();
 
     try {
         const shelters = await (await fetch('/shelters')).json();
@@ -948,12 +1200,14 @@ async function loadLiveStrip() {
                     .reduce((sum, v) => sum + (Number(v) || 0), 0);
             }
             el.textContent = (currentMm + next3hMm).toFixed(1) + ' mm';
+            weatherStateKey = null;
         } else {
-            el.textContent = 'unavailable';
+            weatherStateKey = 'weatherUnavailable';
         }
     } catch (error) {
-        document.getElementById('statWeather').textContent = 'unavailable';
+        weatherStateKey = 'weatherUnavailable';
     }
+    renderDynamicText();
 
     document.getElementById('statNodes').textContent = '2,021,505';
 }
