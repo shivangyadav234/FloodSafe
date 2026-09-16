@@ -21,6 +21,7 @@ import {
   getIotSensorsGeoJSON,
   getLandslidesGeoJSON,
   getNearestWard,
+  getWardDetail,
   type WardFeatureProperties,
 } from "../services/ffgsApiService";
 import WardDetailPanel from "./WardDetailPanel";
@@ -149,11 +150,17 @@ function FloodMapComponent({ userLocation }: FloodMapProps) {
       .catch(() => {});
   }, []);
 
-  /* Default-select the user's own ward on load, if we know where they are. */
+  /*
+   * Default-select the user's own ward on load, if we know where they are --
+   * but only if it actually has scored risk data. Auto-opening the (full-
+   * viewport, blurred-backdrop) detail panel for a ward with no data yet
+   * just blocks the whole map behind an empty error state.
+   */
   useEffect(() => {
     if (!userLocation) return;
     getNearestWard(userLocation.lat, userLocation.lon)
-      .then((ward) => setSelectedWardId(ward.ward_id))
+      .then((ward) => getWardDetail(ward.ward_id).then(() => ward.ward_id))
+      .then((wardId) => setSelectedWardId(wardId))
       .catch(() => {});
     // Only run once per mount -- the user can close/reselect afterward.
     // eslint-disable-next-line react-hooks/exhaustive-deps
