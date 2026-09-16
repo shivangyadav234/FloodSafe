@@ -27,12 +27,20 @@ app.use(
   })
 );
 
-// ── CORS — allow Vite dev server and preview ──────────────────────────
+// ── CORS — allow Vite dev server/preview plus any deployed frontend(s) ──
+// CORS_ORIGINS is a comma-separated list of extra allowed origins (e.g. the
+// deployed dashboard's URL), added on top of the local dev defaults below.
+const extraOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
     origin: [
       'http://localhost:5173', // vite dev
       'http://localhost:4173', // vite preview
+      ...extraOrigins,
     ],
     methods: ['POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type'],
