@@ -80,8 +80,10 @@
   position: fixed;
   inset: 0;
   z-index: 9100;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(4px);
+  /* No backdrop-filter -- see the comment on .ward-panel-overlay in
+     WardDetailPanel.css: it's expensive against the animated background
+     blobs and causes visible flicker while this modal is open. */
+  background: rgba(0, 0, 0, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;

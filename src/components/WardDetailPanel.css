@@ -1,8 +1,11 @@
 .ward-panel-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.55);
-  backdrop-filter: blur(2px);
+  /* No backdrop-filter: this sits above the always-animating background
+     blobs (App.css .blob1/2/3), and blurring their live animation every
+     frame while the overlay is open is expensive enough to visibly
+     flicker. A darker flat tint gives the same separation for free. */
+  background: rgba(2, 6, 23, 0.72);
   z-index: 1000;
   display: flex;
   align-items: flex-start;
