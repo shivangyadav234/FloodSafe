@@ -3,7 +3,6 @@ import LoginPage from "./components/loginpage";
 import LocationStats from "./components/Locationstats";
 import SOSButton from "./components/SOSButton";
 import EmergencyContacts from "./components/EmergencyContacts";
-import AlertPanel from "./components/AlertPanel";
 import { toE164, type UserData } from "./types/user";
 import "./App.css";
 
@@ -41,14 +40,6 @@ const Navbar = memo(function Navbar({
           }}
         >
           Map
-        </span>
-
-        <span
-          onClick={() => {
-            document.querySelector(".alerts")?.scrollIntoView({ behavior: "smooth" });
-          }}
-        >
-          Alerts
         </span>
 
         <span
@@ -111,16 +102,6 @@ const HeroSection = memo(function HeroSection() {
           >
             Find Safe Route
           </button>
-
-          {/* ALERT BUTTON */}
-          <button
-            className="secondary-btn"
-            onClick={() => {
-              document.querySelector(".alerts")?.scrollIntoView({ behavior: "smooth" });
-            }}
-          >
-            View Alerts
-          </button>
         </div>
       </div>
     </section>
@@ -172,27 +153,6 @@ const MapSection = memo(function MapSection({ userLocation }: { userLocation?: {
           <FloodMap userLocation={userLocation} />
         </Suspense>
       </div>
-    </section>
-  );
-});
-
-const AlertsSection = memo(function AlertsSection() {
-  return (
-    <section className="alerts">
-      <div className="alert-heading">
-        <div>
-          <p className="small-heading">
-            EMERGENCY INFORMATION
-          </p>
-
-          <h2>
-            Active Emergency Alerts
-          </h2>
-        </div>
-      </div>
-
-      {/* Live HIGH/CRITICAL wards from the FFGS model (ml-pipeline/src/api/main.py /alerts) */}
-      <AlertPanel />
     </section>
   );
 });
@@ -303,9 +263,6 @@ function App() {
             longitude: userData.longitude || 0,
           }}
         />
-
-        {/* ALERTS */}
-        <AlertsSection />
 
         {/* FOOTER */}
         <FooterSection />
