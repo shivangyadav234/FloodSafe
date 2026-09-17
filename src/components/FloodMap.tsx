@@ -22,7 +22,9 @@ import {
   getLandslidesGeoJSON,
   getNearestWard,
   getWardDetail,
+  searchWards,
   type WardFeatureProperties,
+  type WardSearchResult,
 } from "../services/ffgsApiService";
 import WardDetailPanel from "./WardDetailPanel";
 
@@ -40,6 +42,17 @@ const INITIAL_VIEW_STATE = {
 // the whole viewport -- only fetch/render it once the user has zoomed in
 // enough that a bbox query stays small (see MAX_GRID_CELLS_PER_REQUEST server-side).
 const GRID_LAYER_MIN_ZOOM = 12;
+
+// Below this zoom the viewport still spans most of Uttarakhand, so a bbox
+// query wouldn't meaningfully cut down from all ~5,000 scored wards -- own
+// investigation found that full set (even simplified) was still enough to
+// visibly stutter the page on load. Below this zoom, use the search box
+// instead of showing every ward polygon at once.
+const WARD_LAYER_MIN_ZOOM = 10;
+
+// Flown-to zoom when a search result is selected, high enough to clear
+// WARD_LAYER_MIN_ZOOM so the ward polygon actually renders on arrival.
+const WARD_SEARCH_FLY_ZOOM = 12;
 
 const INTERACTIVE_LAYER_IDS = ["ward-risk-fill", "grid-risk-fill"];
 
@@ -129,14 +142,14 @@ function FloodMapComponent({ userLocation }: FloodMapProps) {
   const [showIot, setShowIot] = useState(true);
   const [showLandslides, setShowLandslides] = useState(true);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<WardSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+
   const rafId = useRef<number | null>(null);
 
-  /* Static layers: fetched once. */
+  /* One-shot layers: small enough (a few hundred rows) to fetch once. */
   useEffect(() => {
-    getWardsGeoJSON()
-      .then((fc) => setWardsGeoJSON(fc as GeoJSON.FeatureCollection))
-      .catch((err) => setLoadError(err.message || "Failed to load ward risk data."));
-
     getWatershedsGeoJSON()
       .then((fc) => setWatershedsGeoJSON(fc as GeoJSON.FeatureCollection))
       .catch(() => {});
@@ -182,6 +195,61 @@ function FloodMapComponent({ userLocation }: FloodMapProps) {
     })
       .then((fc) => setGridGeoJSON(fc as GeoJSON.FeatureCollection))
       .catch(() => setGridGeoJSON(null));
+  }, []);
+
+  /* Ward layer: same idea -- viewport-scoped, refetched on move once zoomed
+     in enough that the bbox actually cuts the ~5,000-ward set down. */
+  const fetchWardsForViewport = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || map.getZoom() < WARD_LAYER_MIN_ZOOM) {
+      setWardsGeoJSON(null);
+      return;
+    }
+    const bounds = map.getBounds();
+    getWardsGeoJSON({
+      minLon: bounds.getWest(),
+      minLat: bounds.getSouth(),
+      maxLon: bounds.getEast(),
+      maxLat: bounds.getNorth(),
+    })
+      .then((fc) => {
+        setWardsGeoJSON(fc as GeoJSON.FeatureCollection);
+        setLoadError(null);
+      })
+      .catch((err) => setLoadError(err.message || "Failed to load ward risk data."));
+  }, []);
+
+  const fetchViewportLayers = useCallback(() => {
+    fetchGridForViewport();
+    fetchWardsForViewport();
+  }, [fetchGridForViewport, fetchWardsForViewport]);
+
+  /* Ward search box: debounced as-you-type search, independent of the
+     current viewport/zoom -- this is how a ward gets found while zoomed
+     out too far for the polygon layer to be showing anything. */
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const timeoutId = setTimeout(() => {
+      searchWards(query)
+        .then((results) => setSearchResults(results))
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearching(false));
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  const handleSelectSearchResult = useCallback((result: WardSearchResult) => {
+    const map = mapRef.current?.getMap();
+    map?.flyTo({ center: [result.lon, result.lat], zoom: WARD_SEARCH_FLY_ZOOM });
+    setSelectedWardId(result.ward_id);
+    setSearchQuery("");
+    setSearchResults([]);
   }, []);
 
   const handleMouseMove = useCallback((event: MapLayerMouseEvent) => {
@@ -233,8 +301,8 @@ function FloodMapComponent({ userLocation }: FloodMapProps) {
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        onLoad={fetchGridForViewport}
-        onMoveEnd={fetchGridForViewport}
+        onLoad={fetchViewportLayers}
+        onMoveEnd={fetchViewportLayers}
       >
         <NavigationControl position="top-right" />
 
@@ -314,6 +382,69 @@ function FloodMapComponent({ userLocation }: FloodMapProps) {
           </Popup>
         )}
       </Map>
+
+      {/* ===== WARD SEARCH ===== */}
+      <div style={{ position: "absolute", top: 12, left: 12, zIndex: 10, width: 240 }}>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search for a ward…"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "8px 10px",
+            borderRadius: 8,
+            border: "1px solid rgba(56, 189, 248, 0.35)",
+            background: "rgba(6, 20, 34, 0.95)",
+            color: "#e2e8f0",
+            fontSize: 13,
+          }}
+        />
+        {(searching || searchResults.length > 0) && (
+          <div
+            style={{
+              marginTop: 4,
+              maxHeight: 220,
+              overflowY: "auto",
+              borderRadius: 8,
+              border: "1px solid rgba(56, 189, 248, 0.25)",
+              background: "rgba(6, 20, 34, 0.98)",
+            }}
+          >
+            {searching && <div style={{ padding: 10, fontSize: 12, color: "#94a3b8" }}>Searching…</div>}
+            {!searching &&
+              searchResults.map((result) => (
+                <button
+                  key={result.ward_id}
+                  onClick={() => handleSelectSearchResult(result)}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    width: "100%",
+                    padding: "8px 10px",
+                    background: "transparent",
+                    border: "none",
+                    borderBottom: "1px solid rgba(148, 163, 184, 0.12)",
+                    color: "#e2e8f0",
+                    fontSize: 13,
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span>{result.ward_name}</span>
+                  <span style={{ color: getRiskColor(result.risk_category), fontSize: 11, fontWeight: 700 }}>
+                    {result.risk_category ?? "—"}
+                  </span>
+                </button>
+              ))}
+            {!searching && searchResults.length === 0 && (
+              <div style={{ padding: 10, fontSize: 12, color: "#94a3b8" }}>No wards found.</div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ===== LAYER TOGGLES ===== */}
       <div className="risk-legend" style={{ top: 12, right: 60 }}>

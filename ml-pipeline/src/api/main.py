@@ -58,24 +58,34 @@ def health():
 
 
 @app.get("/wards.geojson")
-def wards_geojson(valid_for: Optional[str] = None, model_version: str = MODEL_VERSION):
+def wards_geojson(
+    min_lon: float = Query(...),
+    min_lat: float = Query(...),
+    max_lon: float = Query(...),
+    max_lat: float = Query(...),
+    valid_for: Optional[str] = None,
+    model_version: str = MODEL_VERSION,
+):
     """
-    One Feature per ward that has at least one grid cell (unscored wards --
-    e.g. those covering only uninhabited/unmapped terrain -- are omitted),
-    with its most recent ward_risk row. Ward geometry comes from the real
-    village boundaries loaded via admin_boundaries.py --level village.
+    Wards intersecting the requested viewport bbox that have at least one
+    grid cell (unscored wards -- e.g. those covering only uninhabited/
+    unmapped terrain -- are omitted), with their most recent ward_risk row.
+    Ward geometry comes from the real village boundaries loaded via
+    admin_boundaries.py --level village.
+
+    Always bbox-scoped, same reasoning as grid.geojson: all 5,043 scored
+    wards at once (even simplified, ~3MB) was still a multi-second main-
+    thread parse/tile cost on every page load -- see the ward-panel
+    flicker investigation. A typical viewport only needs a few hundred.
     """
     ts = valid_for or _latest_valid_for(model_version)
     if ts is None:
         return {"type": "FeatureCollection", "features": []}
 
     # Simplified + rounded to 5 decimal places (~1m) rather than PostGIS's
-    # default 9 (~0.1mm): full-precision village-boundary geometry for all
-    # scored wards was a ~10MB response on every page load (5,043 wards x
-    # ~65 vertices x survey-grade precision), which blocked the main thread
-    # for seconds parsing + tiling it -- see the ward-panel flicker
-    # investigation. Neither survey precision nor unsimplified boundaries
-    # are visible at this map's zoom levels (starts at 7, a state-wide view).
+    # default 9 (~0.1mm) -- neither survey precision nor unsimplified
+    # boundaries are visible at this map's zoom levels (starts at 7, a
+    # state-wide view).
     sql = """
         SELECT
             w.ward_id, w.ward_name, w.population,
@@ -85,9 +95,45 @@ def wards_geojson(valid_for: Optional[str] = None, model_version: str = MODEL_VE
             ST_AsGeoJSON(ST_SimplifyPreserveTopology(w.geom, 0.0005), 5) AS geometry
         FROM wards w
         JOIN ward_risk wr ON wr.ward_id = w.ward_id AND wr.valid_for = :valid_for
+        WHERE ST_Intersects(w.geom, ST_MakeEnvelope(:min_lon, :min_lat, :max_lon, :max_lat, 4326))
     """
-    df = query_df(sql, {"valid_for": ts})
+    df = query_df(
+        sql,
+        {
+            "valid_for": ts,
+            "min_lon": min_lon,
+            "min_lat": min_lat,
+            "max_lon": max_lon,
+            "max_lat": max_lat,
+        },
+    )
     return _to_feature_collection(df)
+
+
+@app.get("/wards/search")
+def wards_search(q: str = Query(..., min_length=1), valid_for: Optional[str] = None, model_version: str = MODEL_VERSION):
+    """
+    Ward name search for the map's search box -- name + risk summary + a
+    center point to fly the map to, no geometry (this must stay light
+    enough to call on every keystroke).
+    """
+    ts = valid_for or _latest_valid_for(model_version)
+    if ts is None:
+        return []
+
+    sql = """
+        SELECT
+            w.ward_id, w.ward_name, w.population,
+            wr.risk_category, wr.ward_risk_score,
+            ST_X(ST_Centroid(w.geom)) AS lon, ST_Y(ST_Centroid(w.geom)) AS lat
+        FROM wards w
+        JOIN ward_risk wr ON wr.ward_id = w.ward_id AND wr.valid_for = :valid_for
+        WHERE w.ward_name ILIKE :q
+        ORDER BY w.ward_name
+        LIMIT 20
+    """
+    df = query_df(sql, {"valid_for": ts, "q": f"%{q}%"})
+    return df.to_dict(orient="records")
 
 
 @app.get("/grid.geojson")

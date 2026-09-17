@@ -79,8 +79,28 @@ async function getJSON<T>(path: string): Promise<T> {
   return res.json();
 }
 
-export function getWardsGeoJSON() {
-  return getJSON<GeoJSON.FeatureCollection<GeoJSON.Geometry, WardFeatureProperties>>("/wards.geojson");
+export interface WardSearchResult {
+  ward_id: number;
+  ward_name: string;
+  population: number | null;
+  risk_category: "LOW" | "MODERATE" | "HIGH" | "CRITICAL" | null;
+  ward_risk_score: number | null;
+  lon: number;
+  lat: number;
+}
+
+export function getWardsGeoJSON(bbox: { minLon: number; minLat: number; maxLon: number; maxLat: number }) {
+  const params = new URLSearchParams({
+    min_lon: String(bbox.minLon),
+    min_lat: String(bbox.minLat),
+    max_lon: String(bbox.maxLon),
+    max_lat: String(bbox.maxLat),
+  });
+  return getJSON<GeoJSON.FeatureCollection<GeoJSON.Geometry, WardFeatureProperties>>(`/wards.geojson?${params}`);
+}
+
+export function searchWards(query: string) {
+  return getJSON<WardSearchResult[]>(`/wards/search?q=${encodeURIComponent(query)}`);
 }
 
 export function getGridGeoJSON(bbox: { minLon: number; minLat: number; maxLon: number; maxLat: number }) {
