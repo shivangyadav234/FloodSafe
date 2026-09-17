@@ -14,6 +14,6 @@ data/routing/
 # Claude Code's own local session state — not part of the project
 .claude/
 
-# Live, user-generated hazard reports — runtime data, not source.
-# Keep the file itself (server expects it to exist) but not its contents.
+# Live, user-generated hazard reports & SOS alerts — runtime data, not source.
 data/flood/uttarakhand/data/reports.json
+data/flood/uttarakhand/data/sos_alerts.json

@@ -215,6 +215,216 @@ def _active_reports():
 
 
 # ============================================================
+# SOS EMERGENCY ALERTS
+#
+# Stored the same way as hazard reports (flat JSON file) — this is
+# a distress log, not a dispatch integration. There's no SMS/call
+# gateway wired up here (that needs a paid Twilio/TextBee account),
+# so "sending" an SOS means: it's persisted, printed to the server
+# console, and visible on /sos-view. The in-page SOS panel also
+# gives the user direct tel: links to real emergency numbers and a
+# way to share their own live location over WhatsApp/SMS, both of
+# which work with zero backend involvement at all.
+# ============================================================
+
+SOS_FILE = os.path.join(DATA_DIR, "sos_alerts.json")
+SOS_MESSAGE_MAX_LENGTH = 300
+SOS_NAME_MAX_LENGTH = 80
+SOS_RETENTION_SECONDS = 24 * 60 * 60
+
+
+def _load_sos_alerts():
+
+    if not os.path.exists(SOS_FILE):
+        return []
+
+    try:
+
+        with open(SOS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if not isinstance(data, list):
+            return []
+
+        return data
+
+    except (OSError, ValueError) as e:
+
+        print("WARNING: failed to load sos_alerts.json:", repr(e))
+        return []
+
+
+def _save_sos_alerts(alerts):
+
+    try:
+
+        with open(SOS_FILE, "w", encoding="utf-8") as f:
+            json.dump(alerts, f)
+
+    except OSError as e:
+
+        print("WARNING: failed to save sos_alerts.json:", repr(e))
+
+
+_sos_alerts = _load_sos_alerts()
+
+
+def _active_sos_alerts():
+
+    now = time.time()
+
+    fresh = [
+        alert for alert in _sos_alerts
+        if now - alert.get("timestamp", 0) < SOS_RETENTION_SECONDS
+    ]
+
+    if len(fresh) != len(_sos_alerts):
+
+        _sos_alerts[:] = fresh
+        _save_sos_alerts(_sos_alerts)
+
+    fresh_sorted = sorted(fresh, key=lambda a: a.get("timestamp", 0), reverse=True)
+
+    return fresh_sorted
+
+
+# ============================================================
+# FLASH FLOOD GUIDANCE (FFGS)
+#
+# Combines the static hazard-atlas classification for a location
+# with live rainfall to answer what a Flash Flood Guidance system
+# exists to answer: "how much more rain until this specific place
+# is at flood risk?" trigger_mm per hazard class below is a
+# simplified heuristic scaled off this app's own RAIN_HIGH_THRESHOLD_MM
+# (see /weather) — not an official CWC/IMD FFG value, which would need
+# the full hydrological model this repo doesn't have. The atlas only
+# maps specific hazard-prone corridors (~5,340 km² of Uttarakhand's
+# ~53,483 km²), not the whole state, so most points fall outside every
+# polygon — those are classified by nearest mapped zone if it's close
+# enough, instead of silently defaulting to LOW.
+# ============================================================
+
+HAZARD_TRIGGER_MM = {
+    "EXTREME": 8.0,
+    "SIGNIFICANT": 20.0,
+    "MODERATE": 35.0,
+    "LOW": 60.0,
+}
+
+FFGS_NEAREST_ZONE_MAX_KM = 15.0
+
+# Same towns as RAINFALL_STATIONS in the landing page JS — kept in
+# sync by name so the browser can pair this endpoint's hazard/trigger
+# data with the rainfall it already fetches client-side, without a
+# second round trip through this server.
+FFGS_TOWNS = [
+    {"name": "Dehradun", "lat": 30.3165, "lon": 78.0322},
+    {"name": "Rishikesh", "lat": 30.0869, "lon": 78.2676},
+    {"name": "Haridwar", "lat": 29.9457, "lon": 78.1642},
+    {"name": "Mussoorie", "lat": 30.4598, "lon": 78.0664},
+    {"name": "Nainital", "lat": 29.3803, "lon": 79.4636},
+    {"name": "Haldwani", "lat": 29.2183, "lon": 79.5130},
+    {"name": "Almora", "lat": 29.5892, "lon": 79.6467},
+    {"name": "Pithoragarh", "lat": 29.5822, "lon": 80.2181},
+    {"name": "Joshimath", "lat": 30.5551, "lon": 79.5643},
+]
+
+_hazard_polygons = []
+FFGS_AVAILABLE = False
+FFGS_ERROR = None
+
+try:
+
+    from shapely.geometry import shape as _shapely_shape, Point as _ShapelyPoint
+
+    _hazard_geojson_path = os.path.join(DATA_DIR, "uttarakhand_flash_flood_hazard_clean.geojson")
+
+    with open(_hazard_geojson_path, "r", encoding="utf-8") as f:
+        _hazard_geojson = json.load(f)
+
+    for _feature in _hazard_geojson.get("features", []):
+
+        try:
+            _geom = _shapely_shape(_feature["geometry"])
+            _hazard_class = _feature["properties"]["hazard"]
+            _hazard_polygons.append((_geom, _hazard_class))
+        except Exception:
+            continue
+
+    FFGS_AVAILABLE = len(_hazard_polygons) > 0
+
+    if not FFGS_AVAILABLE:
+        FFGS_ERROR = "Hazard atlas loaded but contained no usable polygons."
+
+except Exception as e:
+
+    FFGS_ERROR = str(e)
+    print("WARNING: FFGS hazard atlas unavailable:", repr(e))
+
+
+def _hazard_class_at(lat, lon):
+    """
+    Static hazard classification at a point. Returns
+    (hazard_class, exact_match, distance_km) — hazard_class and
+    distance_km are None if the atlas isn't loaded or the nearest
+    mapped zone is farther than FFGS_NEAREST_ZONE_MAX_KM away.
+    """
+
+    if not FFGS_AVAILABLE:
+        return None, False, None
+
+    point = _ShapelyPoint(lon, lat)
+
+    for geom, hazard_class in _hazard_polygons:
+        if geom.contains(point):
+            return hazard_class, True, 0.0
+
+    nearest_class = None
+    nearest_deg = None
+
+    for geom, hazard_class in _hazard_polygons:
+
+        d = geom.distance(point)
+
+        if nearest_deg is None or d < nearest_deg:
+            nearest_deg = d
+            nearest_class = hazard_class
+
+    if nearest_deg is None:
+        return None, False, None
+
+    distance_km = nearest_deg * 111.0
+
+    if distance_km > FFGS_NEAREST_ZONE_MAX_KM:
+        return None, False, distance_km
+
+    return nearest_class, False, distance_km
+
+
+def _ffgs_result(lat, lon):
+
+    hazard_class, exact, distance_km = _hazard_class_at(lat, lon)
+
+    return {
+        "lat": lat,
+        "lon": lon,
+        "hazard_class": hazard_class,
+        "exact_match": exact,
+        "distance_km": round(distance_km, 1) if distance_km is not None else None,
+        "trigger_mm": HAZARD_TRIGGER_MM.get(hazard_class) if hazard_class else None
+    }
+
+
+# Computed once at startup — the atlas and the town list are both
+# static, so there's no reason to redo ~191-polygon point checks on
+# every landing-page load.
+FFGS_ZONES = [
+    dict(_ffgs_result(town["lat"], town["lon"]), name=town["name"])
+    for town in FFGS_TOWNS
+]
+
+
+# ============================================================
 # LANDING PAGE
 #
 # The site's front door. Pulls live numbers from this same
@@ -680,6 +890,166 @@ footer.site-footer .disclaimer {
   .sources-list dd { margin-left: 0; }
 }
 
+/* ---------------- FFGS ---------------- */
+
+.ffgs-intro { font-size: 0.84375rem; color: var(--muted); max-width: 720px; margin: 8px 0 16px; }
+
+table.ffgs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84375rem;
+}
+table.ffgs-table th, table.ffgs-table td {
+  border: 1px solid var(--border);
+  padding: 9px 12px;
+  text-align: left;
+}
+table.ffgs-table th {
+  background: var(--navy);
+  color: white;
+  font-size: 0.71875rem;
+  text-transform: uppercase;
+}
+table.ffgs-table td.num { font-family: 'Consolas', monospace; text-align: right; }
+table.ffgs-table tr:nth-child(even) td { background: #f7f9fa; }
+
+.ffgs-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 3px;
+  font-size: 0.71875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.ffgs-normal { background: var(--safe-bg); color: var(--safe); }
+.ffgs-watch { background: #fff2d9; color: #8a5a00; }
+.ffgs-extreme { background: var(--risk-bg); color: var(--risk); }
+.ffgs-unmapped { background: #eceff1; color: var(--muted); }
+
+.ffgs-mylocation {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.ffgs-my-result { font-size: 0.84375rem; color: var(--ink); }
+
+/* ---------------- SOS ---------------- */
+
+.sos-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: var(--risk);
+  color: white;
+  border: 3px solid white;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.35);
+  font-weight: 800;
+  font-size: 0.84375rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  animation: sosPulse 2s infinite;
+}
+.sos-fab:hover { background: #5c1414; }
+
+@keyframes sosPulse {
+  0% { box-shadow: 0 3px 14px rgba(0,0,0,0.35), 0 0 0 0 rgba(122,31,31,0.55); }
+  70% { box-shadow: 0 3px 14px rgba(0,0,0,0.35), 0 0 0 14px rgba(122,31,31,0); }
+  100% { box-shadow: 0 3px 14px rgba(0,0,0,0.35), 0 0 0 0 rgba(122,31,31,0); }
+}
+
+.sos-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6,35,56,0.55);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.sos-overlay[hidden] { display: none; }
+
+.sos-modal {
+  background: var(--panel);
+  border-radius: 6px;
+  max-width: 460px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 22px;
+  position: relative;
+}
+.sos-modal h2 { color: var(--risk); font-size: 1.1875rem; margin-bottom: 4px; }
+.sos-modal .sos-sub { font-size: 0.8125rem; color: var(--muted); margin-bottom: 16px; }
+.sos-close {
+  position: absolute; top: 12px; right: 14px;
+  background: none; border: none; font-size: 1.25rem; cursor: pointer; color: var(--muted);
+  line-height: 1;
+}
+
+.sos-contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.sos-contact-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px;
+  background: var(--risk-bg);
+  color: var(--risk) !important;
+  border: 1px solid var(--risk);
+  border-radius: 4px;
+  padding: 10px 8px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  text-align: center;
+}
+.sos-contact-btn:hover { background: var(--risk); color: white !important; }
+.sos-contact-btn .num { font-family: 'Consolas', monospace; font-size: 1.0625rem; }
+
+.sos-section-label {
+  font-size: 0.71875rem; font-weight: 700; text-transform: uppercase;
+  color: var(--muted); letter-spacing: 0.04em; margin: 14px 0 8px;
+}
+
+.sos-share-btn, .sos-send-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.84375rem;
+  cursor: pointer;
+  border: 1px solid var(--navy);
+  background: var(--navy);
+  color: white;
+  margin-bottom: 8px;
+}
+.sos-share-btn:hover, .sos-send-btn:hover { background: var(--navy-dark); }
+
+.sos-field {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-size: 0.84375rem;
+  margin-bottom: 8px;
+  font-family: inherit;
+}
+
+.sos-status { font-size: 0.8125rem; margin-top: 6px; min-height: 1.2em; }
+.sos-status.ok { color: var(--safe); }
+.sos-status.err { color: var(--risk); }
+
 </style>
 </head>
 <body>
@@ -716,8 +1086,10 @@ footer.site-footer .disclaimer {
     </a>
     <nav class="main-nav">
       <a class="nav-link" href="#status" data-i18n="navStatus">Live Status</a>
+      <a class="nav-link" href="#ffgs" data-i18n="navFfgs">Flood Guidance</a>
       <a class="nav-link" href="#features" data-i18n="navServices">Services</a>
       <a class="nav-link" href="/reports-view" data-i18n="navReports">Hazard Reports</a>
+      <a class="nav-link" href="#" id="navSosLink" data-i18n="navSos">Emergency SOS</a>
       <a class="btn-official" href="/app" data-i18n="navOpenMap">Open Map Tool</a>
     </nav>
   </div>
@@ -798,6 +1170,32 @@ footer.site-footer .disclaimer {
       <span><span class="dot" style="background:#cf7a2a"></span><span data-i18n="hazardSignificant">SIGNIFICANT hazard</span></span>
       <span><span class="dot" style="background:#7a1f1f"></span><span data-i18n="hazardExtreme">EXTREME hazard</span></span>
       <span style="margin-left:auto;" data-i18n="hazardSource">Source: georeferenced state flash-flood hazard atlas</span>
+    </div>
+  </div>
+</section>
+
+<section id="ffgs">
+  <div class="wrap">
+    <div class="section-label" data-i18n="ffgsLabel">Flash Flood Guidance</div>
+    <h2 data-i18n="ffgsTitle">How much more rain before it's dangerous, here?</h2>
+    <p class="ffgs-intro" data-i18n="ffgsIntro">Combines each location's static hazard classification with its current live rainfall to estimate the remaining headroom before flash-flood risk escalates — the same question official Flash Flood Guidance systems exist to answer.</p>
+    <table class="ffgs-table">
+      <thead>
+        <tr>
+          <th data-i18n="ffgsColTown">Location</th>
+          <th data-i18n="ffgsColHazard">Hazard Zone</th>
+          <th data-i18n="ffgsColRain">Live Rain Now</th>
+          <th data-i18n="ffgsColHeadroom">Headroom</th>
+          <th data-i18n="ffgsColStatus">Guidance</th>
+        </tr>
+      </thead>
+      <tbody id="ffgsTableBody">
+        <tr><td colspan="5" data-i18n="ffgsLoading">Loading…</td></tr>
+      </tbody>
+    </table>
+    <div class="ffgs-mylocation">
+      <button type="button" id="ffgsMyLocationBtn" class="btn-outline" data-i18n="ffgsCheckLocation">Check guidance at my location</button>
+      <div id="ffgsMyLocationResult" class="ffgs-my-result" hidden></div>
     </div>
   </div>
 </section>
@@ -894,6 +1292,34 @@ footer.site-footer .disclaimer {
   </div>
 </footer>
 
+<button type="button" id="sosFab" class="sos-fab" aria-haspopup="dialog">SOS</button>
+
+<div class="sos-overlay" id="sosOverlay" hidden role="dialog" aria-modal="true" aria-labelledby="sosModalTitle">
+  <div class="sos-modal">
+    <button type="button" class="sos-close" id="sosCloseBtn" aria-label="Close">&times;</button>
+    <h2 id="sosModalTitle" data-i18n="sosModalTitle">Emergency SOS</h2>
+    <p class="sos-sub" data-i18n="sosModalIntro">If you are in immediate danger, call emergency services first. Use the options below to also share your location or log a distress alert.</p>
+
+    <div class="sos-section-label" data-i18n="sosCallLabel">Call now</div>
+    <div class="sos-contact-grid">
+      <a class="sos-contact-btn" href="tel:112"><span class="num">112</span><span data-i18n="sosPolice">Police / All Emergency</span></a>
+      <a class="sos-contact-btn" href="tel:108"><span class="num">108</span><span data-i18n="sosAmbulance">Ambulance</span></a>
+      <a class="sos-contact-btn" href="tel:1070"><span class="num">1070</span><span data-i18n="sosDisasterHelpline">State Disaster Helpline</span></a>
+      <a class="sos-contact-btn" href="tel:1091"><span class="num">1091</span><span data-i18n="sosWomenHelpline">Women's Helpline</span></a>
+    </div>
+
+    <div class="sos-section-label" data-i18n="sosShareLabel">Share your location</div>
+    <button type="button" class="sos-share-btn" id="sosShareBtn" data-i18n="sosShareLocationBtn">Share my live location (WhatsApp / SMS)</button>
+    <div class="sos-status" id="sosShareStatus"></div>
+
+    <div class="sos-section-label" data-i18n="sosSendLabel">Log a distress alert</div>
+    <input type="text" class="sos-field" id="sosNameInput" maxlength="80" data-i18n-placeholder="sosNameLabel" placeholder="Your name (optional)">
+    <input type="text" class="sos-field" id="sosMessageInput" maxlength="300" data-i18n-placeholder="sosMessageLabel" placeholder="What's happening? (optional)">
+    <button type="button" class="sos-send-btn" id="sosSendBtn" data-i18n="sosSendBtn">Send SOS Alert</button>
+    <div class="sos-status" id="sosSendStatus"></div>
+  </div>
+</div>
+
 <script>
 
 // ---- Translations ----
@@ -972,7 +1398,60 @@ const translations = {
     footerReports: "Hazard Reports",
     footerStatus: "System Status (API)",
     footerTagline: "FloodSafe — Flood-Aware Road Advisory Service for Uttarakhand.",
-    footerDisclaimer: "FloodSafe is an independent citizen-safety project and is not an official service of the Government of Uttarakhand or the Government of India. Hazard classifications are derived from published government flash-flood hazard data; road conditions should always be independently verified before travel, particularly during active monsoon or alert conditions."
+    footerDisclaimer: "FloodSafe is an independent citizen-safety project and is not an official service of the Government of Uttarakhand or the Government of India. Hazard classifications are derived from published government flash-flood hazard data; road conditions should always be independently verified before travel, particularly during active monsoon or alert conditions.",
+    navFfgs: "Flood Guidance",
+    navSos: "Emergency SOS",
+    ffgsLabel: "Flash Flood Guidance",
+    ffgsTitle: "How much more rain before it's dangerous, here?",
+    ffgsIntro: "Combines each location's static hazard classification with its current live rainfall to estimate the remaining headroom before flash-flood risk escalates — the same question official Flash Flood Guidance systems exist to answer.",
+    ffgsColTown: "Location",
+    ffgsColHazard: "Hazard Zone",
+    ffgsColRain: "Live Rain Now",
+    ffgsColHeadroom: "Headroom",
+    ffgsColStatus: "Guidance",
+    ffgsLoading: "Loading…",
+    ffgsUnavailable: "Flash Flood Guidance data is unavailable right now.",
+    ffgsUnmapped: "Not mapped by the hazard atlas",
+    ffgsLevelNORMAL: "Normal",
+    ffgsLevelWATCH: "Watch",
+    ffgsLevelEXTREME: "Escalating now",
+    ffgsCheckLocation: "Check guidance at my location",
+    ffgsLocating: "Getting your location…",
+    ffgsNoGeolocation: "Your browser doesn't support geolocation.",
+    ffgsLocationDenied: "Location permission denied.",
+    ffgsLocationError: "Couldn't fetch guidance for your location.",
+    ffgsApproxNote: "(nearest mapped zone, ~{km} km away)",
+    sosModalTitle: "Emergency SOS",
+    sosModalIntro: "If you are in immediate danger, call emergency services first. Use the options below to also share your location or log a distress alert.",
+    sosCallLabel: "Call now",
+    sosPolice: "Police / All Emergency",
+    sosAmbulance: "Ambulance",
+    sosDisasterHelpline: "State Disaster Helpline",
+    sosWomenHelpline: "Women's Helpline",
+    sosShareLabel: "Share your location",
+    sosShareLocationBtn: "Share my live location (WhatsApp / SMS)",
+    sosShareLocating: "Getting your location…",
+    sosShareDenied: "Location permission denied — you can still call directly.",
+    sosShareReady: "Location ready — choose where to send it:",
+    sosSendLabel: "Log a distress alert",
+    sosNameLabel: "Your name (optional)",
+    sosMessageLabel: "What's happening? (optional)",
+    sosSendBtn: "Send SOS Alert",
+    sosSending: "Sending…",
+    sosSentOk: "SOS alert sent and logged.",
+    sosSentErr: "Could not send the alert — try calling instead.",
+    sosWhatsapp: "Send via WhatsApp",
+    sosSms: "Send via SMS",
+    sosCopyLink: "Copy map link",
+    townDehradun: "Dehradun",
+    townRishikesh: "Rishikesh",
+    townHaridwar: "Haridwar",
+    townMussoorie: "Mussoorie",
+    townNainital: "Nainital",
+    townHaldwani: "Haldwani",
+    townAlmora: "Almora",
+    townPithoragarh: "Pithoragarh",
+    townJoshimath: "Joshimath"
   },
   hi: {
     skipLink: "मुख्य सामग्री पर जाएं",
@@ -1047,7 +1526,60 @@ const translations = {
     footerReports: "खतरा रिपोर्ट",
     footerStatus: "सिस्टम स्थिति (API)",
     footerTagline: "FloodSafe — उत्तराखंड के लिए बाढ़-जागरूक सड़क परामर्श सेवा।",
-    footerDisclaimer: "FloodSafe एक स्वतंत्र नागरिक-सुरक्षा परियोजना है और यह उत्तराखंड सरकार या भारत सरकार की कोई आधिकारिक सेवा नहीं है। खतरा वर्गीकरण प्रकाशित सरकारी बाढ़ खतरा डेटा से लिया गया है; यात्रा से पहले सड़क की स्थिति की हमेशा स्वतंत्र रूप से पुष्टि करें, विशेष रूप से सक्रिय मानसून या चेतावनी की स्थिति के दौरान।"
+    footerDisclaimer: "FloodSafe एक स्वतंत्र नागरिक-सुरक्षा परियोजना है और यह उत्तराखंड सरकार या भारत सरकार की कोई आधिकारिक सेवा नहीं है। खतरा वर्गीकरण प्रकाशित सरकारी बाढ़ खतरा डेटा से लिया गया है; यात्रा से पहले सड़क की स्थिति की हमेशा स्वतंत्र रूप से पुष्टि करें, विशेष रूप से सक्रिय मानसून या चेतावनी की स्थिति के दौरान।",
+    navFfgs: "बाढ़ पूर्वानुमान",
+    navSos: "आपातकालीन SOS",
+    ffgsLabel: "फ्लैश फ्लड गाइडेंस",
+    ffgsTitle: "यहाँ खतरनाक होने से पहले और कितनी बारिश बाकी है?",
+    ffgsIntro: "प्रत्येक स्थान के स्थिर खतरा वर्गीकरण को उसकी वर्तमान लाइव वर्षा के साथ जोड़कर, फ्लैश-फ्लड जोखिम बढ़ने से पहले बची हुई गुंजाइश का अनुमान — यही सवाल आधिकारिक फ्लैश फ्लड गाइडेंस सिस्टम भी हल करते हैं।",
+    ffgsColTown: "स्थान",
+    ffgsColHazard: "खतरा क्षेत्र",
+    ffgsColRain: "अभी लाइव वर्षा",
+    ffgsColHeadroom: "गुंजाइश",
+    ffgsColStatus: "मार्गदर्शन",
+    ffgsLoading: "लोड हो रहा है…",
+    ffgsUnavailable: "फ्लैश फ्लड गाइडेंस डेटा अभी उपलब्ध नहीं है।",
+    ffgsUnmapped: "खतरा एटलस में मैप नहीं किया गया",
+    ffgsLevelNORMAL: "सामान्य",
+    ffgsLevelWATCH: "सतर्क रहें",
+    ffgsLevelEXTREME: "अभी बढ़ रहा है",
+    ffgsCheckLocation: "मेरे स्थान पर मार्गदर्शन जांचें",
+    ffgsLocating: "आपका स्थान प्राप्त किया जा रहा है…",
+    ffgsNoGeolocation: "आपका ब्राउज़र जियोलोकेशन का समर्थन नहीं करता।",
+    ffgsLocationDenied: "स्थान की अनुमति अस्वीकृत।",
+    ffgsLocationError: "आपके स्थान के लिए मार्गदर्शन प्राप्त नहीं हो सका।",
+    ffgsApproxNote: "(निकटतम मैप किया गया क्षेत्र, ~{km} किमी दूर)",
+    sosModalTitle: "आपातकालीन SOS",
+    sosModalIntro: "यदि आप तत्काल खतरे में हैं, तो पहले आपातकालीन सेवाओं को कॉल करें। अपना स्थान साझा करने या संकट अलर्ट भेजने के लिए नीचे दिए गए विकल्पों का उपयोग करें।",
+    sosCallLabel: "अभी कॉल करें",
+    sosPolice: "पुलिस / सभी आपातकाल",
+    sosAmbulance: "एम्बुलेंस",
+    sosDisasterHelpline: "राज्य आपदा हेल्पलाइन",
+    sosWomenHelpline: "महिला हेल्पलाइन",
+    sosShareLabel: "अपना स्थान साझा करें",
+    sosShareLocationBtn: "मेरा लाइव स्थान साझा करें (व्हाट्सएप / SMS)",
+    sosShareLocating: "आपका स्थान प्राप्त किया जा रहा है…",
+    sosShareDenied: "स्थान की अनुमति अस्वीकृत — आप फिर भी सीधे कॉल कर सकते हैं।",
+    sosShareReady: "स्थान तैयार है — भेजने का तरीका चुनें:",
+    sosSendLabel: "संकट अलर्ट दर्ज करें",
+    sosNameLabel: "आपका नाम (वैकल्पिक)",
+    sosMessageLabel: "क्या हो रहा है? (वैकल्पिक)",
+    sosSendBtn: "SOS अलर्ट भेजें",
+    sosSending: "भेजा जा रहा है…",
+    sosSentOk: "SOS अलर्ट भेज दिया गया और दर्ज कर लिया गया।",
+    sosSentErr: "अलर्ट नहीं भेजा जा सका — इसके बजाय कॉल करने का प्रयास करें।",
+    sosWhatsapp: "व्हाट्सएप से भेजें",
+    sosSms: "SMS से भेजें",
+    sosCopyLink: "मानचित्र लिंक कॉपी करें",
+    townDehradun: "देहरादून",
+    townRishikesh: "ऋषिकेश",
+    townHaridwar: "हरिद्वार",
+    townMussoorie: "मसूरी",
+    townNainital: "नैनीताल",
+    townHaldwani: "हल्द्वानी",
+    townAlmora: "अल्मोड़ा",
+    townPithoragarh: "पिथौरागढ़",
+    townJoshimath: "जोशीमठ"
   }
 };
 
@@ -1075,6 +1607,11 @@ function applyLanguage(lang) {
         if (dict[key] !== undefined) el.innerHTML = dict[key];
     });
 
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (dict[key] !== undefined) el.placeholder = dict[key];
+    });
+
     document.querySelectorAll('.lang-toggle button').forEach(function(btn) {
         btn.classList.toggle('active', btn.getAttribute('data-lang') === currentLang);
     });
@@ -1093,10 +1630,19 @@ function applyLanguage(lang) {
     renderDynamicText();
 }
 
+function townName(name) {
+    if (!name) return '';
+    const key = 'town' + name;
+    const val = t(key);
+    return val !== key ? val : name;
+}
+
 // ---- Dynamic (fetched) text that also needs to track the current language ----
 
 let statusStateKey = null;
 let weatherStateKey = null;
+let latestWeatherStats = null;
+let myLocationData = null;
 
 function renderDynamicText() {
     if (statusStateKey) {
@@ -1107,6 +1653,17 @@ function renderDynamicText() {
         document.getElementById('statWeatherDry').textContent = t(weatherStateKey);
         document.getElementById('statWeatherWetName').textContent = '';
         document.getElementById('statWeatherDryName').textContent = '';
+    } else if (latestWeatherStats) {
+        document.getElementById('statWeatherWet').textContent = latestWeatherStats.wettest.mm.toFixed(1) + ' mm';
+        document.getElementById('statWeatherWetName').textContent = '(' + townName(latestWeatherStats.wettest.name) + ')';
+        document.getElementById('statWeatherDry').textContent = latestWeatherStats.driest.mm.toFixed(1) + ' mm';
+        document.getElementById('statWeatherDryName').textContent = '(' + townName(latestWeatherStats.driest.name) + ')';
+    }
+    if (typeof renderFfgsTable === 'function') {
+        renderFfgsTable();
+    }
+    if (typeof renderMyLocationResult === 'function') {
+        renderMyLocationResult();
     }
 }
 
@@ -1249,16 +1806,14 @@ async function loadLiveStrip() {
             const wettest = valid[0];
             const driest = valid[valid.length - 1];
 
-            document.getElementById('statWeatherWet').textContent = wettest.mm.toFixed(1) + ' mm';
-            document.getElementById('statWeatherWetName').textContent = '(' + wettest.name + ')';
-            document.getElementById('statWeatherDry').textContent = driest.mm.toFixed(1) + ' mm';
-            document.getElementById('statWeatherDryName').textContent = '(' + driest.name + ')';
-
+            latestWeatherStats = { wettest: wettest, driest: driest };
             weatherStateKey = null;
         } else {
+            latestWeatherStats = null;
             weatherStateKey = 'weatherUnavailable';
         }
     } catch (error) {
+        latestWeatherStats = null;
         weatherStateKey = 'weatherUnavailable';
     }
     renderDynamicText();
@@ -1267,6 +1822,250 @@ async function loadLiveStrip() {
 }
 
 loadLiveStrip();
+
+// ---- Flash Flood Guidance (FFGS) panel ----
+
+let ffgsRows = [];
+let ffgsLoading = true;
+
+function guidanceLevel(zoneOrPoint, rainMm) {
+    if (!zoneOrPoint || !zoneOrPoint.hazard_class || zoneOrPoint.trigger_mm == null || rainMm == null) return null;
+    const headroom = zoneOrPoint.trigger_mm - rainMm;
+    if (headroom <= 0) return 'EXTREME';
+    if (headroom < 10) return 'WATCH';
+    return 'NORMAL';
+}
+
+function hazardI18nKey(hazardClass) {
+    if (!hazardClass) return null;
+    return 'hazard' + hazardClass.charAt(0) + hazardClass.slice(1).toLowerCase();
+}
+
+function renderFfgsTable() {
+    const tbody = document.getElementById('ffgsTableBody');
+    if (!tbody) return;
+
+    if (ffgsLoading) {
+        tbody.innerHTML = '<tr><td colspan="5">' + t('ffgsLoading') + '</td></tr>';
+        return;
+    }
+
+    if (ffgsRows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">' + t('ffgsUnavailable') + '</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = ffgsRows.map(function(row) {
+        const zone = row.zone;
+        const rainMm = row.rainMm;
+        const hazardKey = hazardI18nKey(zone.hazard_class);
+        const hazardText = hazardKey ? t(hazardKey) : t('ffgsUnmapped');
+        const rainText = rainMm == null ? '—' : rainMm.toFixed(1) + ' mm';
+        const level = guidanceLevel(zone, rainMm);
+        const headroom = (zone.trigger_mm != null && rainMm != null) ? Math.max(zone.trigger_mm - rainMm, 0) : null;
+        const headroomText = headroom == null ? '—' : headroom.toFixed(0) + ' mm';
+        const levelClass = 'ffgs-badge ffgs-' + (level ? level.toLowerCase() : 'unmapped');
+        const levelText = level ? t('ffgsLevel' + level) : t('ffgsUnmapped');
+        return '<tr><td>' + townName(zone.name) + '</td>' +
+               '<td>' + hazardText + '</td>' +
+               '<td class="num">' + rainText + '</td>' +
+               '<td class="num">' + headroomText + '</td>' +
+               '<td><span class="' + levelClass + '">' + levelText + '</span></td></tr>';
+    }).join('');
+}
+
+async function loadFfgsPanel() {
+    let zones = [];
+
+    try {
+        const data = await (await fetch('/ffgs-zones')).json();
+        zones = (data && Array.isArray(data.zones)) ? data.zones : [];
+    } catch (error) {
+        ffgsLoading = false;
+        ffgsRows = [];
+        renderFfgsTable();
+        return;
+    }
+
+    const rainResults = await Promise.all(zones.map(function(zone) {
+        return fetch(
+            'https://api.open-meteo.com/v1/forecast?latitude=' + zone.lat +
+            '&longitude=' + zone.lon +
+            '&current=precipitation&timezone=auto'
+        )
+            .then(function(r) { return r.json(); })
+            .then(function(payload) {
+                return (payload && payload.current) ? Number(payload.current.precipitation || 0) : null;
+            })
+            .catch(function() { return null; });
+    }));
+
+    ffgsLoading = false;
+    ffgsRows = zones.map(function(zone, i) {
+        return { zone: zone, rainMm: rainResults[i] };
+    });
+
+    renderFfgsTable();
+}
+
+loadFfgsPanel();
+
+function renderMyLocationResult() {
+    const resultEl = document.getElementById('ffgsMyLocationResult');
+    if (!resultEl || !myLocationData) return;
+
+    const ffgs = myLocationData.ffgs;
+    const rainMm = myLocationData.rainMm;
+    const level = guidanceLevel(ffgs, rainMm);
+    const hazardKey = hazardI18nKey(ffgs.hazard_class);
+    const hazardText = hazardKey ? t(hazardKey) : t('ffgsUnmapped');
+    const rainText = rainMm == null ? '—' : rainMm.toFixed(1) + ' mm';
+    const levelText = level ? t('ffgsLevel' + level) : t('ffgsUnmapped');
+
+    let approxNote = '';
+    if (ffgs.hazard_class && !ffgs.exact_match && ffgs.distance_km != null) {
+        approxNote = ' ' + t('ffgsApproxNote').replace('{km}', ffgs.distance_km);
+    }
+
+    resultEl.innerHTML = '<b>' + hazardText + '</b> · ' + rainText + ' · <span class="ffgs-badge ffgs-' + (level ? level.toLowerCase() : 'unmapped') + '">' + levelText + '</span>' + approxNote;
+}
+
+document.getElementById('ffgsMyLocationBtn').addEventListener('click', function() {
+    const resultEl = document.getElementById('ffgsMyLocationResult');
+    resultEl.hidden = false;
+    resultEl.textContent = t('ffgsLocating');
+
+    if (!navigator.geolocation) {
+        resultEl.textContent = t('ffgsNoGeolocation');
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async function(pos) {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        try {
+            const results = await Promise.all([
+                fetch('/ffgs?lat=' + lat + '&lon=' + lon).then(function(r) { return r.json(); }),
+                fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=precipitation&timezone=auto').then(function(r) { return r.json(); })
+            ]);
+            const ffgs = results[0];
+            const weatherPayload = results[1];
+
+            const rainMm = (weatherPayload && weatherPayload.current) ? Number(weatherPayload.current.precipitation || 0) : null;
+            myLocationData = { ffgs: ffgs, rainMm: rainMm };
+            renderMyLocationResult();
+        } catch (error) {
+            resultEl.textContent = t('ffgsLocationError');
+        }
+    }, function() {
+        resultEl.textContent = t('ffgsLocationDenied');
+    }, { timeout: 10000 });
+});
+
+// ---- SOS emergency panel ----
+
+const sosOverlay = document.getElementById('sosOverlay');
+
+function openSosModal() {
+    sosOverlay.hidden = false;
+    document.getElementById('sosShareStatus').textContent = '';
+    document.getElementById('sosSendStatus').textContent = '';
+}
+
+function closeSosModal() {
+    sosOverlay.hidden = true;
+}
+
+document.getElementById('sosFab').addEventListener('click', openSosModal);
+document.getElementById('navSosLink').addEventListener('click', function(e) {
+    e.preventDefault();
+    openSosModal();
+});
+document.getElementById('sosCloseBtn').addEventListener('click', closeSosModal);
+sosOverlay.addEventListener('click', function(e) {
+    if (e.target === sosOverlay) closeSosModal();
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !sosOverlay.hidden) closeSosModal();
+});
+
+document.getElementById('sosShareBtn').addEventListener('click', function() {
+    const statusEl = document.getElementById('sosShareStatus');
+
+    if (!navigator.geolocation) {
+        statusEl.className = 'sos-status err';
+        statusEl.textContent = t('ffgsNoGeolocation');
+        return;
+    }
+
+    statusEl.className = 'sos-status';
+    statusEl.textContent = t('sosShareLocating');
+
+    navigator.geolocation.getCurrentPosition(function(pos) {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const mapLink = 'https://maps.google.com/?q=' + lat + ',' + lon;
+        const text = 'SOS — I need help. My location: ' + mapLink;
+
+        statusEl.className = 'sos-status ok';
+        statusEl.innerHTML = t('sosShareReady') + '<br>' +
+            '<a href="https://wa.me/?text=' + encodeURIComponent(text) + '" target="_blank" rel="noopener">' + t('sosWhatsapp') + '</a> · ' +
+            '<a href="sms:?body=' + encodeURIComponent(text) + '">' + t('sosSms') + '</a> · ' +
+            '<a href="#" id="sosCopyLinkBtn">' + t('sosCopyLink') + '</a>';
+
+        const copyBtn = document.getElementById('sosCopyLinkBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                try {
+                    navigator.clipboard.writeText(mapLink);
+                } catch (error) {
+                    // Clipboard API unavailable -- the link is still visible via WhatsApp/SMS share.
+                }
+            });
+        }
+    }, function() {
+        statusEl.className = 'sos-status err';
+        statusEl.textContent = t('sosShareDenied');
+    }, { timeout: 10000 });
+});
+
+document.getElementById('sosSendBtn').addEventListener('click', function() {
+    const statusEl = document.getElementById('sosSendStatus');
+    const name = document.getElementById('sosNameInput').value;
+    const message = document.getElementById('sosMessageInput').value;
+
+    statusEl.className = 'sos-status';
+    statusEl.textContent = t('sosSending');
+
+    function send(lat, lon) {
+        fetch('/sos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: lat, lon: lon, name: name, message: message })
+        })
+            .then(function(r) { return r.json(); })
+            .then(function() {
+                statusEl.className = 'sos-status ok';
+                statusEl.textContent = t('sosSentOk');
+            })
+            .catch(function() {
+                statusEl.className = 'sos-status err';
+                statusEl.textContent = t('sosSentErr');
+            });
+    }
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(pos) {
+            send(pos.coords.latitude, pos.coords.longitude);
+        }, function() {
+            send(null, null);
+        }, { timeout: 8000 });
+    } else {
+        send(null, null);
+    }
+});
 
 // ---- Hero diagram tracing ----
 
@@ -2223,6 +3022,206 @@ def weather():
             "error": "Weather lookup failed.",
             "details": str(e)
         }), 500
+
+
+# ============================================================
+# FLASH FLOOD GUIDANCE (FFGS) — endpoints
+# ============================================================
+
+@app.route("/ffgs-zones")
+def ffgs_zones():
+
+    return jsonify({
+        "available": FFGS_AVAILABLE,
+        "error": None if FFGS_AVAILABLE else FFGS_ERROR,
+        "zones": FFGS_ZONES
+    })
+
+
+@app.route("/ffgs")
+def ffgs_point():
+
+    try:
+        lat = float(request.args.get("lat"))
+        lon = float(request.args.get("lon"))
+    except (TypeError, ValueError):
+        return jsonify({
+            "error": "lat and lon query parameters are required numbers."
+        }), 400
+
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return jsonify({
+            "error": "lat/lon out of range."
+        }), 400
+
+    return jsonify(_ffgs_result(lat, lon))
+
+
+# ============================================================
+# SOS EMERGENCY ALERTS — endpoints
+# ============================================================
+
+@app.route("/sos", methods=["POST"])
+def post_sos():
+
+    data = request.get_json(force=True, silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({
+            "status": "error",
+            "error": "Request body must be valid JSON."
+        }), 400
+
+    lat = data.get("lat")
+    lon = data.get("lon")
+
+    if lat is not None or lon is not None:
+
+        try:
+            lat = float(lat)
+            lon = float(lon)
+        except (TypeError, ValueError):
+            return jsonify({
+                "status": "error",
+                "error": "lat and lon must both be numbers if either is provided."
+            }), 400
+
+        if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+            return jsonify({
+                "status": "error",
+                "error": "lat/lon out of range."
+            }), 400
+
+    else:
+        lat = None
+        lon = None
+
+    name = data.get("name")
+
+    if not isinstance(name, str) or not name.strip():
+        name = None
+    else:
+        name = name.strip()[:SOS_NAME_MAX_LENGTH]
+
+    message = data.get("message")
+
+    if not isinstance(message, str) or not message.strip():
+        message = None
+    else:
+        message = message.strip()[:SOS_MESSAGE_MAX_LENGTH]
+
+    alert = {
+        "id": uuid.uuid4().hex,
+        "lat": lat,
+        "lon": lon,
+        "name": name,
+        "message": message,
+        "timestamp": time.time(),
+        "ip": _get_client_ip()
+    }
+
+    print()
+    print("================================")
+    print("SOS ALERT")
+    print("================================")
+    print("From:", name or "anonymous")
+    print("Location:", (lat, lon) if lat is not None else "(not shared)")
+    print("Message:", message or "(none)")
+
+    _sos_alerts.append(alert)
+    _save_sos_alerts(_sos_alerts)
+
+    return jsonify({
+        "status": "ok",
+        "id": alert["id"],
+        "timestamp": alert["timestamp"]
+    }), 201
+
+
+@app.route("/sos", methods=["GET"])
+def get_sos_alerts():
+
+    return jsonify(_active_sos_alerts())
+
+
+SOS_VIEW_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOS Alerts — FloodSafe</title>
+<style>
+:root {
+  --navy: #0b3558; --navy-dark: #062338; --ink: #1a1f24; --muted: #4a5560;
+  --border: #c9d2d9; --bg: #f3f5f6; --panel: #ffffff;
+  --risk: #7a1f1f; --risk-bg: #f7eceb;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: -apple-system, "Segoe UI", Verdana, Arial, sans-serif;
+  font-size: 0.9375rem; line-height: 1.55;
+}
+.wrap { max-width: 900px; margin: 0 auto; padding: 20px; }
+header {
+  background: var(--navy); color: white; padding: 16px 0;
+}
+header .wrap { display: flex; justify-content: space-between; align-items: center; }
+header a { color: #cfe0ee; text-decoration: none; font-size: 0.84375rem; }
+h1 { color: var(--navy); font-size: 1.375rem; margin: 20px 0 6px; }
+.sub { color: var(--muted); font-size: 0.84375rem; margin-bottom: 18px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.84375rem; background: var(--panel); }
+th, td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: top; }
+th { background: var(--risk); color: white; font-size: 0.71875rem; text-transform: uppercase; }
+tr:nth-child(even) td { background: #f7f9fa; }
+.empty { padding: 30px; text-align: center; color: var(--muted); }
+.maplink { font-family: 'Consolas', monospace; font-size: 0.78125rem; }
+</style>
+</head>
+<body>
+<header><div class="wrap"><strong>FloodSafe — SOS Alerts</strong><a href="/">← Back to FloodSafe</a></div></header>
+<div class="wrap">
+  <h1>Incoming SOS alerts</h1>
+  <p class="sub">Auto-refreshes every 15 seconds. This is a distress log, not a dispatch system — if you can, act directly (call the person, call emergency services) rather than waiting on this page.</p>
+  <div id="sosTableWrap"><div class="empty">Loading…</div></div>
+</div>
+<script>
+function fmtTime(ts) {
+    return new Date(ts * 1000).toLocaleString();
+}
+async function loadSos() {
+    const wrap = document.getElementById('sosTableWrap');
+    try {
+        const alerts = await (await fetch('/sos')).json();
+        if (!Array.isArray(alerts) || alerts.length === 0) {
+            wrap.innerHTML = '<div class="empty">No active SOS alerts.</div>';
+            return;
+        }
+        let html = '<table><thead><tr><th>Time</th><th>Name</th><th>Location</th><th>Message</th></tr></thead><tbody>';
+        alerts.forEach(function(a) {
+            const loc = (a.lat != null && a.lon != null)
+                ? '<a class="maplink" target="_blank" rel="noopener" href="https://maps.google.com/?q=' + a.lat + ',' + a.lon + '">' + a.lat.toFixed(5) + ', ' + a.lon.toFixed(5) + '</a>'
+                : '<span class="maplink">not shared</span>';
+            html += '<tr><td>' + fmtTime(a.timestamp) + '</td><td>' + (a.name || 'anonymous') + '</td><td>' + loc + '</td><td>' + (a.message || '—') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+    } catch (error) {
+        wrap.innerHTML = '<div class="empty">Could not load SOS alerts.</div>';
+    }
+}
+loadSos();
+setInterval(loadSos, 15000);
+</script>
+</body>
+</html>
+"""
+
+
+@app.route("/sos-view")
+def sos_view():
+
+    return SOS_VIEW_HTML
 
 
 # ============================================================
