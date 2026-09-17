@@ -69,13 +69,20 @@ def wards_geojson(valid_for: Optional[str] = None, model_version: str = MODEL_VE
     if ts is None:
         return {"type": "FeatureCollection", "features": []}
 
+    # Simplified + rounded to 5 decimal places (~1m) rather than PostGIS's
+    # default 9 (~0.1mm): full-precision village-boundary geometry for all
+    # scored wards was a ~10MB response on every page load (5,043 wards x
+    # ~65 vertices x survey-grade precision), which blocked the main thread
+    # for seconds parsing + tiling it -- see the ward-panel flicker
+    # investigation. Neither survey precision nor unsimplified boundaries
+    # are visible at this map's zoom levels (starts at 7, a state-wide view).
     sql = """
         SELECT
             w.ward_id, w.ward_name, w.population,
             wr.avg_risk, wr.max_risk, wr.high_risk_area_pct,
             wr.exposure_score, wr.ward_risk_score, wr.risk_category,
             wr.confidence, wr.valid_for,
-            ST_AsGeoJSON(w.geom) AS geometry
+            ST_AsGeoJSON(ST_SimplifyPreserveTopology(w.geom, 0.0005), 5) AS geometry
         FROM wards w
         JOIN ward_risk wr ON wr.ward_id = w.ward_id AND wr.valid_for = :valid_for
     """
@@ -104,7 +111,7 @@ def grid_geojson(
     sql = f"""
         SELECT gc.cell_id, gc.ward_id, rp.combined_risk, rp.ml_probability,
                rp.hydrological_threat, rp.confidence,
-               ST_AsGeoJSON(gc.geom) AS geometry
+               ST_AsGeoJSON(gc.geom, 5) AS geometry
         FROM grid_cells gc
         JOIN risk_predictions rp ON rp.cell_id = gc.cell_id
             AND rp.valid_for = :valid_for AND rp.model_version = :model_version
@@ -311,7 +318,8 @@ def active_alerts(valid_for: Optional[str] = None, model_version: str = MODEL_VE
 def watersheds_geojson():
     """HydroBASINS level-8 sub-basin boundaries (optional map layer)."""
     df = query_df(
-        "SELECT watershed_id, hybas_id, upstream_area_km2, ST_AsGeoJSON(geom) AS geometry FROM watersheds"
+        "SELECT watershed_id, hybas_id, upstream_area_km2, "
+        "ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, 0.0005), 5) AS geometry FROM watersheds"
     )
     return _to_feature_collection(df)
 
