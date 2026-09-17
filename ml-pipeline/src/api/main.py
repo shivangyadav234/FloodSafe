@@ -39,8 +39,13 @@ app.add_middleware(
 )
 
 # grid.geojson is served straight from grid_cells (439k rows for the pilot) --
-# always bbox-scoped and capped, never returned whole.
-MAX_GRID_CELLS_PER_REQUEST = 5000
+# always bbox-scoped and capped, never returned whole. Lowered from 5000:
+# the free-tier API instance (512MB RAM) was returning 500s on requests
+# in the 4000+ row range, confirmed by reproducing the same query locally
+# (where it succeeds fine) -- points at the deployed instance's memory
+# ceiling, not a code bug. A smaller cap keeps worst-case per-request
+# memory well under that limit.
+MAX_GRID_CELLS_PER_REQUEST = 2000
 
 
 def _latest_valid_for(model_version: str = MODEL_VERSION) -> Optional[pd.Timestamp]:
