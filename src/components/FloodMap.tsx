@@ -447,7 +447,12 @@ function FloodMapComponent({ userLocation }: FloodMapProps) {
       </div>
 
       {/* ===== LAYER TOGGLES ===== */}
-      <div className="risk-legend" style={{ top: 12, right: 60 }}>
+      {/* left/bottom: "auto" override the .risk-legend base class's
+          left:18px/bottom:18px -- otherwise the browser's over-constrained
+          resolution (left+right+width all set) silently drops `right` and
+          this panel renders pinned to the left edge, stretched almost the
+          full map height, instead of the top-right box it's meant to be. */}
+      <div className="risk-legend" style={{ top: 12, right: 60, left: "auto", bottom: "auto" }}>
         <h3>Layers</h3>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
           <input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} />
