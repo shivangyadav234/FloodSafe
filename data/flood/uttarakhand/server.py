@@ -289,35 +289,48 @@ def _active_sos_alerts():
 
 
 # ============================================================
-# FLASH FLOOD GUIDANCE (FFGS)
+# FLOOD GUIDANCE (headroom-to-risk panel)
 #
-# Combines the static hazard-atlas classification for a location
-# with live rainfall to answer what a Flash Flood Guidance system
-# exists to answer: "how much more rain until this specific place
-# is at flood risk?" trigger_mm per hazard class below is a
-# simplified heuristic scaled off this app's own RAIN_HIGH_THRESHOLD_MM
-# (see /weather) — not an official CWC/IMD FFG value, which would need
-# the full hydrological model this repo doesn't have. The atlas only
-# maps specific hazard-prone corridors (~5,340 km² of Uttarakhand's
-# ~53,483 km²), not the whole state, so most points fall outside every
-# polygon — those are classified by nearest mapped zone if it's close
-# enough, instead of silently defaulting to LOW.
+# Answers one question per location: "how much more rain, right now,
+# before this specific place is at flood risk?" It pairs the static
+# hazard-atlas classification for a point with the live rainfall this
+# app already pulls elsewhere (see RAINFALL_STATIONS in the landing
+# page JS, and /weather below) and reports the remaining "headroom" —
+# the gap between current rainfall and the level at which that hazard
+# class is considered to be escalating.
+#
+# Each hazard class gets two thresholds instead of one flat trigger:
+#   watch_mm    — rainfall at which the location moves from SAFE to WATCH
+#   critical_mm — rainfall at which the location is treated as at risk
+# watch_mm is set relative to critical_mm per class (not a fixed mm
+# offset), so a low-tolerance EXTREME zone and a high-tolerance LOW
+# zone each get a WATCH window sized to their own scale. These are a
+# simplified heuristic calibrated against this app's own
+# RAIN_HIGH_THRESHOLD_MM (see /weather) — not an official CWC/IMD
+# Flash Flood Guidance value, which would need the full hydrological
+# model this repo doesn't have.
+#
+# The hazard atlas only maps specific hazard-prone corridors
+# (~5,340 km² of Uttarakhand's ~53,483 km²), not the whole state, so
+# most points fall outside every polygon. Those are classified by
+# nearest mapped zone when it's close enough, rather than silently
+# defaulting to LOW.
 # ============================================================
 
-HAZARD_TRIGGER_MM = {
-    "EXTREME": 8.0,
-    "SIGNIFICANT": 20.0,
-    "MODERATE": 35.0,
-    "LOW": 60.0,
+GUIDANCE_HAZARD_THRESHOLDS_MM = {
+    "EXTREME": {"watch": 4.0, "critical": 8.0},
+    "SIGNIFICANT": {"watch": 12.0, "critical": 20.0},
+    "MODERATE": {"watch": 20.0, "critical": 35.0},
+    "LOW": {"watch": 35.0, "critical": 60.0},
 }
 
-FFGS_NEAREST_ZONE_MAX_KM = 15.0
+GUIDANCE_NEAREST_ZONE_MAX_KM = 15.0
 
 # Same towns as RAINFALL_STATIONS in the landing page JS — kept in
-# sync by name so the browser can pair this endpoint's hazard/trigger
+# sync by name so the browser can pair this endpoint's hazard/threshold
 # data with the rainfall it already fetches client-side, without a
 # second round trip through this server.
-FFGS_TOWNS = [
+GUIDANCE_TOWNS = [
     {"name": "Dehradun", "lat": 30.3165, "lon": 78.0322},
     {"name": "Rishikesh", "lat": 30.0869, "lon": 78.2676},
     {"name": "Haridwar", "lat": 29.9457, "lon": 78.1642},
@@ -329,60 +342,76 @@ FFGS_TOWNS = [
     {"name": "Joshimath", "lat": 30.5551, "lon": 79.5643},
 ]
 
-_hazard_polygons = []
-FFGS_AVAILABLE = False
-FFGS_ERROR = None
+_guidance_atlas = []
+GUIDANCE_AVAILABLE = False
+GUIDANCE_ERROR = None
 
-try:
 
-    from shapely.geometry import shape as _shapely_shape, Point as _ShapelyPoint
+def _load_guidance_atlas():
+    """
+    Loads the hazard atlas into a flat list of (geometry, hazard_class)
+    pairs. Kept as a function (rather than inline module-level code) so
+    the one try/except covers the whole load and any single malformed
+    feature just gets skipped instead of aborting the load.
+    """
 
-    _hazard_geojson_path = os.path.join(DATA_DIR, "uttarakhand_flash_flood_hazard_clean.geojson")
+    from shapely.geometry import shape as shapely_shape
 
-    with open(_hazard_geojson_path, "r", encoding="utf-8") as f:
-        _hazard_geojson = json.load(f)
+    geojson_path = os.path.join(DATA_DIR, "uttarakhand_flash_flood_hazard_clean.geojson")
 
-    for _feature in _hazard_geojson.get("features", []):
+    with open(geojson_path, "r", encoding="utf-8") as f:
+        atlas_geojson = json.load(f)
+
+    polygons = []
+
+    for feature in atlas_geojson.get("features", []):
 
         try:
-            _geom = _shapely_shape(_feature["geometry"])
-            _hazard_class = _feature["properties"]["hazard"]
-            _hazard_polygons.append((_geom, _hazard_class))
+            geom = shapely_shape(feature["geometry"])
+            hazard_class = feature["properties"]["hazard"]
+            polygons.append((geom, hazard_class))
         except Exception:
             continue
 
-    FFGS_AVAILABLE = len(_hazard_polygons) > 0
+    return polygons
 
-    if not FFGS_AVAILABLE:
-        FFGS_ERROR = "Hazard atlas loaded but contained no usable polygons."
+
+try:
+
+    _guidance_atlas = _load_guidance_atlas()
+    GUIDANCE_AVAILABLE = len(_guidance_atlas) > 0
+
+    if not GUIDANCE_AVAILABLE:
+        GUIDANCE_ERROR = "Hazard atlas loaded but contained no usable polygons."
 
 except Exception as e:
 
-    FFGS_ERROR = str(e)
-    print("WARNING: FFGS hazard atlas unavailable:", repr(e))
+    GUIDANCE_ERROR = str(e)
+    print("WARNING: flood guidance hazard atlas unavailable:", repr(e))
 
 
-def _hazard_class_at(lat, lon):
+def classify_point(lat, lon):
     """
     Static hazard classification at a point. Returns
     (hazard_class, exact_match, distance_km) — hazard_class and
     distance_km are None if the atlas isn't loaded or the nearest
-    mapped zone is farther than FFGS_NEAREST_ZONE_MAX_KM away.
+    mapped zone is farther than GUIDANCE_NEAREST_ZONE_MAX_KM away.
     """
 
-    if not FFGS_AVAILABLE:
+    if not GUIDANCE_AVAILABLE:
         return None, False, None
 
-    point = _ShapelyPoint(lon, lat)
+    from shapely.geometry import Point as ShapelyPoint
 
-    for geom, hazard_class in _hazard_polygons:
-        if geom.contains(point):
-            return hazard_class, True, 0.0
+    point = ShapelyPoint(lon, lat)
 
     nearest_class = None
     nearest_deg = None
 
-    for geom, hazard_class in _hazard_polygons:
+    for geom, hazard_class in _guidance_atlas:
+
+        if geom.contains(point):
+            return hazard_class, True, 0.0
 
         d = geom.distance(point)
 
@@ -395,15 +424,24 @@ def _hazard_class_at(lat, lon):
 
     distance_km = nearest_deg * 111.0
 
-    if distance_km > FFGS_NEAREST_ZONE_MAX_KM:
+    if distance_km > GUIDANCE_NEAREST_ZONE_MAX_KM:
         return None, False, distance_km
 
     return nearest_class, False, distance_km
 
 
-def _ffgs_result(lat, lon):
+def guidance_for_point(lat, lon):
+    """
+    Everything the client needs to render guidance for one point:
+    its hazard classification plus the watch/critical rainfall
+    thresholds for that class. Rainfall itself is fetched by the
+    browser (same pattern as RAINFALL_STATIONS) and combined with
+    this on the client, so headroom always reflects the freshest
+    reading without an extra hop through this server.
+    """
 
-    hazard_class, exact, distance_km = _hazard_class_at(lat, lon)
+    hazard_class, exact, distance_km = classify_point(lat, lon)
+    thresholds = GUIDANCE_HAZARD_THRESHOLDS_MM.get(hazard_class) if hazard_class else None
 
     return {
         "lat": lat,
@@ -411,16 +449,17 @@ def _ffgs_result(lat, lon):
         "hazard_class": hazard_class,
         "exact_match": exact,
         "distance_km": round(distance_km, 1) if distance_km is not None else None,
-        "trigger_mm": HAZARD_TRIGGER_MM.get(hazard_class) if hazard_class else None
+        "watch_mm": thresholds["watch"] if thresholds else None,
+        "critical_mm": thresholds["critical"] if thresholds else None,
     }
 
 
 # Computed once at startup — the atlas and the town list are both
 # static, so there's no reason to redo ~191-polygon point checks on
 # every landing-page load.
-FFGS_ZONES = [
-    dict(_ffgs_result(town["lat"], town["lon"]), name=town["name"])
-    for town in FFGS_TOWNS
+GUIDANCE_ZONES = [
+    dict(guidance_for_point(town["lat"], town["lon"]), name=town["name"])
+    for town in GUIDANCE_TOWNS
 ]
 
 
@@ -890,30 +929,30 @@ footer.site-footer .disclaimer {
   .sources-list dd { margin-left: 0; }
 }
 
-/* ---------------- FFGS ---------------- */
+/* ---------------- FLOOD GUIDANCE ---------------- */
 
-.ffgs-intro { font-size: 0.84375rem; color: var(--muted); max-width: 720px; margin: 8px 0 16px; }
+.guidance-intro { font-size: 0.84375rem; color: var(--muted); max-width: 720px; margin: 8px 0 16px; }
 
-table.ffgs-table {
+table.guidance-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.84375rem;
 }
-table.ffgs-table th, table.ffgs-table td {
+table.guidance-table th, table.guidance-table td {
   border: 1px solid var(--border);
   padding: 9px 12px;
   text-align: left;
 }
-table.ffgs-table th {
+table.guidance-table th {
   background: var(--navy);
   color: white;
   font-size: 0.71875rem;
   text-transform: uppercase;
 }
-table.ffgs-table td.num { font-family: 'Consolas', monospace; text-align: right; }
-table.ffgs-table tr:nth-child(even) td { background: #f7f9fa; }
+table.guidance-table td.num { font-family: 'Consolas', monospace; text-align: right; }
+table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
 
-.ffgs-badge {
+.guidance-badge {
   display: inline-block;
   padding: 2px 9px;
   border-radius: 3px;
@@ -921,12 +960,12 @@ table.ffgs-table tr:nth-child(even) td { background: #f7f9fa; }
   font-weight: 700;
   text-transform: uppercase;
 }
-.ffgs-normal { background: var(--safe-bg); color: var(--safe); }
-.ffgs-watch { background: #fff2d9; color: #8a5a00; }
-.ffgs-extreme { background: var(--risk-bg); color: var(--risk); }
-.ffgs-unmapped { background: #eceff1; color: var(--muted); }
+.guidance-safe { background: var(--safe-bg); color: var(--safe); }
+.guidance-watch { background: #fff2d9; color: #8a5a00; }
+.guidance-critical { background: var(--risk-bg); color: var(--risk); }
+.guidance-unmapped { background: #eceff1; color: var(--muted); }
 
-.ffgs-mylocation {
+.guidance-mylocation {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px dashed var(--border);
@@ -935,7 +974,7 @@ table.ffgs-table tr:nth-child(even) td { background: #f7f9fa; }
   gap: 14px;
   flex-wrap: wrap;
 }
-.ffgs-my-result { font-size: 0.84375rem; color: var(--ink); }
+.guidance-my-result { font-size: 0.84375rem; color: var(--ink); }
 
 /* ---------------- SOS ---------------- */
 
@@ -1086,7 +1125,7 @@ table.ffgs-table tr:nth-child(even) td { background: #f7f9fa; }
     </a>
     <nav class="main-nav">
       <a class="nav-link" href="#status" data-i18n="navStatus">Live Status</a>
-      <a class="nav-link" href="#ffgs" data-i18n="navFfgs">Flood Guidance</a>
+      <a class="nav-link" href="#flood-guidance" data-i18n="navGuidance">Flood Guidance</a>
       <a class="nav-link" href="#features" data-i18n="navServices">Services</a>
       <a class="nav-link" href="/reports-view" data-i18n="navReports">Hazard Reports</a>
       <a class="nav-link" href="#" id="navSosLink" data-i18n="navSos">Emergency SOS</a>
@@ -1174,28 +1213,28 @@ table.ffgs-table tr:nth-child(even) td { background: #f7f9fa; }
   </div>
 </section>
 
-<section id="ffgs">
+<section id="flood-guidance">
   <div class="wrap">
-    <div class="section-label" data-i18n="ffgsLabel">Flash Flood Guidance</div>
-    <h2 data-i18n="ffgsTitle">How much more rain before it's dangerous, here?</h2>
-    <p class="ffgs-intro" data-i18n="ffgsIntro">Combines each location's static hazard classification with its current live rainfall to estimate the remaining headroom before flash-flood risk escalates — the same question official Flash Flood Guidance systems exist to answer.</p>
-    <table class="ffgs-table">
+    <div class="section-label" data-i18n="guidanceLabel">Flood Guidance</div>
+    <h2 data-i18n="guidanceTitle">How much more rain before it's dangerous, here?</h2>
+    <p class="guidance-intro" data-i18n="guidanceIntro">Pairs each location's static hazard classification with its live rainfall right now to show the remaining headroom before that location's flood risk escalates.</p>
+    <table class="guidance-table">
       <thead>
         <tr>
-          <th data-i18n="ffgsColTown">Location</th>
-          <th data-i18n="ffgsColHazard">Hazard Zone</th>
-          <th data-i18n="ffgsColRain">Live Rain Now</th>
-          <th data-i18n="ffgsColHeadroom">Headroom</th>
-          <th data-i18n="ffgsColStatus">Guidance</th>
+          <th data-i18n="guidanceColTown">Location</th>
+          <th data-i18n="guidanceColHazard">Hazard Zone</th>
+          <th data-i18n="guidanceColRain">Live Rain Now</th>
+          <th data-i18n="guidanceColHeadroom">Headroom</th>
+          <th data-i18n="guidanceColStatus">Status</th>
         </tr>
       </thead>
-      <tbody id="ffgsTableBody">
-        <tr><td colspan="5" data-i18n="ffgsLoading">Loading…</td></tr>
+      <tbody id="guidanceTableBody">
+        <tr><td colspan="5" data-i18n="guidanceLoading">Loading…</td></tr>
       </tbody>
     </table>
-    <div class="ffgs-mylocation">
-      <button type="button" id="ffgsMyLocationBtn" class="btn-outline" data-i18n="ffgsCheckLocation">Check guidance at my location</button>
-      <div id="ffgsMyLocationResult" class="ffgs-my-result" hidden></div>
+    <div class="guidance-mylocation">
+      <button type="button" id="guidanceMyLocationBtn" class="btn-outline" data-i18n="guidanceCheckLocation">Check guidance at my location</button>
+      <div id="guidanceMyLocationResult" class="guidance-my-result" hidden></div>
     </div>
   </div>
 </section>
@@ -1399,28 +1438,28 @@ const translations = {
     footerStatus: "System Status (API)",
     footerTagline: "FloodSafe — Flood-Aware Road Advisory Service for Uttarakhand.",
     footerDisclaimer: "FloodSafe is an independent citizen-safety project and is not an official service of the Government of Uttarakhand or the Government of India. Hazard classifications are derived from published government flash-flood hazard data; road conditions should always be independently verified before travel, particularly during active monsoon or alert conditions.",
-    navFfgs: "Flood Guidance",
+    navGuidance: "Flood Guidance",
     navSos: "Emergency SOS",
-    ffgsLabel: "Flash Flood Guidance",
-    ffgsTitle: "How much more rain before it's dangerous, here?",
-    ffgsIntro: "Combines each location's static hazard classification with its current live rainfall to estimate the remaining headroom before flash-flood risk escalates — the same question official Flash Flood Guidance systems exist to answer.",
-    ffgsColTown: "Location",
-    ffgsColHazard: "Hazard Zone",
-    ffgsColRain: "Live Rain Now",
-    ffgsColHeadroom: "Headroom",
-    ffgsColStatus: "Guidance",
-    ffgsLoading: "Loading…",
-    ffgsUnavailable: "Flash Flood Guidance data is unavailable right now.",
-    ffgsUnmapped: "Not mapped by the hazard atlas",
-    ffgsLevelNORMAL: "Normal",
-    ffgsLevelWATCH: "Watch",
-    ffgsLevelEXTREME: "Escalating now",
-    ffgsCheckLocation: "Check guidance at my location",
-    ffgsLocating: "Getting your location…",
-    ffgsNoGeolocation: "Your browser doesn't support geolocation.",
-    ffgsLocationDenied: "Location permission denied.",
-    ffgsLocationError: "Couldn't fetch guidance for your location.",
-    ffgsApproxNote: "(nearest mapped zone, ~{km} km away)",
+    noGeolocationSupport: "Your browser doesn't support geolocation.",
+    guidanceLabel: "Flood Guidance",
+    guidanceTitle: "How much more rain before it's dangerous, here?",
+    guidanceIntro: "Pairs each location's static hazard classification with its live rainfall right now to show the remaining headroom before that location's flood risk escalates.",
+    guidanceColTown: "Location",
+    guidanceColHazard: "Hazard Zone",
+    guidanceColRain: "Live Rain Now",
+    guidanceColHeadroom: "Headroom",
+    guidanceColStatus: "Status",
+    guidanceLoading: "Loading…",
+    guidanceUnavailable: "Flood guidance data is unavailable right now.",
+    guidanceUnmapped: "Not mapped by the hazard atlas",
+    guidanceLevelSAFE: "Safe",
+    guidanceLevelWATCH: "Watch",
+    guidanceLevelCRITICAL: "At risk now",
+    guidanceCheckLocation: "Check guidance at my location",
+    guidanceLocating: "Getting your location…",
+    guidanceLocationDenied: "Location permission denied.",
+    guidanceLocationError: "Couldn't fetch guidance for your location.",
+    guidanceApproxNote: "(nearest mapped zone, ~{km} km away)",
     sosModalTitle: "Emergency SOS",
     sosModalIntro: "If you are in immediate danger, call emergency services first. Use the options below to also share your location or log a distress alert.",
     sosCallLabel: "Call now",
@@ -1527,28 +1566,28 @@ const translations = {
     footerStatus: "सिस्टम स्थिति (API)",
     footerTagline: "FloodSafe — उत्तराखंड के लिए बाढ़-जागरूक सड़क परामर्श सेवा।",
     footerDisclaimer: "FloodSafe एक स्वतंत्र नागरिक-सुरक्षा परियोजना है और यह उत्तराखंड सरकार या भारत सरकार की कोई आधिकारिक सेवा नहीं है। खतरा वर्गीकरण प्रकाशित सरकारी बाढ़ खतरा डेटा से लिया गया है; यात्रा से पहले सड़क की स्थिति की हमेशा स्वतंत्र रूप से पुष्टि करें, विशेष रूप से सक्रिय मानसून या चेतावनी की स्थिति के दौरान।",
-    navFfgs: "बाढ़ पूर्वानुमान",
+    navGuidance: "बाढ़ मार्गदर्शन",
     navSos: "आपातकालीन SOS",
-    ffgsLabel: "फ्लैश फ्लड गाइडेंस",
-    ffgsTitle: "यहाँ खतरनाक होने से पहले और कितनी बारिश बाकी है?",
-    ffgsIntro: "प्रत्येक स्थान के स्थिर खतरा वर्गीकरण को उसकी वर्तमान लाइव वर्षा के साथ जोड़कर, फ्लैश-फ्लड जोखिम बढ़ने से पहले बची हुई गुंजाइश का अनुमान — यही सवाल आधिकारिक फ्लैश फ्लड गाइडेंस सिस्टम भी हल करते हैं।",
-    ffgsColTown: "स्थान",
-    ffgsColHazard: "खतरा क्षेत्र",
-    ffgsColRain: "अभी लाइव वर्षा",
-    ffgsColHeadroom: "गुंजाइश",
-    ffgsColStatus: "मार्गदर्शन",
-    ffgsLoading: "लोड हो रहा है…",
-    ffgsUnavailable: "फ्लैश फ्लड गाइडेंस डेटा अभी उपलब्ध नहीं है।",
-    ffgsUnmapped: "खतरा एटलस में मैप नहीं किया गया",
-    ffgsLevelNORMAL: "सामान्य",
-    ffgsLevelWATCH: "सतर्क रहें",
-    ffgsLevelEXTREME: "अभी बढ़ रहा है",
-    ffgsCheckLocation: "मेरे स्थान पर मार्गदर्शन जांचें",
-    ffgsLocating: "आपका स्थान प्राप्त किया जा रहा है…",
-    ffgsNoGeolocation: "आपका ब्राउज़र जियोलोकेशन का समर्थन नहीं करता।",
-    ffgsLocationDenied: "स्थान की अनुमति अस्वीकृत।",
-    ffgsLocationError: "आपके स्थान के लिए मार्गदर्शन प्राप्त नहीं हो सका।",
-    ffgsApproxNote: "(निकटतम मैप किया गया क्षेत्र, ~{km} किमी दूर)",
+    noGeolocationSupport: "आपका ब्राउज़र जियोलोकेशन का समर्थन नहीं करता।",
+    guidanceLabel: "बाढ़ मार्गदर्शन",
+    guidanceTitle: "यहाँ खतरनाक होने से पहले और कितनी बारिश बाकी है?",
+    guidanceIntro: "प्रत्येक स्थान के स्थिर खतरा वर्गीकरण को उसकी वर्तमान लाइव वर्षा के साथ जोड़कर, यह दिखाता है कि उस स्थान का बाढ़ जोखिम बढ़ने से पहले कितनी गुंजाइश बची है।",
+    guidanceColTown: "स्थान",
+    guidanceColHazard: "खतरा क्षेत्र",
+    guidanceColRain: "अभी लाइव वर्षा",
+    guidanceColHeadroom: "गुंजाइश",
+    guidanceColStatus: "स्थिति",
+    guidanceLoading: "लोड हो रहा है…",
+    guidanceUnavailable: "बाढ़ मार्गदर्शन डेटा अभी उपलब्ध नहीं है।",
+    guidanceUnmapped: "खतरा एटलस में मैप नहीं किया गया",
+    guidanceLevelSAFE: "सुरक्षित",
+    guidanceLevelWATCH: "सतर्क रहें",
+    guidanceLevelCRITICAL: "अभी जोखिम में",
+    guidanceCheckLocation: "मेरे स्थान पर मार्गदर्शन जांचें",
+    guidanceLocating: "आपका स्थान प्राप्त किया जा रहा है…",
+    guidanceLocationDenied: "स्थान की अनुमति अस्वीकृत।",
+    guidanceLocationError: "आपके स्थान के लिए मार्गदर्शन प्राप्त नहीं हो सका।",
+    guidanceApproxNote: "(निकटतम मैप किया गया क्षेत्र, ~{km} किमी दूर)",
     sosModalTitle: "आपातकालीन SOS",
     sosModalIntro: "यदि आप तत्काल खतरे में हैं, तो पहले आपातकालीन सेवाओं को कॉल करें। अपना स्थान साझा करने या संकट अलर्ट भेजने के लिए नीचे दिए गए विकल्पों का उपयोग करें।",
     sosCallLabel: "अभी कॉल करें",
@@ -1644,6 +1683,14 @@ let weatherStateKey = null;
 let latestWeatherStats = null;
 let myLocationData = null;
 
+// Flood Guidance panel state lives here too (rather than down next to
+// its render functions) so it's initialized before applyLanguage()'s
+// first synchronous call to renderDynamicText() below — declaring it
+// later would leave it in the temporal dead zone at that first call
+// and throw a ReferenceError that aborts the rest of this script.
+let guidanceRows = [];
+let guidanceLoading = true;
+
 function renderDynamicText() {
     if (statusStateKey) {
         document.getElementById('statusText').textContent = t(statusStateKey);
@@ -1659,11 +1706,11 @@ function renderDynamicText() {
         document.getElementById('statWeatherDry').textContent = latestWeatherStats.driest.mm.toFixed(1) + ' mm';
         document.getElementById('statWeatherDryName').textContent = '(' + townName(latestWeatherStats.driest.name) + ')';
     }
-    if (typeof renderFfgsTable === 'function') {
-        renderFfgsTable();
+    if (typeof renderGuidanceTable === 'function') {
+        renderGuidanceTable();
     }
-    if (typeof renderMyLocationResult === 'function') {
-        renderMyLocationResult();
+    if (typeof renderMyLocationGuidance === 'function') {
+        renderMyLocationGuidance();
     }
 }
 
@@ -1823,17 +1870,26 @@ async function loadLiveStrip() {
 
 loadLiveStrip();
 
-// ---- Flash Flood Guidance (FFGS) panel ----
+// ---- Flood Guidance panel ----
+//
+// Each zone from /flood-guidance-zones carries its hazard class plus
+// watch_mm/critical_mm thresholds. Rainfall is fetched directly from
+// Open-Meteo by the browser (same pattern as RAINFALL_STATIONS above),
+// then combined here into a status + headroom figure per row.
+// (guidanceRows / guidanceLoading are declared earlier, alongside the
+// other dynamic-text state — see the comment there.)
 
-let ffgsRows = [];
-let ffgsLoading = true;
+function computeGuidanceLevel(zoneOrPoint, rainMm) {
+    if (!zoneOrPoint || !zoneOrPoint.hazard_class || rainMm == null) return null;
+    if (zoneOrPoint.critical_mm == null || zoneOrPoint.watch_mm == null) return null;
+    if (rainMm >= zoneOrPoint.critical_mm) return 'CRITICAL';
+    if (rainMm >= zoneOrPoint.watch_mm) return 'WATCH';
+    return 'SAFE';
+}
 
-function guidanceLevel(zoneOrPoint, rainMm) {
-    if (!zoneOrPoint || !zoneOrPoint.hazard_class || zoneOrPoint.trigger_mm == null || rainMm == null) return null;
-    const headroom = zoneOrPoint.trigger_mm - rainMm;
-    if (headroom <= 0) return 'EXTREME';
-    if (headroom < 10) return 'WATCH';
-    return 'NORMAL';
+function guidanceHeadroomMm(zoneOrPoint, rainMm) {
+    if (!zoneOrPoint || zoneOrPoint.critical_mm == null || rainMm == null) return null;
+    return Math.max(zoneOrPoint.critical_mm - rainMm, 0);
 }
 
 function hazardI18nKey(hazardClass) {
@@ -1841,31 +1897,31 @@ function hazardI18nKey(hazardClass) {
     return 'hazard' + hazardClass.charAt(0) + hazardClass.slice(1).toLowerCase();
 }
 
-function renderFfgsTable() {
-    const tbody = document.getElementById('ffgsTableBody');
+function renderGuidanceTable() {
+    const tbody = document.getElementById('guidanceTableBody');
     if (!tbody) return;
 
-    if (ffgsLoading) {
-        tbody.innerHTML = '<tr><td colspan="5">' + t('ffgsLoading') + '</td></tr>';
+    if (guidanceLoading) {
+        tbody.innerHTML = '<tr><td colspan="5">' + t('guidanceLoading') + '</td></tr>';
         return;
     }
 
-    if (ffgsRows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5">' + t('ffgsUnavailable') + '</td></tr>';
+    if (guidanceRows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">' + t('guidanceUnavailable') + '</td></tr>';
         return;
     }
 
-    tbody.innerHTML = ffgsRows.map(function(row) {
+    tbody.innerHTML = guidanceRows.map(function(row) {
         const zone = row.zone;
         const rainMm = row.rainMm;
         const hazardKey = hazardI18nKey(zone.hazard_class);
-        const hazardText = hazardKey ? t(hazardKey) : t('ffgsUnmapped');
+        const hazardText = hazardKey ? t(hazardKey) : t('guidanceUnmapped');
         const rainText = rainMm == null ? '—' : rainMm.toFixed(1) + ' mm';
-        const level = guidanceLevel(zone, rainMm);
-        const headroom = (zone.trigger_mm != null && rainMm != null) ? Math.max(zone.trigger_mm - rainMm, 0) : null;
+        const level = computeGuidanceLevel(zone, rainMm);
+        const headroom = guidanceHeadroomMm(zone, rainMm);
         const headroomText = headroom == null ? '—' : headroom.toFixed(0) + ' mm';
-        const levelClass = 'ffgs-badge ffgs-' + (level ? level.toLowerCase() : 'unmapped');
-        const levelText = level ? t('ffgsLevel' + level) : t('ffgsUnmapped');
+        const levelClass = 'guidance-badge guidance-' + (level ? level.toLowerCase() : 'unmapped');
+        const levelText = level ? t('guidanceLevel' + level) : t('guidanceUnmapped');
         return '<tr><td>' + townName(zone.name) + '</td>' +
                '<td>' + hazardText + '</td>' +
                '<td class="num">' + rainText + '</td>' +
@@ -1874,16 +1930,16 @@ function renderFfgsTable() {
     }).join('');
 }
 
-async function loadFfgsPanel() {
+async function loadGuidancePanel() {
     let zones = [];
 
     try {
-        const data = await (await fetch('/ffgs-zones')).json();
+        const data = await (await fetch('/flood-guidance-zones')).json();
         zones = (data && Array.isArray(data.zones)) ? data.zones : [];
     } catch (error) {
-        ffgsLoading = false;
-        ffgsRows = [];
-        renderFfgsTable();
+        guidanceLoading = false;
+        guidanceRows = [];
+        renderGuidanceTable();
         return;
     }
 
@@ -1900,43 +1956,43 @@ async function loadFfgsPanel() {
             .catch(function() { return null; });
     }));
 
-    ffgsLoading = false;
-    ffgsRows = zones.map(function(zone, i) {
+    guidanceLoading = false;
+    guidanceRows = zones.map(function(zone, i) {
         return { zone: zone, rainMm: rainResults[i] };
     });
 
-    renderFfgsTable();
+    renderGuidanceTable();
 }
 
-loadFfgsPanel();
+loadGuidancePanel();
 
-function renderMyLocationResult() {
-    const resultEl = document.getElementById('ffgsMyLocationResult');
+function renderMyLocationGuidance() {
+    const resultEl = document.getElementById('guidanceMyLocationResult');
     if (!resultEl || !myLocationData) return;
 
-    const ffgs = myLocationData.ffgs;
+    const point = myLocationData.point;
     const rainMm = myLocationData.rainMm;
-    const level = guidanceLevel(ffgs, rainMm);
-    const hazardKey = hazardI18nKey(ffgs.hazard_class);
-    const hazardText = hazardKey ? t(hazardKey) : t('ffgsUnmapped');
+    const level = computeGuidanceLevel(point, rainMm);
+    const hazardKey = hazardI18nKey(point.hazard_class);
+    const hazardText = hazardKey ? t(hazardKey) : t('guidanceUnmapped');
     const rainText = rainMm == null ? '—' : rainMm.toFixed(1) + ' mm';
-    const levelText = level ? t('ffgsLevel' + level) : t('ffgsUnmapped');
+    const levelText = level ? t('guidanceLevel' + level) : t('guidanceUnmapped');
 
     let approxNote = '';
-    if (ffgs.hazard_class && !ffgs.exact_match && ffgs.distance_km != null) {
-        approxNote = ' ' + t('ffgsApproxNote').replace('{km}', ffgs.distance_km);
+    if (point.hazard_class && !point.exact_match && point.distance_km != null) {
+        approxNote = ' ' + t('guidanceApproxNote').replace('{km}', point.distance_km);
     }
 
-    resultEl.innerHTML = '<b>' + hazardText + '</b> · ' + rainText + ' · <span class="ffgs-badge ffgs-' + (level ? level.toLowerCase() : 'unmapped') + '">' + levelText + '</span>' + approxNote;
+    resultEl.innerHTML = '<b>' + hazardText + '</b> · ' + rainText + ' · <span class="guidance-badge guidance-' + (level ? level.toLowerCase() : 'unmapped') + '">' + levelText + '</span>' + approxNote;
 }
 
-document.getElementById('ffgsMyLocationBtn').addEventListener('click', function() {
-    const resultEl = document.getElementById('ffgsMyLocationResult');
+document.getElementById('guidanceMyLocationBtn').addEventListener('click', function() {
+    const resultEl = document.getElementById('guidanceMyLocationResult');
     resultEl.hidden = false;
-    resultEl.textContent = t('ffgsLocating');
+    resultEl.textContent = t('guidanceLocating');
 
     if (!navigator.geolocation) {
-        resultEl.textContent = t('ffgsNoGeolocation');
+        resultEl.textContent = t('noGeolocationSupport');
         return;
     }
 
@@ -1946,20 +2002,20 @@ document.getElementById('ffgsMyLocationBtn').addEventListener('click', function(
 
         try {
             const results = await Promise.all([
-                fetch('/ffgs?lat=' + lat + '&lon=' + lon).then(function(r) { return r.json(); }),
+                fetch('/flood-guidance?lat=' + lat + '&lon=' + lon).then(function(r) { return r.json(); }),
                 fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=precipitation&timezone=auto').then(function(r) { return r.json(); })
             ]);
-            const ffgs = results[0];
+            const point = results[0];
             const weatherPayload = results[1];
 
             const rainMm = (weatherPayload && weatherPayload.current) ? Number(weatherPayload.current.precipitation || 0) : null;
-            myLocationData = { ffgs: ffgs, rainMm: rainMm };
-            renderMyLocationResult();
+            myLocationData = { point: point, rainMm: rainMm };
+            renderMyLocationGuidance();
         } catch (error) {
-            resultEl.textContent = t('ffgsLocationError');
+            resultEl.textContent = t('guidanceLocationError');
         }
     }, function() {
-        resultEl.textContent = t('ffgsLocationDenied');
+        resultEl.textContent = t('guidanceLocationDenied');
     }, { timeout: 10000 });
 });
 
@@ -1995,7 +2051,7 @@ document.getElementById('sosShareBtn').addEventListener('click', function() {
 
     if (!navigator.geolocation) {
         statusEl.className = 'sos-status err';
-        statusEl.textContent = t('ffgsNoGeolocation');
+        statusEl.textContent = t('noGeolocationSupport');
         return;
     }
 
@@ -3025,21 +3081,21 @@ def weather():
 
 
 # ============================================================
-# FLASH FLOOD GUIDANCE (FFGS) — endpoints
+# FLOOD GUIDANCE — endpoints
 # ============================================================
 
-@app.route("/ffgs-zones")
-def ffgs_zones():
+@app.route("/flood-guidance-zones")
+def flood_guidance_zones():
 
     return jsonify({
-        "available": FFGS_AVAILABLE,
-        "error": None if FFGS_AVAILABLE else FFGS_ERROR,
-        "zones": FFGS_ZONES
+        "available": GUIDANCE_AVAILABLE,
+        "error": None if GUIDANCE_AVAILABLE else GUIDANCE_ERROR,
+        "zones": GUIDANCE_ZONES
     })
 
 
-@app.route("/ffgs")
-def ffgs_point():
+@app.route("/flood-guidance")
+def flood_guidance_point():
 
     try:
         lat = float(request.args.get("lat"))
@@ -3054,7 +3110,7 @@ def ffgs_point():
             "error": "lat/lon out of range."
         }), 400
 
-    return jsonify(_ffgs_result(lat, lon))
+    return jsonify(guidance_for_point(lat, lon))
 
 
 # ============================================================
