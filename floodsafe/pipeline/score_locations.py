@@ -6,16 +6,21 @@ Covers the nine guidance towns plus every locality in localities.json,
 including the ones the hazard atlas never mapped -- which is the point:
 those currently render as UNMAPPED with no threshold at all.
 
-Two numbers per location, deliberately kept distinct:
+Three numbers per location, deliberately kept distinct:
 
     ffpi        1-10 physical susceptibility index, no labels involved,
                 available everywhere the input rasters are
-    model_prob  P(elevated hazard) from the XGBoost model, honest
-                spatial-CV ROC-AUC 0.66, dominated by elevation
+    event_prob  P(rainfall-triggered mass movement) from the model
+                trained on 206 real recorded disasters (NASA Global
+                Landslide Catalog). Spatially blocked CV ROC-AUC 0.82.
+    model_prob  P(elevated hazard) from the older model trained on the
+                hazard atlas. Spatial-CV ROC-AUC 0.66 and dominated by
+                elevation -- kept for continuity, but event_prob is the
+                better signal and supersedes it.
 
-The app presents FFPI as the primary signal and the model probability as
-a secondary, explicitly caveated one. Neither is a calibrated flood
-forecast.
+The app presents FFPI as the primary signal, event_prob as the
+supporting model, and model_prob as legacy. None of them is a calibrated
+flood forecast.
 
 Usage:
     python score_locations.py --res 90
@@ -53,10 +58,13 @@ GUIDANCE_TOWNS = [
     {"name": "Joshimath", "lat": 30.5551, "lon": 79.5643},
 ]
 
-# Must match train_model.py's feature order exactly.
+# Must match train_model.py's feature order exactly -- the column order
+# of training_90m.csv, which is what the booster records.
 MODEL_FEATURES = [
     "elevation_m", "slope_deg", "plan_curv", "prof_curv", "twi", "spi",
     "sca", "flowacc_cells", "dist_to_stream_m", "ruggedness",
+    "hand_m", "dev_elev_small", "dev_elev_large", "elev_percentile",
+    "rel_topo_position",
     "soil_sand_pct", "soil_clay_pct", "soil_silt_pct", "soil_hsg",
     "catchment_up_km2", "catchment_sub_km2",
 ]
@@ -67,6 +75,10 @@ FEATURE_RASTERS = {
     "twi": "twi.tif", "spi": "spi.tif", "sca": "sca.tif",
     "flowacc_cells": "flowacc_cells.tif",
     "dist_to_stream_m": "dist_to_stream.tif", "ruggedness": "ruggedness.tif",
+    "hand_m": "hand.tif", "dev_elev_small": "dev_elev_small.tif",
+    "dev_elev_large": "dev_elev_large.tif",
+    "elev_percentile": "elev_percentile.tif",
+    "rel_topo_position": "rel_topo_position.tif",
     "soil_sand_pct": "soil_sand.tif", "soil_clay_pct": "soil_clay.tif",
     "soil_silt_pct": "soil_silt.tif", "soil_hsg": "soil_hsg.tif",
 }
@@ -81,6 +93,30 @@ FFPI_RASTERS = {
 
 FFPI_BANDS = [(3.5, "VERY LOW"), (4.5, "LOW"), (5.5, "MODERATE"),
               (6.5, "HIGH"), (99.0, "VERY HIGH")]
+
+# Event-trained model. Its feature list and order must match
+# train_event_model.FEATURES exactly; unlike the atlas model it needs no
+# catchment join, since every input is a raster.
+EVENT_FEATURES = [
+    "elevation_m", "slope_deg", "plan_curv", "prof_curv", "twi", "spi",
+    "sca", "dist_to_stream_m", "ruggedness", "hand_m", "dev_elev_small",
+    "dev_elev_large", "elev_percentile", "rel_topo_position",
+    "soil_sand_pct", "soil_clay_pct", "soil_silt_pct", "soil_hsg", "ffpi",
+]
+
+EVENT_RASTERS = {
+    "elevation_m": "dem.tif", "slope_deg": "slope.tif",
+    "plan_curv": "plan_curv.tif", "prof_curv": "prof_curv.tif",
+    "twi": "twi.tif", "spi": "spi.tif", "sca": "sca.tif",
+    "dist_to_stream_m": "dist_to_stream.tif", "ruggedness": "ruggedness.tif",
+    "hand_m": "hand.tif", "dev_elev_small": "dev_elev_small.tif",
+    "dev_elev_large": "dev_elev_large.tif",
+    "elev_percentile": "elev_percentile.tif",
+    "rel_topo_position": "rel_topo_position.tif",
+    "soil_sand_pct": "soil_sand.tif", "soil_clay_pct": "soil_clay.tif",
+    "soil_silt_pct": "soil_silt.tif", "soil_hsg": "soil_hsg.tif",
+    "ffpi": "ffpi.tif",
+}
 
 
 def log(msg):
@@ -201,9 +237,26 @@ def main():
         booster.load_model(model_path)
         X = np.column_stack([feat_vals[f] for f in MODEL_FEATURES]).astype("float32")
         probs = booster.predict(xgb.DMatrix(X, feature_names=MODEL_FEATURES))
-        log(f"model scored {int(np.isfinite(probs).sum())} points")
+        log(f"atlas model scored {int(np.isfinite(probs).sum())} points")
     else:
         log(f"WARNING: no model at {model_path}, skipping probabilities")
+
+    log("sampling event-model features ...")
+    event_vals = sample_stack(points, out_dir, EVENT_RASTERS)
+    event_vals["soil_hsg"] = np.where(event_vals["soil_hsg"] == 0,
+                                      np.nan, event_vals["soil_hsg"])
+
+    event_path = os.path.join(MODEL_ROOT, f"event_susceptibility_{args.res}m.json")
+    event_probs = np.full(len(points), np.nan)
+    if os.path.exists(event_path):
+        eb = xgb.Booster()
+        eb.load_model(event_path)
+        XE = np.column_stack([event_vals[f] for f in EVENT_FEATURES]).astype("float32")
+        event_probs = eb.predict(xgb.DMatrix(XE, feature_names=EVENT_FEATURES))
+        log(f"event model scored {int(np.isfinite(event_probs).sum())} points "
+            f"(range {np.nanmin(event_probs):.3f} .. {np.nanmax(event_probs):.3f})")
+    else:
+        log(f"WARNING: no event model at {event_path}")
 
     def clean(v, nd=2):
         return None if not np.isfinite(v) else round(float(v), nd)
@@ -222,6 +275,7 @@ def main():
                 "landcover": clean(ffpi_vals["ffpi_landcover"][i], 1),
                 "convergence": clean(ffpi_vals["ffpi_convergence"][i], 1),
             },
+            "event_prob": clean(event_probs[i], 3),
             "model_prob": clean(probs[i], 3),
             "terrain": {
                 "elevation_m": clean(feat_vals["elevation_m"][i], 0),
@@ -245,9 +299,13 @@ def main():
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "resolution_m": args.res,
         "ffpi_scale": "1-10, higher = greater flash-flood potential (not a probability)",
-        "model_note": "P(elevated hazard) from XGBoost trained on the state hazard "
-                      "atlas; spatial-CV ROC-AUC 0.66, dominated by elevation. "
-                      "Secondary signal only.",
+        "event_prob_note": "P(rainfall-triggered mass movement) from XGBoost trained "
+                           "on 206 real recorded disasters (NASA Global Landslide "
+                           "Catalog, 1970-2019). Spatially blocked CV ROC-AUC 0.82. "
+                           "Landslides overlap flash floods without being identical.",
+        "model_note": "Legacy: P(elevated hazard) from XGBoost trained on the state "
+                      "hazard atlas; spatial-CV ROC-AUC 0.66, dominated by elevation. "
+                      "Superseded by event_prob.",
         "locations": records,
     }
 

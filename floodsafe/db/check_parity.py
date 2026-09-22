@@ -20,10 +20,16 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 
 import httpx
+
+
+# Locality names carry macrons (Bahādrābād), which a cp1252 Windows
+# console cannot encode -- printing one raised UnicodeEncodeError and
+# took down the whole report after it had already found the mismatches.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
 # Arbitrary points, chosen to exercise different code paths: inside an
@@ -43,6 +49,16 @@ COMPARE_FIELDS = [
     "ffpi", "ffpi_band", "static_multiplier",
 ]
 
+# For the fixed zones both stacks read the same precomputed 90 m scores,
+# so FFPI must agree exactly. For an arbitrary point they deliberately
+# differ: Flask reads a regridded 0.001-degree uint8 grid, while the API
+# samples the native 90 m raster through PostGIS. The API is the more
+# accurate of the two -- spot-checked against ffpi.tif, it reproduces the
+# source exactly where the grid drifts by up to two FFPI units (Terai
+# 5.0 vs 2.96, enough to cross a band boundary). So FFPI and anything
+# derived from it is reported for probe points rather than failed on.
+POINT_INFO_ONLY = {"ffpi", "ffpi_band", "effective_class", "hazard_source"}
+
 
 def get(client, url, **params):
     r = client.get(url, params=params or None, timeout=60)
@@ -60,11 +76,23 @@ def approx(a, b, tol=0.051):
     return a == b
 
 
-def compare(label, flask_obj, api_obj, mismatches):
+def compare(label, flask_obj, api_obj, mismatches, info_only=frozenset(), notes=None):
     for field in COMPARE_FIELDS:
         fv, av = flask_obj.get(field), api_obj.get(field)
-        if not approx(fv, av):
-            mismatches.append(f"{label}: {field}  flask={fv!r}  api={av!r}")
+        if approx(fv, av):
+            continue
+        line = f"{label}: {field}  flask={fv!r}  api={av!r}"
+        if field in info_only:
+            if notes is not None:
+                notes.append(line)
+        else:
+            mismatches.append(line)
+
+    # Thresholds derive from the class, so where the class itself is
+    # info-only the thresholds must be too, or one expected difference
+    # would be reported six more times.
+    if info_only & {"effective_class", "ffpi"}:
+        return
 
     # Thresholds are derived, so compare them structurally rather than
     # trusting that equal inputs produced equal output.
@@ -140,14 +168,23 @@ def main():
         print(f"  matched {len(flask_zones) - unmatched} zones by position")
 
         print("comparing /ffgs/point ...")
+        print("  (FFPI differences here are expected — see POINT_INFO_ONLY)")
+        notes: list[str] = []
         for label, lat, lon in PROBE_POINTS:
             f = get(client, f"{args.flask}/ffgs/point", lat=lat, lon=lon)
             a = get(client, f"{args.api}/ffgs/point", lat=lat, lon=lon,
                     with_rainfall="false")
-            compare(f"point {label}", f, a, mismatches)
+            compare(f"point {label}", f, a, mismatches, POINT_INFO_ONLY, notes)
             print(f"  {label:22s} flask={f.get('effective_class')!s:12s} "
                   f"api={a.get('effective_class')!s:12s} "
                   f"ffpi {f.get('ffpi')} / {a.get('ffpi')}")
+
+    if notes:
+        print()
+        print(f"{len(notes)} expected difference(s) on arbitrary points "
+              f"(API reads the native raster, Flask a regridded grid):")
+        for n in notes:
+            print("  ~", n)
 
     print()
     if mismatches:

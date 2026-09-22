@@ -244,11 +244,15 @@ def ingest_ffpi_raster(dsn):
         log("  WARNING: raster2pgsql not found; skipping raster load")
         return
 
-    # -s 4326 reprojects on load (the tif is UTM 44N), -t tiles it,
-    # -a appends into the table schema.sql already created.
-    log("loading FFPI raster (reprojecting UTM 44N -> 4326, 100x100 tiles) ...")
+    # -s tags the SRID, it does NOT reproject -- the raster stays in its
+    # native UTM 44N and ffpi_at_point transforms the query point instead.
+    # -a appends into the table schema.sql already created, -t tiles it so
+    # a point lookup touches one small tile, -C adds the raster
+    # constraints ST_Value relies on. No -I: schema.sql already creates
+    # the convex-hull index, and -I would add a second, redundant one.
+    log("loading FFPI raster (UTM 44N, 100x100 tiles) ...")
     gen = subprocess.run(
-        [raster2pgsql, "-a", "-s", "32644", "-t", "100x100", "-I", "-C",
+        [raster2pgsql, "-a", "-s", "32644", "-t", "100x100", "-C",
          tif, "ffpi_raster"],
         capture_output=True, text=True,
     )

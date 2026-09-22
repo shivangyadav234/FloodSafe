@@ -70,6 +70,13 @@ RASTER_FEATURES = {
     "flowacc_cells": "flowacc_cells.tif",
     "dist_to_stream_m": "dist_to_stream.tif",
     "ruggedness": "ruggedness.tif",
+    # Height Above Nearest Drainage plus multi-scale relief -- the
+    # standard flood-susceptibility predictors the first pass lacked.
+    "hand_m": "hand.tif",
+    "dev_elev_small": "dev_elev_small.tif",
+    "dev_elev_large": "dev_elev_large.tif",
+    "elev_percentile": "elev_percentile.tif",
+    "rel_topo_position": "rel_topo_position.tif",
     "soil_sand_pct": "soil_sand.tif",
     "soil_clay_pct": "soil_clay.tif",
     "soil_silt_pct": "soil_silt.tif",

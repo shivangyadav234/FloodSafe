@@ -1,8 +1,9 @@
 {
-  "generated_utc": "2026-09-22T13:27:37.840531+00:00",
+  "generated_utc": "2026-09-22T17:25:13.276640+00:00",
   "resolution_m": 90,
   "ffpi_scale": "1-10, higher = greater flash-flood potential (not a probability)",
-  "model_note": "P(elevated hazard) from XGBoost trained on the state hazard atlas; spatial-CV ROC-AUC 0.66, dominated by elevation. Secondary signal only.",
+  "event_prob_note": "P(rainfall-triggered mass movement) from XGBoost trained on 206 real recorded disasters (NASA Global Landslide Catalog, 1970-2019). Spatially blocked CV ROC-AUC 0.82. Landslides overlap flash floods without being identical.",
+  "model_note": "Legacy: P(elevated hazard) from XGBoost trained on the state hazard atlas; spatial-CV ROC-AUC 0.66, dominated by elevation. Superseded by event_prob.",
   "locations": [
     {
       "name": "Dehradun",
@@ -18,7 +19,8 @@
         "landcover": 10.0,
         "convergence": 8.0
       },
-      "model_prob": 0.021,
+      "event_prob": 0.064,
+      "model_prob": 0.164,
       "terrain": {
         "elevation_m": 652.0,
         "slope_deg": 1.1,
@@ -40,7 +42,8 @@
         "landcover": 10.0,
         "convergence": 8.0
       },
-      "model_prob": 0.003,
+      "event_prob": 0.026,
+      "model_prob": 0.014,
       "terrain": {
         "elevation_m": 363.0,
         "slope_deg": 0.4,
@@ -62,7 +65,8 @@
         "landcover": 10.0,
         "convergence": 6.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.514,
+      "model_prob": 0.025,
       "terrain": {
         "elevation_m": 295.0,
         "slope_deg": 2.9,
@@ -84,7 +88,8 @@
         "landcover": 10.0,
         "convergence": 3.0
       },
-      "model_prob": 0.014,
+      "event_prob": 0.03,
+      "model_prob": 0.034,
       "terrain": {
         "elevation_m": 1970.0,
         "slope_deg": 26.7,
@@ -106,7 +111,8 @@
         "landcover": 10.0,
         "convergence": 4.0
       },
-      "model_prob": 0.154,
+      "event_prob": 0.792,
+      "model_prob": 0.439,
       "terrain": {
         "elevation_m": 1945.0,
         "slope_deg": 9.9,
@@ -128,7 +134,8 @@
         "landcover": 10.0,
         "convergence": 8.0
       },
-      "model_prob": 0.014,
+      "event_prob": 0.142,
+      "model_prob": 0.373,
       "terrain": {
         "elevation_m": 431.0,
         "slope_deg": 0.8,
@@ -150,7 +157,8 @@
         "landcover": 2.0,
         "convergence": 3.0
       },
-      "model_prob": 0.003,
+      "event_prob": 0.149,
+      "model_prob": 0.004,
       "terrain": {
         "elevation_m": 1663.0,
         "slope_deg": 12.6,
@@ -172,7 +180,8 @@
         "landcover": 10.0,
         "convergence": 4.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.262,
+      "model_prob": 0.003,
       "terrain": {
         "elevation_m": 1555.0,
         "slope_deg": 9.1,
@@ -194,7 +203,8 @@
         "landcover": 8.0,
         "convergence": 8.0
       },
-      "model_prob": 0.04,
+      "event_prob": 0.162,
+      "model_prob": 0.029,
       "terrain": {
         "elevation_m": 1877.0,
         "slope_deg": 20.9,
@@ -216,7 +226,8 @@
         "landcover": 10.0,
         "convergence": 4.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.809,
+      "model_prob": 0.007,
       "terrain": {
         "elevation_m": 370.0,
         "slope_deg": 8.5,
@@ -238,7 +249,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.007,
+      "event_prob": 0.161,
+      "model_prob": 0.071,
       "terrain": {
         "elevation_m": 279.0,
         "slope_deg": 0.4,
@@ -260,7 +272,8 @@
         "landcover": 2.0,
         "convergence": 6.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.018,
+      "model_prob": 0.099,
       "terrain": {
         "elevation_m": 881.0,
         "slope_deg": 2.2,
@@ -282,7 +295,8 @@
         "landcover": 10.0,
         "convergence": 9.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.511,
+      "model_prob": 0.022,
       "terrain": {
         "elevation_m": 351.0,
         "slope_deg": 0.5,
@@ -304,7 +318,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.004,
+      "event_prob": 0.012,
+      "model_prob": 0.018,
       "terrain": {
         "elevation_m": 644.0,
         "slope_deg": 2.0,
@@ -326,7 +341,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.017,
+      "event_prob": 0.074,
+      "model_prob": 0.407,
       "terrain": {
         "elevation_m": 620.0,
         "slope_deg": 1.1,
@@ -348,7 +364,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.021,
+      "event_prob": 0.034,
+      "model_prob": 0.308,
       "terrain": {
         "elevation_m": 657.0,
         "slope_deg": 1.1,
@@ -370,7 +387,8 @@
         "landcover": 10.0,
         "convergence": 5.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.136,
+      "model_prob": 0.017,
       "terrain": {
         "elevation_m": 440.0,
         "slope_deg": 4.8,
@@ -392,7 +410,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.015,
+      "event_prob": 0.09,
+      "model_prob": 0.049,
       "terrain": {
         "elevation_m": 375.0,
         "slope_deg": 17.6,
@@ -414,12 +433,13 @@
         "landcover": 10.0,
         "convergence": 8.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.15,
+      "model_prob": 0.071,
       "terrain": {
         "elevation_m": 353.0,
         "slope_deg": 0.9,
         "twi": 9.99,
-        "dist_to_stream_m": 450.0
+        "dist_to_stream_m": 705.0
       }
     },
     {
@@ -436,7 +456,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.045,
+      "model_prob": 0.009,
       "terrain": {
         "elevation_m": 354.0,
         "slope_deg": 0.7,
@@ -458,7 +479,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.116,
+      "model_prob": 0.008,
       "terrain": {
         "elevation_m": 377.0,
         "slope_deg": 0.9,
@@ -480,7 +502,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.031,
+      "model_prob": 0.033,
       "terrain": {
         "elevation_m": 374.0,
         "slope_deg": 8.7,
@@ -502,7 +525,8 @@
         "landcover": 2.0,
         "convergence": 3.0
       },
-      "model_prob": 0.009,
+      "event_prob": 0.029,
+      "model_prob": 0.323,
       "terrain": {
         "elevation_m": 405.0,
         "slope_deg": 13.3,
@@ -524,7 +548,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.185,
+      "model_prob": 0.072,
       "terrain": {
         "elevation_m": 365.0,
         "slope_deg": 3.0,
@@ -546,7 +571,8 @@
         "landcover": 10.0,
         "convergence": 8.0
       },
-      "model_prob": 0.004,
+      "event_prob": 0.031,
+      "model_prob": 0.079,
       "terrain": {
         "elevation_m": 380.0,
         "slope_deg": 0.4,
@@ -568,12 +594,13 @@
         "landcover": 2.0,
         "convergence": 7.0
       },
-      "model_prob": 0.003,
+      "event_prob": 0.003,
+      "model_prob": 0.039,
       "terrain": {
         "elevation_m": 382.0,
         "slope_deg": 1.1,
         "twi": 8.5,
-        "dist_to_stream_m": 2136.0
+        "dist_to_stream_m": 2390.0
       }
     },
     {
@@ -590,7 +617,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.053,
+      "model_prob": 0.071,
       "terrain": {
         "elevation_m": 379.0,
         "slope_deg": 1.2,
@@ -612,7 +640,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.071,
+      "model_prob": 0.069,
       "terrain": {
         "elevation_m": 364.0,
         "slope_deg": 0.8,
@@ -634,7 +663,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.078,
+      "model_prob": 0.012,
       "terrain": {
         "elevation_m": 388.0,
         "slope_deg": 1.2,
@@ -656,7 +686,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.005,
+      "event_prob": 0.048,
+      "model_prob": 0.076,
       "terrain": {
         "elevation_m": 371.0,
         "slope_deg": 2.1,
@@ -678,7 +709,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.025,
+      "model_prob": 0.013,
       "terrain": {
         "elevation_m": 350.0,
         "slope_deg": 0.4,
@@ -700,7 +732,8 @@
         "landcover": 10.0,
         "convergence": 6.0
       },
-      "model_prob": 0.037,
+      "event_prob": 0.579,
+      "model_prob": 0.045,
       "terrain": {
         "elevation_m": 1599.0,
         "slope_deg": 3.2,
@@ -722,7 +755,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.003,
+      "event_prob": 0.039,
+      "model_prob": 0.165,
       "terrain": {
         "elevation_m": 682.0,
         "slope_deg": 0.9,
@@ -744,7 +778,8 @@
         "landcover": 2.0,
         "convergence": 6.0
       },
-      "model_prob": 0.004,
+      "event_prob": 0.091,
+      "model_prob": 0.044,
       "terrain": {
         "elevation_m": 376.0,
         "slope_deg": 13.3,
@@ -766,7 +801,8 @@
         "landcover": 2.0,
         "convergence": 7.0
       },
-      "model_prob": 0.005,
+      "event_prob": 0.008,
+      "model_prob": 0.273,
       "terrain": {
         "elevation_m": 343.0,
         "slope_deg": 0.5,
@@ -788,7 +824,8 @@
         "landcover": 10.0,
         "convergence": 6.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.624,
+      "model_prob": 0.01,
       "terrain": {
         "elevation_m": 295.0,
         "slope_deg": 8.6,
@@ -810,7 +847,8 @@
         "landcover": 6.0,
         "convergence": 8.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.003,
+      "model_prob": 0.01,
       "terrain": {
         "elevation_m": 353.0,
         "slope_deg": 0.9,
@@ -832,7 +870,8 @@
         "landcover": 10.0,
         "convergence": 8.0
       },
-      "model_prob": 0.003,
+      "event_prob": 0.132,
+      "model_prob": 0.254,
       "terrain": {
         "elevation_m": 396.0,
         "slope_deg": 2.1,
@@ -854,7 +893,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.027,
+      "model_prob": 0.008,
       "terrain": {
         "elevation_m": 366.0,
         "slope_deg": 0.6,
@@ -876,7 +916,8 @@
         "landcover": 2.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.007,
+      "model_prob": 0.017,
       "terrain": {
         "elevation_m": 344.0,
         "slope_deg": 1.1,
@@ -898,7 +939,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.014,
+      "event_prob": 0.074,
+      "model_prob": 0.289,
       "terrain": {
         "elevation_m": 438.0,
         "slope_deg": 1.0,
@@ -920,7 +962,8 @@
         "landcover": 10.0,
         "convergence": 9.0
       },
-      "model_prob": 0.004,
+      "event_prob": 0.062,
+      "model_prob": 0.155,
       "terrain": {
         "elevation_m": 472.0,
         "slope_deg": 1.0,
@@ -942,7 +985,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.017,
+      "event_prob": 0.015,
+      "model_prob": 0.711,
       "terrain": {
         "elevation_m": 449.0,
         "slope_deg": 0.4,
@@ -964,7 +1008,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.011,
+      "event_prob": 0.046,
+      "model_prob": 0.511,
       "terrain": {
         "elevation_m": 431.0,
         "slope_deg": 1.4,
@@ -986,7 +1031,8 @@
         "landcover": 6.0,
         "convergence": 8.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.003,
+      "model_prob": 0.043,
       "terrain": {
         "elevation_m": 319.0,
         "slope_deg": 0.5,
@@ -1008,7 +1054,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.004,
+      "model_prob": 0.028,
       "terrain": {
         "elevation_m": 317.0,
         "slope_deg": 1.1,
@@ -1030,7 +1077,8 @@
         "landcover": 2.0,
         "convergence": 8.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.004,
+      "model_prob": 0.007,
       "terrain": {
         "elevation_m": 296.0,
         "slope_deg": 1.4,
@@ -1052,12 +1100,13 @@
         "landcover": 10.0,
         "convergence": 6.0
       },
-      "model_prob": 0.053,
+      "event_prob": 0.56,
+      "model_prob": 0.144,
       "terrain": {
         "elevation_m": 1957.0,
         "slope_deg": 10.6,
         "twi": 7.56,
-        "dist_to_stream_m": 906.0
+        "dist_to_stream_m": 779.0
       }
     },
     {
@@ -1074,7 +1123,8 @@
         "landcover": 10.0,
         "convergence": 3.0
       },
-      "model_prob": 0.112,
+      "event_prob": 0.892,
+      "model_prob": 0.407,
       "terrain": {
         "elevation_m": 1983.0,
         "slope_deg": 16.6,
@@ -1096,7 +1146,8 @@
         "landcover": 6.0,
         "convergence": 8.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.005,
+      "model_prob": 0.007,
       "terrain": {
         "elevation_m": 300.0,
         "slope_deg": 1.0,
@@ -1118,7 +1169,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.029,
+      "model_prob": 0.005,
       "terrain": {
         "elevation_m": 338.0,
         "slope_deg": 0.8,
@@ -1140,7 +1192,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.021,
+      "event_prob": 0.032,
+      "model_prob": 0.153,
       "terrain": {
         "elevation_m": 424.0,
         "slope_deg": 1.2,
@@ -1162,7 +1215,8 @@
         "landcover": 2.0,
         "convergence": 8.0
       },
-      "model_prob": 0.021,
+      "event_prob": 0.012,
+      "model_prob": 0.163,
       "terrain": {
         "elevation_m": 424.0,
         "slope_deg": 0.7,
@@ -1184,7 +1238,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.011,
+      "event_prob": 0.034,
+      "model_prob": 0.088,
       "terrain": {
         "elevation_m": 430.0,
         "slope_deg": 0.5,
@@ -1206,7 +1261,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.024,
+      "model_prob": 0.059,
       "terrain": {
         "elevation_m": 399.0,
         "slope_deg": 1.1,
@@ -1228,7 +1284,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.024,
+      "event_prob": 0.035,
+      "model_prob": 0.201,
       "terrain": {
         "elevation_m": 426.0,
         "slope_deg": 0.8,
@@ -1250,7 +1307,8 @@
         "landcover": 2.0,
         "convergence": 7.0
       },
-      "model_prob": 0.016,
+      "event_prob": 0.002,
+      "model_prob": 0.451,
       "terrain": {
         "elevation_m": 440.0,
         "slope_deg": 0.7,
@@ -1272,7 +1330,8 @@
         "landcover": 10.0,
         "convergence": 9.0
       },
-      "model_prob": 0.03,
+      "event_prob": 0.019,
+      "model_prob": 0.539,
       "terrain": {
         "elevation_m": 448.0,
         "slope_deg": 1.0,
@@ -1294,7 +1353,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.023,
+      "event_prob": 0.063,
+      "model_prob": 0.201,
       "terrain": {
         "elevation_m": 462.0,
         "slope_deg": 1.0,
@@ -1316,7 +1376,8 @@
         "landcover": 6.0,
         "convergence": 9.0
       },
-      "model_prob": 0.011,
+      "event_prob": 0.004,
+      "model_prob": 0.185,
       "terrain": {
         "elevation_m": 453.0,
         "slope_deg": 1.3,
@@ -1338,7 +1399,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.018,
+      "model_prob": 0.012,
       "terrain": {
         "elevation_m": 409.0,
         "slope_deg": 1.8,
@@ -1360,7 +1422,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.04,
+      "model_prob": 0.014,
       "terrain": {
         "elevation_m": 394.0,
         "slope_deg": 0.4,
@@ -1382,7 +1445,8 @@
         "landcover": 10.0,
         "convergence": 8.0
       },
-      "model_prob": 0.023,
+      "event_prob": 0.019,
+      "model_prob": 0.367,
       "terrain": {
         "elevation_m": 448.0,
         "slope_deg": 0.7,
@@ -1404,7 +1468,8 @@
         "landcover": 10.0,
         "convergence": 6.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.031,
+      "model_prob": 0.05,
       "terrain": {
         "elevation_m": 503.0,
         "slope_deg": 4.4,
@@ -1426,7 +1491,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.014,
+      "event_prob": 0.054,
+      "model_prob": 0.334,
       "terrain": {
         "elevation_m": 472.0,
         "slope_deg": 1.6,
@@ -1448,7 +1514,8 @@
         "landcover": 10.0,
         "convergence": 9.0
       },
-      "model_prob": 0.022,
+      "event_prob": 0.055,
+      "model_prob": 0.16,
       "terrain": {
         "elevation_m": 440.0,
         "slope_deg": 0.1,
@@ -1470,7 +1537,8 @@
         "landcover": 6.0,
         "convergence": 10.0
       },
-      "model_prob": 0.003,
+      "event_prob": 0.032,
+      "model_prob": 0.225,
       "terrain": {
         "elevation_m": 393.0,
         "slope_deg": 0.5,
@@ -1492,7 +1560,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.005,
+      "event_prob": 0.024,
+      "model_prob": 0.332,
       "terrain": {
         "elevation_m": 393.0,
         "slope_deg": 0.7,
@@ -1514,7 +1583,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.002,
+      "event_prob": 0.016,
+      "model_prob": 0.066,
       "terrain": {
         "elevation_m": 395.0,
         "slope_deg": 0.9,
@@ -1536,7 +1606,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.098,
+      "model_prob": 0.027,
       "terrain": {
         "elevation_m": 348.0,
         "slope_deg": 0.8,
@@ -1558,7 +1629,8 @@
         "landcover": 2.0,
         "convergence": 9.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.002,
+      "model_prob": 0.006,
       "terrain": {
         "elevation_m": 273.0,
         "slope_deg": 0.3,
@@ -1580,7 +1652,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.011,
+      "event_prob": 0.014,
+      "model_prob": 0.098,
       "terrain": {
         "elevation_m": 650.0,
         "slope_deg": 1.6,
@@ -1602,7 +1675,8 @@
         "landcover": 10.0,
         "convergence": 6.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.305,
+      "model_prob": 0.056,
       "terrain": {
         "elevation_m": 781.0,
         "slope_deg": 7.7,
@@ -1624,7 +1698,8 @@
         "landcover": 5.0,
         "convergence": 4.0
       },
-      "model_prob": 0.036,
+      "event_prob": 0.217,
+      "model_prob": 0.107,
       "terrain": {
         "elevation_m": 1577.0,
         "slope_deg": 22.0,
@@ -1646,7 +1721,8 @@
         "landcover": 10.0,
         "convergence": 4.0
       },
-      "model_prob": 0.121,
+      "event_prob": 0.221,
+      "model_prob": 0.145,
       "terrain": {
         "elevation_m": 2007.0,
         "slope_deg": 18.0,
@@ -1668,7 +1744,8 @@
         "landcover": 10.0,
         "convergence": 7.0
       },
-      "model_prob": 0.032,
+      "event_prob": 0.026,
+      "model_prob": 0.162,
       "terrain": {
         "elevation_m": 702.0,
         "slope_deg": 1.4,
@@ -1690,7 +1767,8 @@
         "landcover": 10.0,
         "convergence": 5.0
       },
-      "model_prob": 0.326,
+      "event_prob": 0.593,
+      "model_prob": 0.357,
       "terrain": {
         "elevation_m": 1968.0,
         "slope_deg": 6.6,
@@ -1712,7 +1790,8 @@
         "landcover": 10.0,
         "convergence": 6.0
       },
-      "model_prob": 0.001,
+      "event_prob": 0.153,
+      "model_prob": 0.008,
       "terrain": {
         "elevation_m": 860.0,
         "slope_deg": 3.5,
@@ -1734,7 +1813,8 @@
         "landcover": 6.0,
         "convergence": 6.0
       },
-      "model_prob": 0.817,
+      "event_prob": 0.015,
+      "model_prob": 0.87,
       "terrain": {
         "elevation_m": 1109.0,
         "slope_deg": 8.6,
@@ -1756,7 +1836,8 @@
         "landcover": 5.0,
         "convergence": 6.0
       },
-      "model_prob": 0.297,
+      "event_prob": 0.953,
+      "model_prob": 0.284,
       "terrain": {
         "elevation_m": 1637.0,
         "slope_deg": 21.8,
@@ -1778,7 +1859,8 @@
         "landcover": 5.0,
         "convergence": 6.0
       },
-      "model_prob": 0.274,
+      "event_prob": 0.905,
+      "model_prob": 0.259,
       "terrain": {
         "elevation_m": 1574.0,
         "slope_deg": 18.8,
@@ -1800,7 +1882,8 @@
         "landcover": 5.0,
         "convergence": 5.0
       },
-      "model_prob": 0.781,
+      "event_prob": 0.174,
+      "model_prob": 0.868,
       "terrain": {
         "elevation_m": 2145.0,
         "slope_deg": 16.0,
@@ -1822,7 +1905,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.112,
+      "event_prob": 0.64,
+      "model_prob": 0.186,
       "terrain": {
         "elevation_m": 1584.0,
         "slope_deg": 28.2,
@@ -1844,7 +1928,8 @@
         "landcover": 5.0,
         "convergence": 6.0
       },
-      "model_prob": 0.762,
+      "event_prob": 0.054,
+      "model_prob": 0.961,
       "terrain": {
         "elevation_m": 3252.0,
         "slope_deg": 22.5,
@@ -1866,7 +1951,8 @@
         "landcover": 5.0,
         "convergence": 5.0
       },
-      "model_prob": 0.25,
+      "event_prob": 0.089,
+      "model_prob": 0.113,
       "terrain": {
         "elevation_m": 2223.0,
         "slope_deg": 22.0,
@@ -1888,7 +1974,8 @@
         "landcover": 10.0,
         "convergence": 2.0
       },
-      "model_prob": 0.717,
+      "event_prob": 0.335,
+      "model_prob": 0.512,
       "terrain": {
         "elevation_m": 2118.0,
         "slope_deg": 21.0,
@@ -1910,7 +1997,8 @@
         "landcover": 5.0,
         "convergence": 2.0
       },
-      "model_prob": 0.176,
+      "event_prob": 0.122,
+      "model_prob": 0.57,
       "terrain": {
         "elevation_m": 2075.0,
         "slope_deg": 24.2,
@@ -1932,7 +2020,8 @@
         "landcover": 5.0,
         "convergence": 4.0
       },
-      "model_prob": 0.778,
+      "event_prob": 0.116,
+      "model_prob": 0.371,
       "terrain": {
         "elevation_m": 2130.0,
         "slope_deg": 17.2,
@@ -1954,7 +2043,8 @@
         "landcover": 10.0,
         "convergence": 3.0
       },
-      "model_prob": 0.04,
+      "event_prob": 0.589,
+      "model_prob": 0.274,
       "terrain": {
         "elevation_m": 1563.0,
         "slope_deg": 15.9,
@@ -1976,7 +2066,8 @@
         "landcover": 5.0,
         "convergence": 5.0
       },
-      "model_prob": 0.929,
+      "event_prob": 0.032,
+      "model_prob": 0.941,
       "terrain": {
         "elevation_m": 1324.0,
         "slope_deg": 13.7,
@@ -1998,7 +2089,8 @@
         "landcover": 10.0,
         "convergence": 5.0
       },
-      "model_prob": 0.853,
+      "event_prob": 0.13,
+      "model_prob": 0.993,
       "terrain": {
         "elevation_m": 1147.0,
         "slope_deg": 6.4,
@@ -2020,7 +2112,8 @@
         "landcover": 2.0,
         "convergence": 6.0
       },
-      "model_prob": 0.883,
+      "event_prob": 0.004,
+      "model_prob": 0.965,
       "terrain": {
         "elevation_m": 1188.0,
         "slope_deg": 13.9,
@@ -2042,7 +2135,8 @@
         "landcover": 2.0,
         "convergence": 3.0
       },
-      "model_prob": 0.905,
+      "event_prob": 0.007,
+      "model_prob": 0.943,
       "terrain": {
         "elevation_m": 1237.0,
         "slope_deg": 17.1,
@@ -2064,7 +2158,8 @@
         "landcover": 5.0,
         "convergence": 6.0
       },
-      "model_prob": 0.844,
+      "event_prob": 0.013,
+      "model_prob": 0.984,
       "terrain": {
         "elevation_m": 1151.0,
         "slope_deg": 12.5,
@@ -2086,7 +2181,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.886,
+      "event_prob": 0.005,
+      "model_prob": 0.98,
       "terrain": {
         "elevation_m": 1195.0,
         "slope_deg": 17.9,
@@ -2108,7 +2204,8 @@
         "landcover": 5.0,
         "convergence": 6.0
       },
-      "model_prob": 0.85,
+      "event_prob": 0.034,
+      "model_prob": 0.982,
       "terrain": {
         "elevation_m": 1140.0,
         "slope_deg": 15.5,
@@ -2130,7 +2227,8 @@
         "landcover": 2.0,
         "convergence": 3.0
       },
-      "model_prob": 0.081,
+      "event_prob": 0.011,
+      "model_prob": 0.412,
       "terrain": {
         "elevation_m": 1879.0,
         "slope_deg": 19.4,
@@ -2152,7 +2250,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.368,
+      "event_prob": 0.011,
+      "model_prob": 0.442,
       "terrain": {
         "elevation_m": 1362.0,
         "slope_deg": 11.8,
@@ -2174,7 +2273,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.292,
+      "event_prob": 0.023,
+      "model_prob": 0.109,
       "terrain": {
         "elevation_m": 1352.0,
         "slope_deg": 22.8,
@@ -2196,7 +2296,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.928,
+      "event_prob": 0.014,
+      "model_prob": 0.927,
       "terrain": {
         "elevation_m": 1306.0,
         "slope_deg": 9.6,
@@ -2218,7 +2319,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.881,
+      "event_prob": 0.004,
+      "model_prob": 0.979,
       "terrain": {
         "elevation_m": 1207.0,
         "slope_deg": 18.7,
@@ -2240,7 +2342,8 @@
         "landcover": 2.0,
         "convergence": 3.0
       },
-      "model_prob": 0.116,
+      "event_prob": 0.011,
+      "model_prob": 0.069,
       "terrain": {
         "elevation_m": 1778.0,
         "slope_deg": 17.6,
@@ -2262,7 +2365,8 @@
         "landcover": 5.0,
         "convergence": 5.0
       },
-      "model_prob": 0.472,
+      "event_prob": 0.021,
+      "model_prob": 0.081,
       "terrain": {
         "elevation_m": 1394.0,
         "slope_deg": 17.4,
@@ -2284,7 +2388,8 @@
         "landcover": 5.0,
         "convergence": 4.0
       },
-      "model_prob": 0.341,
+      "event_prob": 0.013,
+      "model_prob": 0.102,
       "terrain": {
         "elevation_m": 1242.0,
         "slope_deg": 8.8,
@@ -2306,7 +2411,8 @@
         "landcover": 5.0,
         "convergence": 3.0
       },
-      "model_prob": 0.238,
+      "event_prob": 0.027,
+      "model_prob": 0.439,
       "terrain": {
         "elevation_m": 996.0,
         "slope_deg": 24.7,
@@ -2328,7 +2434,8 @@
         "landcover": 2.0,
         "convergence": 5.0
       },
-      "model_prob": 0.415,
+      "event_prob": 0.066,
+      "model_prob": 0.465,
       "terrain": {
         "elevation_m": 1377.0,
         "slope_deg": 27.2,
@@ -2350,7 +2457,8 @@
         "landcover": 2.0,
         "convergence": 5.0
       },
-      "model_prob": 0.048,
+      "event_prob": 0.04,
+      "model_prob": 0.156,
       "terrain": {
         "elevation_m": 1045.0,
         "slope_deg": 17.0,
@@ -2372,7 +2480,8 @@
         "landcover": 2.0,
         "convergence": 5.0
       },
-      "model_prob": 0.192,
+      "event_prob": 0.049,
+      "model_prob": 0.539,
       "terrain": {
         "elevation_m": 1055.0,
         "slope_deg": 18.8,
@@ -2394,7 +2503,8 @@
         "landcover": 5.0,
         "convergence": 6.0
       },
-      "model_prob": 0.887,
+      "event_prob": 0.067,
+      "model_prob": 0.941,
       "terrain": {
         "elevation_m": 1391.0,
         "slope_deg": 21.4,
@@ -2416,7 +2526,8 @@
         "landcover": 2.0,
         "convergence": 8.0
       },
-      "model_prob": 0.927,
+      "event_prob": 0.025,
+      "model_prob": 0.894,
       "terrain": {
         "elevation_m": 1288.0,
         "slope_deg": 18.7,
@@ -2438,7 +2549,8 @@
         "landcover": 2.0,
         "convergence": 7.0
       },
-      "model_prob": 0.314,
+      "event_prob": 0.006,
+      "model_prob": 0.947,
       "terrain": {
         "elevation_m": 1459.0,
         "slope_deg": 7.0,
@@ -2460,7 +2572,8 @@
         "landcover": 6.0,
         "convergence": 6.0
       },
-      "model_prob": 0.913,
+      "event_prob": 0.05,
+      "model_prob": 0.97,
       "terrain": {
         "elevation_m": 1374.0,
         "slope_deg": 9.7,
@@ -2482,7 +2595,8 @@
         "landcover": 6.0,
         "convergence": 6.0
       },
-      "model_prob": 0.744,
+      "event_prob": 0.097,
+      "model_prob": 0.532,
       "terrain": {
         "elevation_m": 1450.0,
         "slope_deg": 3.4,
@@ -2504,7 +2618,8 @@
         "landcover": 5.0,
         "convergence": 3.0
       },
-      "model_prob": 0.219,
+      "event_prob": 0.029,
+      "model_prob": 0.9,
       "terrain": {
         "elevation_m": 1288.0,
         "slope_deg": 13.9,
@@ -2526,7 +2641,8 @@
         "landcover": 2.0,
         "convergence": 5.0
       },
-      "model_prob": 0.728,
+      "event_prob": 0.02,
+      "model_prob": 0.16,
       "terrain": {
         "elevation_m": 1420.0,
         "slope_deg": 18.4,
@@ -2548,7 +2664,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.71,
+      "event_prob": 0.01,
+      "model_prob": 0.914,
       "terrain": {
         "elevation_m": 1492.0,
         "slope_deg": 24.4,
@@ -2570,7 +2687,8 @@
         "landcover": 2.0,
         "convergence": 3.0
       },
-      "model_prob": 0.2,
+      "event_prob": 0.012,
+      "model_prob": 0.112,
       "terrain": {
         "elevation_m": 1096.0,
         "slope_deg": 16.8,
@@ -2592,7 +2710,8 @@
         "landcover": 2.0,
         "convergence": 6.0
       },
-      "model_prob": 0.014,
+      "event_prob": 0.009,
+      "model_prob": 0.088,
       "terrain": {
         "elevation_m": 941.0,
         "slope_deg": 12.8,
@@ -2614,7 +2733,8 @@
         "landcover": 2.0,
         "convergence": 7.0
       },
-      "model_prob": 0.03,
+      "event_prob": 0.096,
+      "model_prob": 0.52,
       "terrain": {
         "elevation_m": 934.0,
         "slope_deg": 23.8,
@@ -2636,7 +2756,8 @@
         "landcover": 2.0,
         "convergence": 3.0
       },
-      "model_prob": 0.649,
+      "event_prob": 0.117,
+      "model_prob": 0.968,
       "terrain": {
         "elevation_m": 1623.0,
         "slope_deg": 13.3,
@@ -2658,7 +2779,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.108,
+      "event_prob": 0.027,
+      "model_prob": 0.699,
       "terrain": {
         "elevation_m": 1267.0,
         "slope_deg": 12.5,
@@ -2680,7 +2802,8 @@
         "landcover": 5.0,
         "convergence": 6.0
       },
-      "model_prob": 0.211,
+      "event_prob": 0.027,
+      "model_prob": 0.507,
       "terrain": {
         "elevation_m": 1301.0,
         "slope_deg": 17.7,
@@ -2702,7 +2825,8 @@
         "landcover": 2.0,
         "convergence": 3.0
       },
-      "model_prob": 0.19,
+      "event_prob": 0.012,
+      "model_prob": 0.715,
       "terrain": {
         "elevation_m": 1399.0,
         "slope_deg": 15.4,
@@ -2724,7 +2848,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.014,
+      "event_prob": 0.094,
+      "model_prob": 0.158,
       "terrain": {
         "elevation_m": 1468.0,
         "slope_deg": 8.0,
@@ -2746,7 +2871,8 @@
         "landcover": 2.0,
         "convergence": 7.0
       },
-      "model_prob": 0.371,
+      "event_prob": 0.006,
+      "model_prob": 0.672,
       "terrain": {
         "elevation_m": 1330.0,
         "slope_deg": 14.9,
@@ -2768,7 +2894,8 @@
         "landcover": 2.0,
         "convergence": 4.0
       },
-      "model_prob": 0.007,
+      "event_prob": 0.14,
+      "model_prob": 0.033,
       "terrain": {
         "elevation_m": 1566.0,
         "slope_deg": 8.3,
@@ -2790,7 +2917,8 @@
         "landcover": 2.0,
         "convergence": 6.0
       },
-      "model_prob": 0.626,
+      "event_prob": 0.071,
+      "model_prob": 0.898,
       "terrain": {
         "elevation_m": 1581.0,
         "slope_deg": 19.5,

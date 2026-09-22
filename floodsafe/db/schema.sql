@@ -151,15 +151,26 @@ $$;
 
 -- FFPI value at a point, or NULL outside the raster / in a nodata cell
 -- (glaciated terrain, mostly).
+--
+-- The raster stays in its native UTM 44N (EPSG:32644) rather than being
+-- reprojected on load: raster2pgsql's -s flag only tags an SRID, it does
+-- not reproject, and warping the raster would resample it for no gain.
+-- So the query point is transformed instead. Doing that once in a CTE
+-- keeps it a constant, so ST_Intersects still uses the convex-hull GiST
+-- index. 32644 is fixed by build_terrain.py's TARGET_CRS.
 CREATE OR REPLACE FUNCTION ffpi_at_point(
     in_lat double precision,
     in_lon double precision
 )
 RETURNS double precision
 LANGUAGE sql STABLE AS $$
-    SELECT ST_Value(r.rast, ST_SetSRID(ST_MakePoint(in_lon, in_lat), 4326))
-    FROM ffpi_raster r
-    WHERE ST_Intersects(r.rast, ST_SetSRID(ST_MakePoint(in_lon, in_lat), 4326))
+    WITH p AS (
+        SELECT ST_Transform(
+            ST_SetSRID(ST_MakePoint(in_lon, in_lat), 4326), 32644) AS g
+    )
+    SELECT ST_Value(r.rast, p.g)
+    FROM ffpi_raster r, p
+    WHERE ST_Intersects(r.rast, p.g)
     LIMIT 1;
 $$;
 

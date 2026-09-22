@@ -252,6 +252,29 @@ def run_whitebox(dem_path, out_dir, res_m):
     step("distance to stream", lambda: wbt.downslope_distance_to_stream(
         "dem_breached.tif", "streams.tif", "dist_to_stream.tif"))
 
+    # Height Above Nearest Drainage: how far a cell sits vertically above
+    # the channel it drains to. The standard flood-susceptibility
+    # predictor, and the one this model was missing -- a valley floor 2 m
+    # above a stream and a terrace 200 m above it can share the same
+    # slope, curvature and wetness index while having nothing in common
+    # hydrologically.
+    step("HAND (elevation above stream)", lambda: wbt.elevation_above_stream(
+        "dem_breached.tif", "streams.tif", "hand.tif"))
+
+    # Local relief at two scales. A single-scale curvature says nothing
+    # about whether a cell sits in a broad basin or a narrow gully, and
+    # flash-flood response depends on both.
+    step("deviation from mean elevation (small)", lambda: wbt.dev_from_mean_elev(
+        "dem_breached.tif", "dev_elev_small.tif", filterx=11, filtery=11))
+    step("deviation from mean elevation (large)", lambda: wbt.dev_from_mean_elev(
+        "dem_breached.tif", "dev_elev_large.tif", filterx=51, filtery=51))
+
+    step("elevation percentile", lambda: wbt.elev_percentile(
+        "dem_breached.tif", "elev_percentile.tif", filterx=25, filtery=25))
+
+    step("relative topographic position", lambda: wbt.relative_topographic_position(
+        "dem_breached.tif", "rel_topo_position.tif", filterx=25, filtery=25))
+
     log("WhiteboxTools chain complete")
 
 

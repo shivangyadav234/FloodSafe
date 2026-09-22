@@ -366,40 +366,48 @@ def classify_point(lat, lon):
     point = ShapelyPoint(lon, lat)
 
     nearest_class = None
-    nearest_deg = None
-    nearest_geom = None
+    nearest_km = None
 
     for geom, hazard_class in _guidance_atlas:
 
         if geom.contains(point):
             return hazard_class, True, 0.0
 
-        # geom.distance() is plain Euclidean distance in raw lon/lat
-        # degrees — fine for picking which polygon is closest (an
-        # anisotropy-driven ranking flip between two candidates this
-        # close together is not a realistic concern), but not a
-        # real-world distance on its own.
-        d = geom.distance(point)
+        # Rank by true ground distance, not by raw lon/lat degrees.
+        #
+        # This used to use geom.distance(point), whose degrees are
+        # anisotropic: at 30N one degree of longitude is ~96.5 km
+        # against ~111 km for latitude, so degree-distance understates
+        # north-south separation by about 15%. That was assumed too
+        # small to flip a ranking. It is not — the PostGIS parity check
+        # caught three of 127 zones where it does, and every one of them
+        # flipped between LOW and EXTREME:
+        #
+        #   Gagarigol  degrees picked EXTREME (0.828 km) over LOW (0.781 km)
+        #   Garaser    degrees picked EXTREME (0.587 km) over LOW (0.579 km)
+        #   shyaldoba  degrees picked LOW (0.799 km) over EXTREME (0.777 km)
+        #
+        # shyaldoba is the one that matters: a genuine EXTREME zone was
+        # being served LOW thresholds, so it would not have reached
+        # CRITICAL until 54 mm/h instead of 7.2 mm/h.
+        #
+        # nearest_points + haversine per polygon costs more than a
+        # degree comparison, but there are only 191 polygons and the
+        # result has to be right.
+        nearest_on_geom = nearest_points(geom, point)[0]
+        d = _haversine_km(lat, lon, nearest_on_geom.y, nearest_on_geom.x)
 
-        if nearest_deg is None or d < nearest_deg:
-            nearest_deg = d
+        if nearest_km is None or d < nearest_km:
+            nearest_km = d
             nearest_class = hazard_class
-            nearest_geom = geom
 
-    if nearest_deg is None:
+    if nearest_km is None:
         return None, False, None
 
-    nearest_on_geom = nearest_points(nearest_geom, point)[0]
+    if nearest_km > GUIDANCE_NEAREST_ZONE_MAX_KM:
+        return None, False, nearest_km
 
-    distance_km = _haversine_km(
-        lat, lon,
-        nearest_on_geom.y, nearest_on_geom.x
-    )
-
-    if distance_km > GUIDANCE_NEAREST_ZONE_MAX_KM:
-        return None, False, distance_km
-
-    return nearest_class, False, distance_km
+    return nearest_class, False, nearest_km
 
 
 def guidance_for_point(lat, lon):
@@ -948,6 +956,12 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
         "ffpi": ffpi["ffpi"] if ffpi else None,
         "ffpi_band": ffpi["band"] if ffpi else None,
         "ffpi_components": scores["ffpi_components"] if scores else None,
+        # Trained on 206 real recorded disasters (NASA Global Landslide
+        # Catalog); spatially blocked CV ROC-AUC 0.82. Supersedes
+        # model_prob, which was trained on the hazard atlas and reaches
+        # only 0.66 because those labels separate on elevation and
+        # little else. Both are kept so the improvement stays visible.
+        "event_prob": scores["event_prob"] if scores else None,
         "model_prob": scores["model_prob"] if scores else None,
     }
 
@@ -3782,6 +3796,7 @@ footer {
                         <th data-i18n="colLocation">Location</th>
                         <th data-i18n="colHazardZone">Hazard zone</th>
                         <th class="num" data-i18n="colFfpi">FFPI</th>
+                        <th class="num" data-i18n="colEventRisk">Event model</th>
                         <th data-i18n="colSoil">Soil</th>
                         <th class="num" data-i18n="colCatchment">Catchment</th>
                         <th class="num" data-i18n="col1h">1h rain</th>
@@ -3791,7 +3806,7 @@ footer {
                     </tr>
                 </thead>
                 <tbody id="ffgsTableBody">
-                    <tr><td colspan="9" data-i18n="loading">Loading…</td></tr>
+                    <tr><td colspan="10" data-i18n="loading">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -3844,6 +3859,8 @@ const translations = {
     colLocation: "Location",
     colHazardZone: "Hazard zone",
     colFfpi: "FFPI",
+    colEventRisk: "Event model",
+    eventRiskTitle: "Probability of rainfall-triggered mass movement, from a model trained on 206 real recorded disasters (NASA Global Landslide Catalog, 1970-2019). Spatially blocked cross-validation ROC-AUC 0.82. Not a forecast.",
     ffpiModelledNote: "modelled",
     ffpiTitleAtlas: "Hazard class from the state flash-flood hazard atlas (surveyed).",
     ffpiTitleModelled: "No atlas coverage here. Class derived from the Flash Flood Potential Index — a 1-10 terrain/soil/land-cover susceptibility index, not a surveyed class.",
@@ -3902,6 +3919,8 @@ const translations = {
     colLocation: "स्थान",
     colHazardZone: "खतरा क्षेत्र",
     colFfpi: "FFPI",
+    colEventRisk: "घटना मॉडल",
+    eventRiskTitle: "वर्षा-जनित भूस्खलन की संभावना — 206 वास्तविक दर्ज आपदाओं (NASA Global Landslide Catalog, 1970-2019) पर प्रशिक्षित मॉडल से। स्थानिक रूप से विभाजित क्रॉस-वैलिडेशन ROC-AUC 0.82। यह पूर्वानुमान नहीं है।",
     ffpiModelledNote: "अनुमानित",
     ffpiTitleAtlas: "खतरा श्रेणी राज्य फ्लैश फ्लड हैज़र्ड एटलस से (सर्वेक्षित)।",
     ffpiTitleModelled: "यहाँ एटलस कवरेज नहीं है। श्रेणी फ्लैश फ्लड पोटेंशियल इंडेक्स से ली गई है — भूभाग/मिट्टी/भू-आवरण पर आधारित 1-10 संवेदनशीलता सूचकांक, सर्वेक्षित श्रेणी नहीं।",
@@ -4201,16 +4220,25 @@ function ffpiCellText(z) {
     return z.ffpi.toFixed(1);
 }
 
+// Probability from the model trained on real recorded disasters, shown
+// as a percentage. Distinct from FFPI beside it: FFPI is a physical
+// index with no labels, this is a supervised estimate.
+function eventRiskCellText(z) {
+    if (z.event_prob == null) return "—";
+    return '<span title="' + t("eventRiskTitle") + '">' +
+        Math.round(z.event_prob * 100) + "%</span>";
+}
+
 function renderFfgsTable() {
     const tbody = document.getElementById("ffgsTableBody");
 
     if (ffgsLoadFailed) {
-        tbody.innerHTML = '<tr><td colspan="9">' + t("guidanceUnavailable") + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="10">' + t("guidanceUnavailable") + "</td></tr>";
         return;
     }
 
     if (ffgsZones.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9">' + t("noZones") + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="10">' + t("noZones") + "</td></tr>";
         return;
     }
 
@@ -4230,6 +4258,7 @@ function renderFfgsTable() {
             : ffgsTownName(z.name);
         return "<tr><td>" + locationCell + "</td><td>" + hazardCellText(z) + "</td>" +
             '<td class="num">' + ffpiCellText(z) + "</td>" +
+            '<td class="num">' + eventRiskCellText(z) + "</td>" +
             "<td>" + soilCellText(z) + "</td>" +
             '<td class="num">' + catchmentCellText(z) + "</td>" +
             '<td class="num">' + cell("1h") + "</td>" +
@@ -4295,7 +4324,7 @@ async function loadFfgsZones() {
 
     if (!data.available) {
         ffgsLoadFailed = true;
-        tbody.innerHTML = '<tr><td colspan="8">' + (data.error || t("guidanceUnavailable")) + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="10">' + (data.error || t("guidanceUnavailable")) + "</td></tr>";
         return;
     }
 
@@ -4329,6 +4358,7 @@ async function loadFfgsZones() {
             hazard_source: zone.hazard_source,
             ffpi: zone.ffpi,
             ffpi_band: zone.ffpi_band,
+            event_prob: zone.event_prob,
             thresholds_mm: zone.thresholds_mm,
             parent_town: zone.parent_town || null,
             soil: zone.soil || null,

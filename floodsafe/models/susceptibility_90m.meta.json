@@ -1,5 +1,5 @@
 {
-  "created_utc": "2026-09-22T13:17:40.710316+00:00",
+  "created_utc": "2026-09-22T16:00:56.837549+00:00",
   "resolution_m": 90,
   "target": "P(elevated flash-flood hazard: EXTREME/SIGNIFICANT/MODERATE vs LOW)",
   "n_rows": 13792,
@@ -19,6 +19,11 @@
     "flowacc_cells",
     "dist_to_stream_m",
     "ruggedness",
+    "hand_m",
+    "dev_elev_small",
+    "dev_elev_large",
+    "elev_percentile",
+    "rel_topo_position",
     "soil_sand_pct",
     "soil_clay_pct",
     "soil_silt_pct",
@@ -29,55 +34,96 @@
   "params": {
     "objective": "binary:logistic",
     "eval_metric": "logloss",
+    "tree_method": "hist",
     "max_depth": 4,
+    "min_child_weight": 40,
     "eta": 0.05,
     "subsample": 0.8,
-    "colsample_bytree": 0.8,
-    "min_child_weight": 20,
-    "reg_lambda": 2.0,
-    "tree_method": "hist"
+    "colsample_bytree": 0.6,
+    "reg_lambda": 5.0
   },
   "num_rounds": 400,
-  "validation": {
-    "scheme": "GroupKFold on source hazard polygon",
-    "spatial": {
-      "roc_auc": 0.6595967179968051,
-      "pr_auc": 0.29014194544083266,
-      "brier": 0.20634346962571568,
-      "fold_auc_mean": 0.6806712446604498,
-      "fold_auc_std": 0.04175293278454802
+  "inner_cv_auc": 0.6969224583807676,
+  "split": {
+    "scheme": "80/20 GroupShuffleSplit on source hazard polygon",
+    "test_size": 0.2,
+    "seed": 42,
+    "train_rows": 9568,
+    "test_rows": 4224,
+    "train_polygons": 151,
+    "test_polygons": 38
+  },
+  "results": {
+    "held_out_grouped": {
+      "roc_auc": 0.6214257620267266,
+      "pr_auc": 0.2141849437847092,
+      "brier": 0.25844892859458923,
+      "threshold": 0.27,
+      "accuracy": 0.5693655303030303,
+      "balanced_accuracy": 0.5942137344531869,
+      "precision": 0.24061264822134387,
+      "recall": 0.6332899869960988,
+      "f1": 0.34872896527031866,
+      "majority_baseline_accuracy": 0.8179450757575758,
+      "confusion": {
+        "tn": 1918,
+        "fp": 1537,
+        "fn": 282,
+        "tp": 487
+      },
+      "n": 4224,
+      "positives": 769
     },
-    "random_for_contrast": {
-      "roc_auc": 0.9869100066388842,
-      "pr_auc": 0.9477246831118483,
-      "brier": 0.04450374975969071,
-      "fold_auc_mean": 0.9869285045079701,
-      "fold_auc_std": 0.0017242344835063546
+    "held_out_random_for_contrast": {
+      "roc_auc": 0.9485726655811458,
+      "pr_auc": 0.8594289515013914,
+      "brier": 0.07915738224983215,
+      "threshold": 0.27,
+      "accuracy": 0.7966654584994564,
+      "balanced_accuracy": 0.8459929064663787,
+      "precision": 0.5121722846441947,
+      "recall": 0.9318568994889267,
+      "f1": 0.6610271903323263,
+      "majority_baseline_accuracy": 0.7872417542587894,
+      "confusion": {
+        "tn": 1651,
+        "fp": 521,
+        "fn": 40,
+        "tp": 547
+      },
+      "n": 2759,
+      "positives": 587
     },
-    "leakage_gap_roc_auc": 0.3273132886420791,
-    "confusion_at_0.5": {
-      "tn": 8905,
-      "fp": 1952,
-      "fn": 2050,
-      "tp": 885
+    "leakage_gap_roc_auc": 0.3271469035544192,
+    "split_stability_25_seeds": {
+      "n_seeds": 25,
+      "roc_auc_mean": 0.6491654908354256,
+      "roc_auc_std": 0.11311424468033436,
+      "roc_auc_min": 0.3584724168461178,
+      "roc_auc_max": 0.8611688055413409
     }
   },
   "feature_importance_gain": {
-    "catchment_up_km2": 34.625789642333984,
-    "catchment_sub_km2": 32.1274528503418,
-    "elevation_m": 26.832056045532227,
-    "soil_sand_pct": 24.474809646606445,
-    "soil_clay_pct": 24.420732498168945,
-    "soil_silt_pct": 23.91647720336914,
-    "dist_to_stream_m": 22.001819610595703,
-    "ruggedness": 17.548553466796875,
-    "soil_hsg": 14.36385440826416,
-    "slope_deg": 9.64381217956543,
-    "spi": 9.563222885131836,
-    "prof_curv": 8.441719055175781,
-    "twi": 6.456267833709717,
-    "plan_curv": 5.804976463317871,
-    "sca": 5.2733378410339355,
-    "flowacc_cells": 3.7326278686523438
+    "soil_sand_pct": 59.08490753173828,
+    "elevation_m": 50.84978103637695,
+    "catchment_up_km2": 39.93805694580078,
+    "catchment_sub_km2": 39.2092170715332,
+    "soil_silt_pct": 37.600887298583984,
+    "soil_hsg": 31.109642028808594,
+    "soil_clay_pct": 29.881210327148438,
+    "elev_percentile": 26.78843879699707,
+    "ruggedness": 24.35283088684082,
+    "dist_to_stream_m": 23.575788497924805,
+    "hand_m": 19.903451919555664,
+    "dev_elev_small": 19.151004791259766,
+    "dev_elev_large": 17.031490325927734,
+    "rel_topo_position": 14.749140739440918,
+    "plan_curv": 13.252483367919922,
+    "slope_deg": 12.189311981201172,
+    "prof_curv": 9.078917503356934,
+    "spi": 7.250405788421631,
+    "sca": 6.531548500061035,
+    "twi": 6.348652362823486,
+    "flowacc_cells": 4.505218505859375
   }
 }

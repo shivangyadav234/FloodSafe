@@ -1,0 +1,88 @@
+{
+  "source": "NASA Global Landslide Catalog (1970-2019) via HDX",
+  "note": "FFPI never saw these events; independent validation. Landslides overlap but are not identical to flash floods.",
+  "background_per_positive": 20,
+  "min_background_distance_km": 5.0,
+  "results": {
+    "1km|uniform": {
+      "auc": 0.5278232405891979,
+      "p": 0.6316205272370027,
+      "median_event": 5.299999952316284,
+      "median_background": 5.199999809265137,
+      "n_event": 26,
+      "n_background": 517
+    },
+    "1km|settlement-matched": {
+      "auc": 0.6494082840236686,
+      "p": 0.00988512823679424,
+      "median_event": 5.299999952316284,
+      "median_background": 5.0,
+      "n_event": 26,
+      "n_background": 520
+    },
+    "5km|uniform": {
+      "auc": 0.5453797463510215,
+      "p": 0.16677028052023035,
+      "median_event": 5.400000095367432,
+      "median_background": 5.400000095367432,
+      "n_event": 81,
+      "n_background": 1613
+    },
+    "5km|settlement-matched": {
+      "auc": 0.7000381039475689,
+      "p": 1.0504777895865604e-09,
+      "median_event": 5.400000095367432,
+      "median_background": 4.800000190734863,
+      "n_event": 81,
+      "n_background": 1620
+    },
+    "10km|uniform": {
+      "auc": 0.5831460231081667,
+      "p": 0.003582798731916224,
+      "median_event": 5.599999904632568,
+      "median_background": 5.199999809265137,
+      "n_event": 107,
+      "n_background": 2133
+    },
+    "10km|settlement-matched": {
+      "auc": 0.7255196960433226,
+      "p": 2.610803398152545e-15,
+      "median_event": 5.599999904632568,
+      "median_background": 5.0,
+      "n_event": 107,
+      "n_background": 2140
+    },
+    "25km|uniform": {
+      "auc": 0.5700257301449866,
+      "p": 0.004564734974712386,
+      "median_event": 5.599999904632568,
+      "median_background": 5.199999809265137,
+      "n_event": 143,
+      "n_background": 2851
+    },
+    "25km|settlement-matched": {
+      "auc": 0.7118330969729572,
+      "p": 8.85335065619496e-18,
+      "median_event": 5.599999904632568,
+      "median_background": 4.800000190734863,
+      "n_event": 143,
+      "n_background": 2860
+    },
+    "50km|uniform": {
+      "auc": 0.5631416060998472,
+      "p": 0.004434034525214592,
+      "median_event": 5.599999904632568,
+      "median_background": 5.199999809265137,
+      "n_event": 177,
+      "n_background": 3547
+    },
+    "50km|settlement-matched": {
+      "auc": 0.6974758776106139,
+      "p": 5.167118950032527e-19,
+      "median_event": 5.599999904632568,
+      "median_background": 5.0,
+      "n_event": 177,
+      "n_background": 3560
+    }
+  }
+}
