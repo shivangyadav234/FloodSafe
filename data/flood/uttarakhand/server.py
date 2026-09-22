@@ -3620,6 +3620,14 @@ header nav a:hover { background: rgba(255,255,255,0.28); }
     overflow: hidden;
 }
 
+/* The zone picker's suggestion list is absolutely positioned and has to
+   escape the panel; .panel's overflow:hidden (which keeps the map's
+   corners inside the rounded border) would otherwise clip it to a
+   sliver. The map sits in its own rounded wrapper below, so nothing
+   here needs the clipping. */
+.panel--picker { overflow: visible; }
+.panel--picker #mapWrap { border-radius: 6px; overflow: hidden; }
+
 .panel h2 {
     margin: 0;
     padding: 14px 18px;
@@ -3629,6 +3637,50 @@ header nav a:hover { background: rgba(255,255,255,0.28); }
 }
 
 #map { height: 420px; width: 100%; }
+
+/* Zone picker: the map starts hidden and is revealed once a zone is
+   chosen, so the default view is a single question rather than 127
+   overlapping markers. */
+.zone-picker-hint { margin: 0 0 10px; color: var(--faint); font-size: 13px; }
+.zone-picker { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.combo { position: relative; flex: 1 1 320px; min-width: 240px; }
+.combo input {
+    width: 100%; box-sizing: border-box; padding: 10px 32px 10px 12px;
+    font-size: 15px; font-family: inherit; border: 1px solid #b9c2cc;
+    border-radius: 4px; background: #fff; color: inherit;
+}
+.combo input:focus { outline: 2px solid #0b3558; outline-offset: 1px; border-color: #0b3558; }
+#zoneClearBtn {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    border: 0; background: none; font-size: 20px; line-height: 1;
+    cursor: pointer; color: var(--faint); padding: 2px 6px;
+}
+#zoneSuggestions {
+    position: absolute; z-index: 1200; left: 0; right: 0; top: calc(100% + 2px);
+    margin: 0; padding: 4px 0; list-style: none; max-height: 300px; overflow-y: auto;
+    background: #fff; border: 1px solid #b9c2cc; border-radius: 4px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.14);
+}
+#zoneSuggestions li {
+    padding: 8px 12px; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; gap: 8px;
+}
+#zoneSuggestions li[aria-selected="true"], #zoneSuggestions li:hover { background: #eef3f8; }
+#zoneSuggestions li .sug-town { color: var(--faint); font-size: 12px; }
+#zoneSuggestions li .sug-status { margin-left: auto; font-size: 11px; }
+#zoneSuggestions .sug-empty { color: var(--faint); cursor: default; }
+#zoneShowAllBtn {
+    padding: 10px 14px; font-size: 14px; font-family: inherit; cursor: pointer;
+    border: 1px solid #b9c2cc; border-radius: 4px; background: #f4f6f8; color: inherit;
+}
+#zoneShowAllBtn:hover { background: #e8edf2; }
+#zoneDetail {
+    margin: 14px 0 0; padding: 12px 14px; border: 1px solid #dfe4ea;
+    border-radius: 4px; background: #fbfcfd;
+}
+#zoneDetail h3 { margin: 0 0 4px; font-size: 16px; }
+#zoneDetail .zd-meta { color: var(--faint); font-size: 12px; margin-bottom: 8px; }
+#mapWrap { margin-top: 14px; }
 
 .mylocation-body { padding: 16px 18px; }
 
@@ -3774,8 +3826,23 @@ footer {
         </div>
     </div>
 
-    <div class="panel">
+    <div class="panel panel--picker">
         <h2 data-i18n="zoneMapHeading">Zone map — live status</h2>
+        <p class="zone-picker-hint" data-i18n="zonePickerHint">Search for a locality or town to see its live flash-flood status.</p>
+        <div class="zone-picker">
+            <div class="combo">
+                <input id="zoneSearch" type="text" autocomplete="off" spellcheck="false"
+                       role="combobox" aria-expanded="false" aria-controls="zoneSuggestions"
+                       aria-autocomplete="list" aria-haspopup="listbox"
+                       data-i18n-placeholder="zoneSearchPlaceholder"
+                       placeholder="Search a zone…">
+                <button type="button" id="zoneClearBtn" hidden aria-label="Clear">&times;</button>
+                <ul id="zoneSuggestions" role="listbox" hidden></ul>
+            </div>
+            <button type="button" id="zoneShowAllBtn" data-i18n="zoneShowAll">Show all zones</button>
+        </div>
+        <div id="zoneDetail" hidden></div>
+        <div id="mapWrap" hidden>
         <div id="map"></div>
         <div class="legend">
             <span><span class="dot" style="background:#4c8c4a"></span><span data-i18n="hazardLow">LOW hazard</span></span>
@@ -3784,6 +3851,7 @@ footer {
             <span><span class="dot" style="background:#7a1f1f"></span><span data-i18n="hazardExtreme">EXTREME hazard</span></span>
             <span><span style="display:inline-block; width:14px; height:0; border-top:2px dashed #0b3558; margin-right:6px; vertical-align:middle;"></span><span data-i18n="watershedLegend">Watershed boundary (HydroBASINS)</span></span>
             <span style="margin-left:auto;" data-i18n="markerNote">Marker color = current worst status across all three windows</span>
+        </div>
         </div>
     </div>
 
@@ -3848,6 +3916,14 @@ const translations = {
     myLocationHeading: "Check guidance at my location",
     myLocationBtn: "Use my current location",
     zoneMapHeading: "Zone map — live status",
+    zonePickerHint: "Search for a locality or town to see its live flash-flood status.",
+    zoneSearchPlaceholder: "Search a zone…",
+    zoneShowAll: "Show all zones",
+    zoneNoMatch: "No zone matches that name",
+    zoneDetailClass: "Hazard zone",
+    zoneDetailFfpi: "FFPI",
+    zoneDetailEvent: "Event model",
+    zoneDetailStatus: "Current status",
     hazardLow: "LOW hazard",
     hazardModerate: "MODERATE hazard",
     hazardSignificant: "SIGNIFICANT hazard",
@@ -3908,6 +3984,14 @@ const translations = {
     myLocationHeading: "मेरे स्थान पर मार्गदर्शन जांचें",
     myLocationBtn: "मेरा वर्तमान स्थान उपयोग करें",
     zoneMapHeading: "क्षेत्र मानचित्र — लाइव स्थिति",
+    zonePickerHint: "अपने क्षेत्र की लाइव स्थिति देखने के लिए मोहल्ला या शहर खोजें।",
+    zoneSearchPlaceholder: "क्षेत्र खोजें…",
+    zoneShowAll: "सभी क्षेत्र दिखाएँ",
+    zoneNoMatch: "इस नाम से कोई क्षेत्र नहीं मिला",
+    zoneDetailClass: "खतरा क्षेत्र",
+    zoneDetailFfpi: "FFPI",
+    zoneDetailEvent: "घटना मॉडल",
+    zoneDetailStatus: "वर्तमान स्थिति",
     hazardLow: "कम खतरा",
     hazardModerate: "मध्यम खतरा",
     hazardSignificant: "उच्च खतरा",
@@ -4008,6 +4092,15 @@ function applyLanguage(lang) {
         if (dict[key] !== undefined) el.innerHTML = dict[key];
     });
 
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(function(el) {
+        const key = el.getAttribute("data-i18n-placeholder");
+        if (dict[key] !== undefined) el.placeholder = dict[key];
+    });
+
+    // The zone picker's rendered contents are language-dependent too,
+    // and are not driven by data-i18n attributes.
+    if (typeof refreshZoneUi === "function") refreshZoneUi();
+
     document.querySelectorAll(".lang-toggle button").forEach(function(btn) {
         btn.classList.toggle("active", btn.getAttribute("data-lang") === currentLang);
     });
@@ -4071,30 +4164,41 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19
 }).addTo(map);
 
-fetch("/ffgs/hazard-atlas.geojson")
-    .then(function(r) { return r.json(); })
-    .then(function(geojson) {
-        L.geoJSON(geojson, {
-            style: function(feature) {
-                const cls = feature.properties && feature.properties.hazard;
-                const color = HAZARD_COLORS[cls] || "#6b7680";
-                return { color: color, weight: 1, fillColor: color, fillOpacity: 0.25 };
-            }
-        }).addTo(map);
-    })
-    .catch(function() {});
+// The map starts hidden behind the zone picker, and Leaflet cannot
+// project onto a display:none container -- every layer added while it
+// is hidden throws "Invalid LatLng object: (NaN, NaN)". So the overlays
+// are fetched only once the map is first revealed, and only once.
+let overlaysLoaded = false;
 
-// Watershed sub-basin boundaries (HydroSHEDS/HydroBASINS) -- outline
-// only, no fill, so it reads as terrain context under the hazard
-// shading and zone markers rather than competing with them.
-fetch("/ffgs/watersheds.geojson")
-    .then(function(r) { return r.json(); })
-    .then(function(geojson) {
-        L.geoJSON(geojson, {
-            style: { color: "#0b3558", weight: 1, fillOpacity: 0, dashArray: "3,3", opacity: 0.5 }
-        }).addTo(map);
-    })
-    .catch(function() {});
+function loadMapOverlays() {
+    if (overlaysLoaded) return;
+    overlaysLoaded = true;
+
+    fetch("/ffgs/hazard-atlas.geojson")
+        .then(function(r) { return r.json(); })
+        .then(function(geojson) {
+            L.geoJSON(geojson, {
+                style: function(feature) {
+                    const cls = feature.properties && feature.properties.hazard;
+                    const color = HAZARD_COLORS[cls] || "#6b7680";
+                    return { color: color, weight: 1, fillColor: color, fillOpacity: 0.25 };
+                }
+            }).addTo(map);
+        })
+        .catch(function() {});
+
+    // Watershed sub-basin boundaries (HydroSHEDS/HydroBASINS) -- outline
+    // only, no fill, so it reads as terrain context under the hazard
+    // shading and zone markers rather than competing with them.
+    fetch("/ffgs/watersheds.geojson")
+        .then(function(r) { return r.json(); })
+        .then(function(geojson) {
+            L.geoJSON(geojson, {
+                style: { color: "#0b3558", weight: 1, fillOpacity: 0, dashArray: "3,3", opacity: 0.5 }
+            }).addTo(map);
+        })
+        .catch(function() {});
+}
 
 function worseStatus(a, b) {
     if (!a) return b;
@@ -4273,11 +4377,282 @@ function renderFfgsTable() {
     }
 }
 
+// ============================================================
+// ZONE PICKER
+//
+// 127 markers on one map is a haystack -- the useful question is
+// "what is the status where I am?", so the map stays hidden until a
+// zone is chosen and the search box answers that question directly.
+// The full overview is still one button away.
+// ============================================================
+
+// The FFGS page has no escaping helper of its own -- escapeHtml lives
+// in the landing-page template, which is a separate document. Zone and
+// town names come from OpenStreetMap, so they are untrusted input and
+// are escaped before they reach innerHTML.
+function escapeAttr(text) {
+    return String(text == null ? "" : text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+let zoneIndex = [];
+let markerByKey = {};
+let selectedZoneKey = null;
+let activeSuggestion = -1;
+let mapRevealed = false;
+
+function zoneKey(z) {
+    return z.lat.toFixed(5) + "," + z.lon.toFixed(5);
+}
+
+// Locality names carry macrons (Bahadrabad is stored as Bahādrābād)
+// but people type ASCII, so both sides are stripped to bare letters
+// before matching.
+function foldText(value) {
+    return (value || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+function zoneLabel(z) {
+    return z.parent_town
+        ? z.name + " — " + ffgsTownName(z.parent_town)
+        : ffgsTownName(z.name);
+}
+
+function buildZoneIndex() {
+    zoneIndex = ffgsZones.map(function(z) {
+        return {
+            zone: z,
+            label: zoneLabel(z),
+            haystack: foldText(z.name + " " + (z.parent_town || ""))
+        };
+    }).sort(function(a, b) {
+        const aTown = a.zone.kind === "town";
+        const bTown = b.zone.kind === "town";
+        if (aTown !== bTown) return aTown ? -1 : 1;
+        return a.label.localeCompare(b.label);
+    });
+}
+
+function closeSuggestions() {
+    const list = document.getElementById("zoneSuggestions");
+    const input = document.getElementById("zoneSearch");
+    if (!list || !input) return;
+    list.hidden = true;
+    list.innerHTML = "";
+    input.setAttribute("aria-expanded", "false");
+    activeSuggestion = -1;
+}
+
+function renderSuggestions(query) {
+    const list = document.getElementById("zoneSuggestions");
+    const input = document.getElementById("zoneSearch");
+    const q = foldText(query);
+
+    const matches = zoneIndex.filter(function(entry) {
+        return !q || entry.haystack.indexOf(q) >= 0;
+    });
+
+    if (matches.length === 0) {
+        list.innerHTML = '<li class="sug-empty" role="presentation">' + t("zoneNoMatch") + "</li>";
+        list.hidden = false;
+        input.setAttribute("aria-expanded", "true");
+        activeSuggestion = -1;
+        list._matches = [];
+        return;
+    }
+
+    list.innerHTML = matches.map(function(entry, i) {
+        const z = entry.zone;
+        const color = statusColor(z.overall);
+        const town = z.parent_town
+            ? '<span class="sug-town">' + escapeAttr(ffgsTownName(z.parent_town)) + "</span>"
+            : "";
+        return '<li role="option" id="zone-opt-' + i + '" data-index="' + i +
+            '" aria-selected="false">' +
+            '<span class="dot" style="background:' + color + '"></span>' +
+            "<span>" + escapeAttr(z.name) + "</span>" + town +
+            '<span class="sug-status">' + escapeAttr(statusLabel(z.overall)) + "</span></li>";
+    }).join("");
+
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    activeSuggestion = -1;
+    list._matches = matches;
+
+    Array.prototype.forEach.call(list.querySelectorAll("li[data-index]"), function(li) {
+        li.addEventListener("mousedown", function(ev) {
+            // mousedown, not click: blur would close the list first.
+            ev.preventDefault();
+            selectZone(matches[parseInt(li.getAttribute("data-index"), 10)]);
+        });
+    });
+}
+
+function moveActive(delta) {
+    const list = document.getElementById("zoneSuggestions");
+    const options = list.querySelectorAll("li[data-index]");
+    if (!options.length) return;
+
+    if (activeSuggestion >= 0 && options[activeSuggestion]) {
+        options[activeSuggestion].setAttribute("aria-selected", "false");
+    }
+    activeSuggestion = (activeSuggestion + delta + options.length) % options.length;
+    const el = options[activeSuggestion];
+    el.setAttribute("aria-selected", "true");
+    el.scrollIntoView({ block: "nearest" });
+    document.getElementById("zoneSearch").setAttribute("aria-activedescendant", el.id);
+}
+
+function revealMap() {
+    const wrap = document.getElementById("mapWrap");
+    if (!wrap || !wrap.hidden) return;
+    wrap.hidden = false;
+    mapRevealed = true;
+    // Leaflet measured this container while it was display:none, so it
+    // still believes it has zero size. Anything projected before it is
+    // re-measured comes out NaN and throws. Re-measure synchronously,
+    // then load the overlays and markers that were held back.
+    map.invalidateSize();
+    loadMapOverlays();
+    renderMarkers();
+}
+
+function renderZoneDetail(z) {
+    const el = document.getElementById("zoneDetail");
+    const rows = ffgsDurations.map(function(d) {
+        const info = z.perDuration[d];
+        const rainText = (info && info.rainMm != null) ? info.rainMm.toFixed(1) + " mm" : "—";
+        const critical = z.thresholds_mm && z.thresholds_mm[d]
+            ? z.thresholds_mm[d].critical.toFixed(0) + " mm" : "—";
+        const badge = "ffgs-badge ffgs-" + ((info && info.status) || "unmapped").toLowerCase();
+        return "<tr><td>" + d + "</td><td>" + rainText + "</td><td>" + critical +
+            '</td><td><span class="' + badge + '">' + statusLabel(info && info.status) +
+            "</span></td></tr>";
+    }).join("");
+
+    el.innerHTML =
+        "<h3>" + escapeAttr(zoneLabel(z)) + "</h3>" +
+        '<div class="zd-meta">' + t("zoneDetailClass") + ": " + hazardCellText(z) +
+        " · " + t("zoneDetailFfpi") + " " + (z.ffpi != null ? z.ffpi.toFixed(1) : "—") +
+        " · " + t("zoneDetailEvent") + " " +
+        (z.event_prob != null ? Math.round(z.event_prob * 100) + "%" : "—") + "</div>" +
+        '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" +
+        t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" +
+        t("popupStatus") + "</th></tr></thead><tbody>" + rows + "</tbody></table>";
+    el.hidden = false;
+}
+
+function selectZone(entry) {
+    if (!entry) return;
+    const z = entry.zone;
+    selectedZoneKey = zoneKey(z);
+
+    const input = document.getElementById("zoneSearch");
+    input.value = entry.label;
+    document.getElementById("zoneClearBtn").hidden = false;
+    closeSuggestions();
+
+    revealMap();
+    renderZoneDetail(z);
+
+    map.flyTo([z.lat, z.lon], 12, { duration: 0.7 });
+    const marker = markerByKey[selectedZoneKey];
+    if (marker) {
+        // Wait out the flight, otherwise the popup opens mid-pan.
+        setTimeout(function() { marker.openPopup(); }, 750);
+    }
+}
+
+function clearZoneSelection() {
+    selectedZoneKey = null;
+    const input = document.getElementById("zoneSearch");
+    input.value = "";
+    document.getElementById("zoneClearBtn").hidden = true;
+    document.getElementById("zoneDetail").hidden = true;
+    closeSuggestions();
+    input.focus();
+}
+
+// Re-render whatever the picker is showing, after the language changes
+// or a rainfall refresh lands.
+function refreshZoneUi() {
+    // ffgsZones is a module-scope `let`, so it is not a window
+    // property -- guarding on window.ffgsZones silently disabled the
+    // whole picker.
+    if (!ffgsZones.length) return;
+    buildZoneIndex();
+
+    if (selectedZoneKey) {
+        const entry = zoneIndex.filter(function(e) {
+            return zoneKey(e.zone) === selectedZoneKey;
+        })[0];
+        if (entry) {
+            const input = document.getElementById("zoneSearch");
+            if (input) input.value = entry.label;
+            renderZoneDetail(entry.zone);
+        }
+    }
+}
+
+function initZonePicker() {
+    const input = document.getElementById("zoneSearch");
+    if (!input) return;
+
+    input.addEventListener("focus", function() { renderSuggestions(input.value); });
+    input.addEventListener("click", function() { renderSuggestions(input.value); });
+    input.addEventListener("input", function() {
+        document.getElementById("zoneClearBtn").hidden = !input.value;
+        renderSuggestions(input.value);
+    });
+
+    input.addEventListener("keydown", function(ev) {
+        const list = document.getElementById("zoneSuggestions");
+        if (ev.key === "ArrowDown") {
+            ev.preventDefault();
+            if (list.hidden) renderSuggestions(input.value); else moveActive(1);
+        } else if (ev.key === "ArrowUp") {
+            ev.preventDefault();
+            moveActive(-1);
+        } else if (ev.key === "Enter") {
+            const matches = list._matches || [];
+            if (!list.hidden && matches.length) {
+                ev.preventDefault();
+                selectZone(matches[activeSuggestion >= 0 ? activeSuggestion : 0]);
+            }
+        } else if (ev.key === "Escape") {
+            closeSuggestions();
+        }
+    });
+
+    // Delay so a mousedown on a suggestion still registers.
+    input.addEventListener("blur", function() { setTimeout(closeSuggestions, 150); });
+
+    document.getElementById("zoneClearBtn").addEventListener("click", clearZoneSelection);
+
+    document.getElementById("zoneShowAllBtn").addEventListener("click", function() {
+        revealMap();
+        selectedZoneKey = null;
+        document.getElementById("zoneSearch").value = "";
+        document.getElementById("zoneClearBtn").hidden = true;
+        document.getElementById("zoneDetail").hidden = true;
+        map.flyTo([30.0668, 79.0193], 8, { duration: 0.7 });
+    });
+}
+
 function renderMarkers() {
+    // Nothing may be projected onto the map until it has been shown and
+    // re-measured -- see revealMap.
+    if (!mapRevealed) return;
+
     if (!zoneMarkerLayer) {
         zoneMarkerLayer = L.layerGroup().addTo(map);
     }
     zoneMarkerLayer.clearLayers();
+    markerByKey = {};
 
     ffgsZones.forEach(function(z) {
         const color = statusColor(z.overall);
@@ -4285,6 +4660,8 @@ function renderMarkers() {
         const marker = L.circleMarker([z.lat, z.lon], {
             radius: 9, color: color, fillColor: color, fillOpacity: 0.85, weight: 2
         }).addTo(zoneMarkerLayer);
+
+        markerByKey[zoneKey(z)] = marker;
 
         const rows = ffgsDurations.map(function(d) {
             const info = z.perDuration[d];
@@ -4359,6 +4736,10 @@ async function loadFfgsZones() {
             ffpi: zone.ffpi,
             ffpi_band: zone.ffpi_band,
             event_prob: zone.event_prob,
+            // Needed by the picker to list the nine guidance towns
+            // ahead of the localities; without it every entry sorts as
+            // a locality and the towns scatter alphabetically.
+            kind: zone.kind,
             thresholds_mm: zone.thresholds_mm,
             parent_town: zone.parent_town || null,
             soil: zone.soil || null,
@@ -4371,8 +4752,12 @@ async function loadFfgsZones() {
     renderMarkers();
     renderFfgsTable();
     renderAlertBanner();
+    // After renderMarkers, so markerByKey is populated before a
+    // selection can try to open a popup.
+    refreshZoneUi();
 }
 
+initZonePicker();
 loadFfgsZones();
 
 // Rainfall itself now comes from /ffgs/zones (server-cached, see
