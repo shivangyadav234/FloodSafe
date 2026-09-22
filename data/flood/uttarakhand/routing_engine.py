@@ -1,5 +1,6 @@
 import os
 import json
+import math
 
 # ============================================================
 # PROJ CONFIGURATION
@@ -169,19 +170,49 @@ LIVE_RAIN_ESCALATION_THRESHOLD_MM = 8.0
 SAFEST_DETOUR_CAP = 3.0
 
 
+def _haversine_m(lon1, lat1, lon2, lat2):
+
+    r = 6371000.0
+
+    phi1 = np.radians(lat1)
+    phi2 = np.radians(lat2)
+    dphi = np.radians(lat2 - lat1)
+    dlambda = np.radians(lon2 - lon1)
+
+    a = (
+        np.sin(dphi / 2.0) ** 2
+        + np.cos(phi1) * np.cos(phi2) * np.sin(dlambda / 2.0) ** 2
+    )
+
+    return 2 * r * np.arcsin(np.sqrt(a))
+
+
 def _edges_near_points(points_lonlat, radius_m):
 
     if not points_lonlat:
         return np.array([], dtype=int)
 
-    radius_deg = radius_m / 111000.0
-
     affected_nodes = set()
 
     for lon, lat in points_lonlat:
 
-        nearby = tree.query_ball_point([lon, lat], r=radius_deg)
-        affected_nodes.update(nearby)
+        # A flat 111 km/degree radius under-covers the east-west
+        # direction at Uttarakhand's latitude (~29-31N), where a
+        # degree of longitude is only ~96-97 km — so a fixed-degree
+        # circle misses points that are genuinely within radius_m to
+        # the east/west of a reported hazard. Query with the
+        # (always-larger) longitude-based degree radius instead, so
+        # the KD-tree candidate set is a superset of the true circle,
+        # then filter to the real radius with a great-circle check.
+        lon_scale = 111320.0 * max(math.cos(math.radians(lat)), 0.01)
+        query_radius_deg = radius_m / lon_scale
+
+        for idx in tree.query_ball_point([lon, lat], r=query_radius_deg):
+
+            c_lon, c_lat = coordinates[idx]
+
+            if _haversine_m(lon, lat, c_lon, c_lat) <= radius_m:
+                affected_nodes.add(idx)
 
     if not affected_nodes:
         return np.array([], dtype=int)
@@ -428,6 +459,19 @@ def calculate_route(
 
         return total
 
+    def _path_extreme_count(path_nodes):
+
+        count = 0
+
+        for i in range(len(path_nodes) - 1):
+
+            edge = find_edge(path_nodes[i], path_nodes[i + 1])
+
+            if edge is not None and effective_risk[edge] >= 8.0:
+                count += 1
+
+        return count
+
 
     # --------------------------------------------------------
     # ROUTING WEIGHTS
@@ -505,6 +549,17 @@ def calculate_route(
         )
 
         return None
+
+    # Extreme-edge count on the route Dijkstra picked under the
+    # absolute EXTREME block (1,000,000x). If this is nonzero, it
+    # means literally no extreme-free path connects start to end —
+    # true unavoidability. Captured before the detour cap below may
+    # swap `path` out for a milder-penalty fallback that trades
+    # safety for distance, which is a policy choice, not
+    # unavoidability, and must not be reported as the latter.
+    initial_extreme_count = (
+        _path_extreme_count(path) if mode == "SAFEST" else 0
+    )
 
 
     # --------------------------------------------------------
@@ -652,7 +707,7 @@ def calculate_route(
 
     extreme_unavoidable = (
         mode == "SAFEST"
-        and risk_counts[8.0] > 0
+        and initial_extreme_count > 0
     )
 
     reported_hazard_count = (

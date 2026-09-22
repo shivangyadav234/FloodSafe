@@ -1,5 +1,6 @@
 import os
 import json
+import math
 import time
 import uuid
 import requests
@@ -316,6 +317,30 @@ except Exception as e:
     print("WARNING: flood guidance hazard atlas unavailable:", repr(e))
 
 
+def _haversine_km(lat1, lon1, lat2, lon2):
+    """
+    Great-circle distance in km. Used instead of a flat 111 km/degree
+    scalar because a degree of longitude is only ~96-97 km (not 111)
+    at Uttarakhand's latitude (~29-31N) — a flat conversion of a raw
+    lon/lat Euclidean distance overstates real-world distance whenever
+    the gap to a polygon is longitude-dominant.
+    """
+
+    r = 6371.0
+
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    a = (
+        math.sin(dphi / 2.0) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
+    )
+
+    return 2 * r * math.asin(math.sqrt(a))
+
+
 def classify_point(lat, lon):
     """
     Static hazard classification at a point. Returns
@@ -328,27 +353,40 @@ def classify_point(lat, lon):
         return None, False, None
 
     from shapely.geometry import Point as ShapelyPoint
+    from shapely.ops import nearest_points
 
     point = ShapelyPoint(lon, lat)
 
     nearest_class = None
     nearest_deg = None
+    nearest_geom = None
 
     for geom, hazard_class in _guidance_atlas:
 
         if geom.contains(point):
             return hazard_class, True, 0.0
 
+        # geom.distance() is plain Euclidean distance in raw lon/lat
+        # degrees — fine for picking which polygon is closest (an
+        # anisotropy-driven ranking flip between two candidates this
+        # close together is not a realistic concern), but not a
+        # real-world distance on its own.
         d = geom.distance(point)
 
         if nearest_deg is None or d < nearest_deg:
             nearest_deg = d
             nearest_class = hazard_class
+            nearest_geom = geom
 
     if nearest_deg is None:
         return None, False, None
 
-    distance_km = nearest_deg * 111.0
+    nearest_on_geom = nearest_points(nearest_geom, point)[0]
+
+    distance_km = _haversine_km(
+        lat, lon,
+        nearest_on_geom.y, nearest_on_geom.x
+    )
 
     if distance_km > GUIDANCE_NEAREST_ZONE_MAX_KM:
         return None, False, distance_km
@@ -1518,7 +1556,7 @@ function animateCount(el, target, suffix, duration) {
     function tick(now) {
         const progress = Math.min((now - start) / duration, 1);
         const value = Math.round(target * progress);
-        el.textContent = value + suffix;
+        el.textContent = value.toLocaleString('en-US') + suffix;
         if (progress < 1) requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
@@ -1535,9 +1573,15 @@ async function loadLiveStrip() {
             dot.classList.add('off');
             statusStateKey = 'statusOffline';
         }
+        if (typeof status.node_count === 'number') {
+            animateCount(document.getElementById('statNodes'), status.node_count);
+        } else {
+            document.getElementById('statNodes').textContent = '—';
+        }
     } catch (error) {
         document.getElementById('statusDot').classList.add('off');
         statusStateKey = 'statusUnreachable';
+        document.getElementById('statNodes').textContent = '—';
     }
     renderDynamicText();
 
@@ -1602,8 +1646,6 @@ async function loadLiveStrip() {
         weatherStateKey = 'weatherUnavailable';
     }
     renderDynamicText();
-
-    document.getElementById('statNodes').textContent = '2,021,505';
 }
 
 loadLiveStrip();
@@ -1892,7 +1934,8 @@ def status():
         "service": "FloodSafe",
         "status": "ok",
         "routing": "online" if ROUTING_ENGINE_AVAILABLE else "unavailable",
-        "routing_error": None if ROUTING_ENGINE_AVAILABLE else ROUTING_ENGINE_ERROR
+        "routing_error": None if ROUTING_ENGINE_AVAILABLE else ROUTING_ENGINE_ERROR,
+        "node_count": int(len(coordinates)) if ROUTING_ENGINE_AVAILABLE else None
     })
 
 
@@ -2660,7 +2703,7 @@ def weather():
                 start_index = 0
 
             next_3h_mm = float(
-                sum(hourly_precip[start_index:start_index + 3])
+                sum(hourly_precip[start_index + 1:start_index + 4])
             )
 
         total_mm = current_mm + next_3h_mm
@@ -3418,10 +3461,13 @@ def route():
         # ----------------------------------------------------
         # EXTREME-RISK UNAVOIDABLE FLAG
         #
-        # If mode is SAFEST but the route still crosses an
-        # EXTREME-risk segment, it means no other path exists
-        # between these two points — not that the router picked
-        # it carelessly. Let the frontend say so explicitly.
+        # True only when SAFEST's fully extreme-avoiding search
+        # still had to cross an EXTREME segment — i.e. no
+        # extreme-free path exists at all between these two
+        # points. If a safe-but-long path existed and was instead
+        # swapped for a shorter one that crosses EXTREME (see
+        # "safest_capped" below), this stays False: that's a
+        # distance/safety tradeoff, not unavoidability.
         # ----------------------------------------------------
 
         response["extreme_unavoidable"] = bool(
