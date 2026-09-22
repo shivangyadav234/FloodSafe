@@ -709,6 +709,164 @@ def physical_factors_for_point(lat, lon):
     }
 
 
+# ============================================================
+# FLASH FLOOD POTENTIAL INDEX (FFPI)
+#
+# The hazard atlas only covers ~9.7% of Uttarakhand's area, so
+# classify_point() returns None for most of the state and those zones
+# have always rendered as UNMAPPED with no thresholds at all. FFPI
+# fills that gap.
+#
+# It is a physically-based susceptibility index on a 1-10 scale
+# (Smith 2003, the approach used by NWS river forecast centres),
+# computed offline by floodsafe/pipeline/build_ffpi.py as a weighted
+# mean of four real datasets reindexed onto a common scale:
+#
+#   slope (x2)    Copernicus DEM GLO-30 (ESA) via WhiteboxTools
+#   soil          SoilGrids v2.0 (ISRIC) -> NRCS Hydrologic Soil Group
+#   land cover    ESA WorldCover 2021 v200
+#   convergence   topographic wetness index from the same DEM
+#
+# Slope carries double weight because runoff concentration time is the
+# dominant control on flash flooding.
+#
+# No training labels are involved, which is deliberate. A supervised
+# model trained directly on the atlas classes reaches only ROC-AUC 0.66
+# under honest spatial cross-validation (GroupKFold on source polygon;
+# a random split inflates that to 0.99 by leaking neighbouring points).
+# FFPI, having never seen those labels, independently reaches 0.626
+# against them (p=0.004) and covers 100% of the state rather than 9.7%.
+#
+# This is a susceptibility index, not a probability and not a forecast,
+# and is labelled as such wherever it surfaces. Thresholds derived from
+# it are marked hazard_source="ffpi" so the UI never presents a modelled
+# class as a surveyed one.
+#
+# Stored as a small uint8 lat/lon grid rather than a GeoTIFF so the web
+# app needs only numpy -- see build_ffpi_lookup.py.
+# ============================================================
+
+FFPI_LOOKUP_FILE = os.path.join(DATA_DIR, "ffpi_lookup.npz")
+LOCATION_SCORES_FILE = os.path.join(DATA_DIR, "location_scores.json")
+
+_ffpi_grid = None
+_ffpi_bounds = None
+_ffpi_step = None
+_ffpi_scale = None
+_ffpi_nodata = None
+FFPI_AVAILABLE = False
+FFPI_ERROR = None
+
+# Upper bound -> band name, matching build_ffpi.py's FFPI_BANDS.
+FFPI_BANDS = [
+    (3.5, "VERY LOW"),
+    (4.5, "LOW"),
+    (5.5, "MODERATE"),
+    (6.5, "HIGH"),
+    (99.0, "VERY HIGH"),
+]
+
+# FFPI band -> the hazard class whose thresholds best match it. Used
+# only where the atlas has no coverage; an atlas class always wins.
+FFPI_BAND_TO_HAZARD_CLASS = {
+    "VERY HIGH": "EXTREME",
+    "HIGH": "SIGNIFICANT",
+    "MODERATE": "MODERATE",
+    "LOW": "LOW",
+    "VERY LOW": "LOW",
+}
+
+
+def _load_ffpi():
+
+    global _ffpi_grid, _ffpi_bounds, _ffpi_step, _ffpi_scale, _ffpi_nodata
+
+    import numpy as np
+
+    with np.load(FFPI_LOOKUP_FILE) as z:
+        _ffpi_grid = z["ffpi"]
+        _ffpi_bounds = z["bounds"].tolist()
+        _ffpi_step = float(z["step"])
+        _ffpi_scale = float(z["scale"])
+        _ffpi_nodata = int(z["nodata"])
+
+
+try:
+    _load_ffpi()
+    FFPI_AVAILABLE = True
+    print(f"FFPI grid loaded: {_ffpi_grid.shape[1]}x{_ffpi_grid.shape[0]} cells")
+except Exception as exc:
+    FFPI_ERROR = str(exc)
+    print("WARNING: FFPI grid unavailable:", FFPI_ERROR)
+
+
+def ffpi_band_for(value):
+
+    if value is None:
+        return None
+
+    for upper, name in FFPI_BANDS:
+        if value < upper:
+            return name
+
+    return FFPI_BANDS[-1][1]
+
+
+def ffpi_for_point(lat, lon):
+    """
+    FFPI value and band for any point, or None outside the grid or
+    where the source rasters had no data (glaciated terrain, mostly).
+    """
+
+    if not FFPI_AVAILABLE:
+        return None
+
+    lon_min, lat_min, lon_max, lat_max = _ffpi_bounds
+
+    if not (lon_min <= lon <= lon_max and lat_min <= lat <= lat_max):
+        return None
+
+    col = int((lon - lon_min) / _ffpi_step)
+    row = int((lat_max - lat) / _ffpi_step)
+
+    rows, cols = _ffpi_grid.shape
+
+    if not (0 <= row < rows and 0 <= col < cols):
+        return None
+
+    raw = int(_ffpi_grid[row, col])
+
+    if raw == _ffpi_nodata:
+        return None
+
+    value = round(raw / _ffpi_scale, 2)
+
+    return {"ffpi": value, "band": ffpi_band_for(value)}
+
+
+def _load_location_scores():
+
+    if not os.path.exists(LOCATION_SCORES_FILE):
+        return {}
+
+    with open(LOCATION_SCORES_FILE, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+
+    return {
+        (round(loc["lat"], 5), round(loc["lon"], 5)): loc
+        for loc in payload.get("locations", [])
+    }
+
+
+# Keyed by rounded lat/lon so the fixed zone list can pick up the
+# XGBoost probability and FFPI component breakdown that
+# score_locations.py precomputed. Arbitrary points get FFPI from the
+# grid above but no model probability -- running XGBoost at request
+# time would mean shipping the model and its feature rasters to the web
+# instance for a signal that is explicitly secondary.
+LOCATION_SCORES = _load_location_scores()
+
+
 def ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm=None, static_multiplier=1.0):
     """
     Returns {"1h": {"watch", "critical"}, "3h": {...}, "24h": {...}}
@@ -747,18 +905,50 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
 
     hazard_class, exact, distance_km = classify_point(lat, lon)
     physical = physical_factors_for_point(lat, lon)
-    thresholds = ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm, physical["static_multiplier"])
+
+    scores = LOCATION_SCORES.get((round(lat, 5), round(lon, 5)))
+
+    # Known zones use the value score_locations.py sampled straight from
+    # the 90 m raster. The lookup grid is a regridded approximation and
+    # in steep terrain it can smooth a point across a band boundary, so
+    # it is only used for arbitrary "check my location" points that were
+    # never precomputed.
+    if scores and scores.get("ffpi") is not None:
+        ffpi = {"ffpi": scores["ffpi"], "band": ffpi_band_for(scores["ffpi"])}
+    else:
+        ffpi = ffpi_for_point(lat, lon)
+
+    # The surveyed atlas always wins where it has coverage. FFPI only
+    # stands in where it has none, and is flagged so the UI can say so.
+    if hazard_class:
+        hazard_source = "atlas"
+        effective_class = hazard_class
+    elif ffpi:
+        hazard_source = "ffpi"
+        effective_class = FFPI_BAND_TO_HAZARD_CLASS.get(ffpi["band"])
+    else:
+        hazard_source = None
+        effective_class = None
+
+    thresholds = ffgs_thresholds_for_class(
+        effective_class, antecedent_48h_mm, physical["static_multiplier"])
 
     return {
         "lat": lat,
         "lon": lon,
         "hazard_class": hazard_class,
+        "effective_class": effective_class,
+        "hazard_source": hazard_source,
         "exact_match": exact,
         "distance_km": round(distance_km, 1) if distance_km is not None else None,
         "thresholds_mm": thresholds,
         "watershed": physical["watershed"],
         "soil": physical["soil"],
         "static_multiplier": physical["static_multiplier"],
+        "ffpi": ffpi["ffpi"] if ffpi else None,
+        "ffpi_band": ffpi["band"] if ffpi else None,
+        "ffpi_components": scores["ffpi_components"] if scores else None,
+        "model_prob": scores["model_prob"] if scores else None,
     }
 
 
@@ -813,7 +1003,10 @@ for _loc in ALL_LOCALITIES:
 
     _zone = ffgs_guidance_for_point(_loc["lat"], _loc["lon"])
 
-    if not _zone["hazard_class"]:
+    # Previously this required hazard-atlas coverage, which dropped most
+    # localities. FFPI now supplies a class wherever the atlas doesn't,
+    # so a zone only drops out if neither source can place it.
+    if not _zone["effective_class"]:
         continue
 
     FFGS_LOCALITY_ZONES.append(dict(
@@ -3475,6 +3668,7 @@ table.ffgs-table thead th {
 }
 
 .parent-town { color: var(--faint); font-weight: normal; font-size: 12px; }
+.ffpi-modelled { color: var(--faint); font-weight: normal; font-size: 11px; font-style: italic; }
 
 .ffgs-safe { background: var(--safe-bg); color: var(--safe); }
 .ffgs-watch { background: var(--watch-bg); color: var(--watch); }
@@ -3547,9 +3741,13 @@ footer {
         (upstream catchment area, from HydroSHEDS/HydroBASINS) and soil data (texture-based
         drainage class, from SoilGrids) on top of the hazard atlas and antecedent rainfall —
         <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would require a full
-        calibrated hydrological model this project doesn't have. The hazard atlas only covers
-        specific hazard-prone corridors of Uttarakhand, not the whole state, and soil data is
-        only available at points it was actually sampled for.
+        calibrated hydrological model this project doesn't have. The state hazard atlas only
+        covers about 9.7% of Uttarakhand's area; zones outside it are marked <i>modelled</i>
+        and their class comes from the <b>Flash Flood Potential Index</b> (FFPI) — a 1-10
+        susceptibility index computed from real terrain (Copernicus GLO-30 DEM), soil
+        (SoilGrids) and land cover (ESA WorldCover). FFPI is a physical susceptibility score,
+        not a probability or a forecast, and a surveyed atlas class always takes precedence
+        over it.
     </div>
 
     <div id="ffgsAlert"></div>
@@ -3583,6 +3781,7 @@ footer {
                     <tr>
                         <th data-i18n="colLocation">Location</th>
                         <th data-i18n="colHazardZone">Hazard zone</th>
+                        <th class="num" data-i18n="colFfpi">FFPI</th>
                         <th data-i18n="colSoil">Soil</th>
                         <th class="num" data-i18n="colCatchment">Catchment</th>
                         <th class="num" data-i18n="col1h">1h rain</th>
@@ -3592,7 +3791,7 @@ footer {
                     </tr>
                 </thead>
                 <tbody id="ffgsTableBody">
-                    <tr><td colspan="8" data-i18n="loading">Loading…</td></tr>
+                    <tr><td colspan="9" data-i18n="loading">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -3630,7 +3829,7 @@ const translations = {
     pageSubtitle: "Duration-based rainfall guidance for Uttarakhand",
     navMapTool: "Map tool →",
     navBackDashboard: "← Back to dashboard",
-    noticeHtml: "This page pairs each mapped hazard zone's static classification with live rainfall over three windows (1h / 3h / 24h) to show whether it is SAFE, in WATCH, or in CRITICAL status right now. Thresholds are adjusted using real watershed data (upstream catchment area, from HydroSHEDS/HydroBASINS) and soil data (texture-based drainage class, from SoilGrids) on top of the hazard atlas and antecedent rainfall — <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would require a full calibrated hydrological model this project doesn't have. The hazard atlas only covers specific hazard-prone corridors of Uttarakhand, not the whole state, and soil data is only available at points it was actually sampled for.",
+    noticeHtml: "This page pairs each zone's static classification with live rainfall over three windows (1h / 3h / 24h) to show whether it is SAFE, in WATCH, or in CRITICAL status right now. Thresholds are adjusted using real watershed data (upstream catchment area, from HydroSHEDS/HydroBASINS) and soil data (texture-based drainage class, from SoilGrids) on top of the hazard class and antecedent rainfall — <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would require a full calibrated hydrological model this project doesn't have. The state hazard atlas only covers about 9.7% of Uttarakhand's area; zones outside it are marked <i>modelled</i> and their class comes from the <b>Flash Flood Potential Index</b> (FFPI) — a 1-10 susceptibility index computed from real terrain (Copernicus GLO-30 DEM), soil (SoilGrids) and land cover (ESA WorldCover). FFPI is a physical susceptibility score, not a probability or a forecast, and a surveyed atlas class always takes precedence over it.",
     myLocationHeading: "Check guidance at my location",
     myLocationBtn: "Use my current location",
     zoneMapHeading: "Zone map — live status",
@@ -3644,6 +3843,10 @@ const translations = {
     allZonesHeading: "All monitored zones",
     colLocation: "Location",
     colHazardZone: "Hazard zone",
+    colFfpi: "FFPI",
+    ffpiModelledNote: "modelled",
+    ffpiTitleAtlas: "Hazard class from the state flash-flood hazard atlas (surveyed).",
+    ffpiTitleModelled: "No atlas coverage here. Class derived from the Flash Flood Potential Index — a 1-10 terrain/soil/land-cover susceptibility index, not a surveyed class.",
     colSoil: "Soil",
     colCatchment: "Catchment",
     col1h: "1h rain",
@@ -3659,7 +3862,7 @@ const translations = {
     noZones: "No mapped zones with live data right now.",
     guidanceUnavailable: "Guidance data unavailable right now.",
     footerText: "Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, fetched directly by your browser. Refreshes automatically every 60 seconds.",
-    statusSAFE: "SAFE", statusWATCH: "WATCH", statusCRITICAL: "CRITICAL", statusUNMAPPED: "UNMAPPED",
+    statusSAFE: "SAFE", statusWATCH: "WATCH", statusCRITICAL: "CRITICAL", statusUNMAPPED: "NO RAIN DATA",
     hazardZoneSuffix: " hazard zone",
     popupWindow: "Window", popupRain: "Rain", popupCriticalAt: "Critical at", popupStatus: "Status",
     alertCriticalPrefix: "CRITICAL: ",
@@ -3698,6 +3901,10 @@ const translations = {
     allZonesHeading: "सभी निगरानी क्षेत्र",
     colLocation: "स्थान",
     colHazardZone: "खतरा क्षेत्र",
+    colFfpi: "FFPI",
+    ffpiModelledNote: "अनुमानित",
+    ffpiTitleAtlas: "खतरा श्रेणी राज्य फ्लैश फ्लड हैज़र्ड एटलस से (सर्वेक्षित)।",
+    ffpiTitleModelled: "यहाँ एटलस कवरेज नहीं है। श्रेणी फ्लैश फ्लड पोटेंशियल इंडेक्स से ली गई है — भूभाग/मिट्टी/भू-आवरण पर आधारित 1-10 संवेदनशीलता सूचकांक, सर्वेक्षित श्रेणी नहीं।",
     colSoil: "मिट्टी",
     colCatchment: "जलग्रहण क्षेत्र",
     col1h: "1 घंटे की वर्षा",
@@ -3713,7 +3920,7 @@ const translations = {
     noZones: "अभी कोई मैप किया गया क्षेत्र लाइव डेटा के साथ उपलब्ध नहीं है।",
     guidanceUnavailable: "मार्गदर्शन डेटा अभी उपलब्ध नहीं है।",
     footerText: "खतरा वर्गीकरण: राज्य का जियोरेफ़रेंस्ड फ्लैश फ्लड खतरा एटलस। वर्षा: Open-Meteo पूर्वानुमान API, आपके ब्राउज़र द्वारा सीधे प्राप्त। हर 60 सेकंड में स्वतः अद्यतन होता है।",
-    statusSAFE: "सुरक्षित", statusWATCH: "सतर्क", statusCRITICAL: "गंभीर", statusUNMAPPED: "अचिह्नित",
+    statusSAFE: "सुरक्षित", statusWATCH: "सतर्क", statusCRITICAL: "गंभीर", statusUNMAPPED: "वर्षा डेटा नहीं",
     hazardZoneSuffix: " खतरा क्षेत्र",
     popupWindow: "अवधि", popupRain: "वर्षा", popupCriticalAt: "गंभीर स्तर", popupStatus: "स्थिति",
     alertCriticalPrefix: "गंभीर: ",
@@ -3756,6 +3963,10 @@ function hazardClassLabel(cls) {
 }
 
 function statusLabel(status) {
+    // Every listed zone now has a class (atlas or FFPI), so a null
+    // status means the rainfall reading is missing, not that the zone
+    // is unmapped -- saying "UNMAPPED" here would contradict the
+    // hazard class and FFPI value shown in the same row.
     if (!status) return t("statusUNMAPPED");
     const key = "status" + status;
     const val = t(key);
@@ -3972,16 +4183,34 @@ function renderAlertBanner() {
     }
 }
 
+// A zone's class comes either from the surveyed hazard atlas or, where
+// the atlas has no coverage, from FFPI. The two are never shown the
+// same way -- a modelled class always carries a visible marker so it
+// can't be mistaken for a surveyed one.
+function hazardCellText(z) {
+    const label = hazardClassLabel(z.effective_class);
+    if (z.hazard_source === "ffpi") {
+        return '<span title="' + t("ffpiTitleModelled") + '">' + label +
+            '<span class="ffpi-modelled"> · ' + t("ffpiModelledNote") + "</span></span>";
+    }
+    return '<span title="' + t("ffpiTitleAtlas") + '">' + label + "</span>";
+}
+
+function ffpiCellText(z) {
+    if (z.ffpi == null) return "—";
+    return z.ffpi.toFixed(1);
+}
+
 function renderFfgsTable() {
     const tbody = document.getElementById("ffgsTableBody");
 
     if (ffgsLoadFailed) {
-        tbody.innerHTML = '<tr><td colspan="8">' + t("guidanceUnavailable") + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="9">' + t("guidanceUnavailable") + "</td></tr>";
         return;
     }
 
     if (ffgsZones.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8">' + t("noZones") + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="9">' + t("noZones") + "</td></tr>";
         return;
     }
 
@@ -3999,7 +4228,8 @@ function renderFfgsTable() {
         const locationCell = z.parent_town
             ? z.name + '<span class="parent-town"> — ' + ffgsTownName(z.parent_town) + "</span>"
             : ffgsTownName(z.name);
-        return "<tr><td>" + locationCell + "</td><td>" + hazardClassLabel(z.hazard_class) + "</td>" +
+        return "<tr><td>" + locationCell + "</td><td>" + hazardCellText(z) + "</td>" +
+            '<td class="num">' + ffpiCellText(z) + "</td>" +
             "<td>" + soilCellText(z) + "</td>" +
             '<td class="num">' + catchmentCellText(z) + "</td>" +
             '<td class="num">' + cell("1h") + "</td>" +
@@ -4042,7 +4272,8 @@ function renderMarkers() {
         const contextLine = physicalContextLine(z);
 
         marker.bindPopup(
-            popupTitle + " — " + hazardClassLabel(z.hazard_class) + t("hazardZoneSuffix") + "<br>" +
+            popupTitle + " — " + hazardCellText(z) + t("hazardZoneSuffix") +
+            (z.ffpi != null ? " · FFPI " + z.ffpi.toFixed(1) : "") + "<br>" +
             (contextLine ? "<span style='color:#6b7680; font-size:12px;'>" + contextLine + "</span><br>" : "") +
             '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
             rows + "</tbody></table>"
@@ -4071,7 +4302,10 @@ async function loadFfgsZones() {
     ffgsLoadFailed = false;
     ffgsDurations = data.durations || ffgsDurations;
 
-    const mappedZones = data.zones.filter(function(z) { return z.hazard_class; });
+    // effective_class, not hazard_class: FFPI now supplies a class for
+    // zones the hazard atlas never covered, and those are exactly the
+    // ones that used to be dropped here.
+    const mappedZones = data.zones.filter(function(z) { return z.effective_class; });
 
     ffgsZones = mappedZones.map(function(zone) {
         const rain = zone.live_rainfall || null;
@@ -4091,6 +4325,10 @@ async function loadFfgsZones() {
             lat: zone.lat,
             lon: zone.lon,
             hazard_class: zone.hazard_class,
+            effective_class: zone.effective_class,
+            hazard_source: zone.hazard_source,
+            ffpi: zone.ffpi,
+            ffpi_band: zone.ffpi_band,
             thresholds_mm: zone.thresholds_mm,
             parent_town: zone.parent_town || null,
             soil: zone.soil || null,
@@ -4136,7 +4374,7 @@ document.getElementById("ffgsMyLocationBtn").addEventListener("click", function(
                 "/ffgs/point?lat=" + lat + "&lon=" + lon + "&antecedent_48h_mm=" + antecedentParam
             )).json();
 
-            if (!point.hazard_class || !point.thresholds_mm) {
+            if (!point.effective_class || !point.thresholds_mm) {
                 resultEl.innerHTML = point.exact_match === false && point.distance_km != null
                     ? t("noMappedZoneNear").replace("{km}", point.distance_km)
                     : t("noMappedZone");
@@ -4154,13 +4392,17 @@ document.getElementById("ffgsMyLocationBtn").addEventListener("click", function(
                     "<td><span class=\\"" + badgeClass + "\\">" + statusLabel(status) + "</span></td></tr>";
             }).join("");
 
-            const approxNote = (!point.exact_match && point.distance_km != null)
+            // The "nearest mapped zone, Xkm away" note only makes sense
+            // for an atlas class. An FFPI class is computed at this exact
+            // point, so there is no distance to disclose.
+            const approxNote = (point.hazard_source === "atlas" && !point.exact_match && point.distance_km != null)
                 ? t("nearestZoneNote").replace("{km}", point.distance_km)
                 : "";
 
             const contextLine = physicalContextLine(point);
 
-            resultEl.innerHTML = "<b>" + hazardClassLabel(point.hazard_class) + t("hazardZoneSuffix") + "</b>" + approxNote +
+            resultEl.innerHTML = "<b>" + hazardCellText(point) + t("hazardZoneSuffix") + "</b>" +
+                (point.ffpi != null ? " · FFPI " + point.ffpi.toFixed(1) : "") + approxNote +
                 (contextLine ? "<br><span style='color:#6b7680; font-size:12px;'>" + contextLine + "</span>" : "") +
                 '<table class="popup-table" style="margin-top:8px;"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
                 rows + "</tbody></table>";
@@ -4262,11 +4504,17 @@ def _parse_open_meteo_durations(payload):
 
 def _fetch_ffgs_live_rainfall():
     """
-    One batched Open-Meteo call covering every FFGS zone with a
-    mapped hazard class, cached for FFGS_RAINFALL_CACHE_TTL_SECONDS.
-    Returns {(lat, lon): {"1h", "3h", "24h", "antecedent_48h"}} — the
-    last successful reading if this refresh fails, or {} if there's
-    never been a successful fetch.
+    One batched Open-Meteo call covering every FFGS zone that has a
+    class to compare rainfall against, cached for
+    FFGS_RAINFALL_CACHE_TTL_SECONDS. Returns
+    {(lat, lon): {"1h", "3h", "24h", "antecedent_48h"}} — the last
+    successful reading if this refresh fails, or {} if there's never
+    been a successful fetch.
+
+    Keyed on effective_class, not hazard_class: zones whose class comes
+    from FFPI rather than the hazard atlas have thresholds to breach
+    just the same, and filtering on the atlas class would have left all
+    53 of them permanently without a rainfall reading.
     """
 
     now = time.time()
@@ -4275,7 +4523,7 @@ def _fetch_ffgs_live_rainfall():
     if cache["data"] and (now - cache["timestamp"]) < FFGS_RAINFALL_CACHE_TTL_SECONDS:
         return cache["data"]
 
-    mapped_zones = [z for z in FFGS_ZONES if z.get("hazard_class")]
+    mapped_zones = [z for z in FFGS_ZONES if z.get("effective_class")]
 
     if not mapped_zones:
         return cache["data"]

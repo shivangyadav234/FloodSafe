@@ -1,0 +1,26 @@
+# Build-time only. These are NOT needed to run the Flask app and are
+# deliberately kept out of the root requirements.txt, which Render
+# installs on every deploy -- the web app reads the precomputed
+# ffpi_lookup.npz with numpy alone.
+#
+# Run these against the `floodsafe` conda env, which already provides
+# geopandas/rasterio/shapely with working GDAL binaries.
+#
+#   python build_terrain.py --res 90      # Copernicus DEM -> WhiteboxTools
+#   python build_soil.py --res 90         # SoilGrids -> Hydrologic Soil Group
+#   python build_landcover.py --res 90    # ESA WorldCover
+#   python build_ffpi.py --res 90         # Flash Flood Potential Index
+#   python build_ffpi_lookup.py --res 90  # -> app-side npz
+#   python build_training_set.py --res 90 # labelled sample table
+#   python train_model.py --res 90        # XGBoost + spatial CV
+#   python experiment_features.py         # feature ablation (prints only)
+
+rasterio>=1.4
+geopandas>=1.0
+shapely>=2.0
+numpy>=2.0
+pandas>=2.0
+requests>=2.30
+scikit-learn>=1.5
+whitebox>=2.3
+xgboost>=3.0

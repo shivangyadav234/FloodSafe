@@ -1,0 +1,2802 @@
+{
+  "generated_utc": "2026-09-22T13:27:37.840531+00:00",
+  "resolution_m": 90,
+  "ffpi_scale": "1-10, higher = greater flash-flood potential (not a probability)",
+  "model_note": "P(elevated hazard) from XGBoost trained on the state hazard atlas; spatial-CV ROC-AUC 0.66, dominated by elevation. Secondary signal only.",
+  "locations": [
+    {
+      "name": "Dehradun",
+      "lat": 30.3165,
+      "lon": 78.0322,
+      "kind": "town",
+      "parent_town": null,
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.021,
+      "terrain": {
+        "elevation_m": 652.0,
+        "slope_deg": 1.1,
+        "twi": 10.55,
+        "dist_to_stream_m": 4969.0
+      }
+    },
+    {
+      "name": "Rishikesh",
+      "lat": 30.0869,
+      "lon": 78.2676,
+      "kind": "town",
+      "parent_town": null,
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.003,
+      "terrain": {
+        "elevation_m": 363.0,
+        "slope_deg": 0.4,
+        "twi": 9.54,
+        "dist_to_stream_m": 2008.0
+      }
+    },
+    {
+      "name": "Haridwar",
+      "lat": 29.9457,
+      "lon": 78.1642,
+      "kind": "town",
+      "parent_town": null,
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 295.0,
+        "slope_deg": 2.9,
+        "twi": 7.48,
+        "dist_to_stream_m": 487.0
+      }
+    },
+    {
+      "name": "Mussoorie",
+      "lat": 30.4598,
+      "lon": 78.0664,
+      "kind": "town",
+      "parent_town": null,
+      "ffpi": 6.8,
+      "ffpi_band": "VERY HIGH",
+      "ffpi_components": {
+        "slope": 7.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.014,
+      "terrain": {
+        "elevation_m": 1970.0,
+        "slope_deg": 26.7,
+        "twi": 5.88,
+        "dist_to_stream_m": 2570.0
+      }
+    },
+    {
+      "name": "Nainital",
+      "lat": 29.3803,
+      "lon": 79.4636,
+      "kind": "town",
+      "parent_town": null,
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.154,
+      "terrain": {
+        "elevation_m": 1945.0,
+        "slope_deg": 9.9,
+        "twi": 6.24,
+        "dist_to_stream_m": 90.0
+      }
+    },
+    {
+      "name": "Haldwani",
+      "lat": 29.2183,
+      "lon": 79.513,
+      "kind": "town",
+      "parent_town": null,
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.014,
+      "terrain": {
+        "elevation_m": 431.0,
+        "slope_deg": 0.8,
+        "twi": 9.51,
+        "dist_to_stream_m": 90.0
+      }
+    },
+    {
+      "name": "Almora",
+      "lat": 29.5892,
+      "lon": 79.6467,
+      "kind": "town",
+      "parent_town": null,
+      "ffpi": 4.0,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.003,
+      "terrain": {
+        "elevation_m": 1663.0,
+        "slope_deg": 12.6,
+        "twi": 6.0,
+        "dist_to_stream_m": 1881.0
+      }
+    },
+    {
+      "name": "Pithoragarh",
+      "lat": 29.5822,
+      "lon": 80.2181,
+      "kind": "town",
+      "parent_town": null,
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 1555.0,
+        "slope_deg": 9.1,
+        "twi": 6.33,
+        "dist_to_stream_m": 1446.0
+      }
+    },
+    {
+      "name": "Joshimath",
+      "lat": 30.5551,
+      "lon": 79.5643,
+      "kind": "town",
+      "parent_town": null,
+      "ffpi": 7.0,
+      "ffpi_band": "VERY HIGH",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 7.0,
+        "landcover": 8.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.04,
+      "terrain": {
+        "elevation_m": 1877.0,
+        "slope_deg": 20.9,
+        "twi": 10.53,
+        "dist_to_stream_m": 1012.0
+      }
+    },
+    {
+      "name": "Laxman Jhula",
+      "lat": 30.12592,
+      "lon": 78.32853,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 370.0,
+        "slope_deg": 8.5,
+        "twi": 6.39,
+        "dist_to_stream_m": 180.0
+      }
+    },
+    {
+      "name": "Bahādrābād",
+      "lat": 29.91973,
+      "lon": 78.04367,
+      "kind": "locality",
+      "parent_town": "Haridwar",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.007,
+      "terrain": {
+        "elevation_m": 279.0,
+        "slope_deg": 0.4,
+        "twi": 9.36,
+        "dist_to_stream_m": 127.0
+      }
+    },
+    {
+      "name": "Rājpur",
+      "lat": 30.38194,
+      "lon": 78.08873,
+      "kind": "locality",
+      "parent_town": "Mussoorie",
+      "ffpi": 3.8,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 881.0,
+        "slope_deg": 2.2,
+        "twi": 7.74,
+        "dist_to_stream_m": 577.0
+      }
+    },
+    {
+      "name": "Swargashram",
+      "lat": 30.11855,
+      "lon": 78.31382,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.25,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 9.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 351.0,
+        "slope_deg": 0.5,
+        "twi": 12.29,
+        "dist_to_stream_m": 652.0
+      }
+    },
+    {
+      "name": "Panditwadi",
+      "lat": 30.33156,
+      "lon": 77.99161,
+      "kind": "locality",
+      "parent_town": "Dehradun",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.004,
+      "terrain": {
+        "elevation_m": 644.0,
+        "slope_deg": 2.0,
+        "twi": 8.56,
+        "dist_to_stream_m": 1341.0
+      }
+    },
+    {
+      "name": "Premnagar",
+      "lat": 30.33523,
+      "lon": 77.964,
+      "kind": "locality",
+      "parent_town": "Dehradun",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.017,
+      "terrain": {
+        "elevation_m": 620.0,
+        "slope_deg": 1.1,
+        "twi": 8.48,
+        "dist_to_stream_m": 615.0
+      }
+    },
+    {
+      "name": "Ashirwad Enclave",
+      "lat": 30.33118,
+      "lon": 78.00767,
+      "kind": "locality",
+      "parent_town": "Dehradun",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.021,
+      "terrain": {
+        "elevation_m": 657.0,
+        "slope_deg": 1.1,
+        "twi": 8.5,
+        "dist_to_stream_m": 3154.0
+      }
+    },
+    {
+      "name": "Tapovan",
+      "lat": 30.12966,
+      "lon": 78.32211,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 440.0,
+        "slope_deg": 4.8,
+        "twi": 6.98,
+        "dist_to_stream_m": 652.0
+      }
+    },
+    {
+      "name": "Pandav Gufa",
+      "lat": 30.1322,
+      "lon": 78.33335,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.015,
+      "terrain": {
+        "elevation_m": 375.0,
+        "slope_deg": 17.6,
+        "twi": 6.34,
+        "dist_to_stream_m": 90.0
+      }
+    },
+    {
+      "name": "Maya Kund",
+      "lat": 30.10587,
+      "lon": 78.29885,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 353.0,
+        "slope_deg": 0.9,
+        "twi": 9.99,
+        "dist_to_stream_m": 450.0
+      }
+    },
+    {
+      "name": "Chauda Bigha",
+      "lat": 30.11335,
+      "lon": 78.30246,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 354.0,
+        "slope_deg": 0.7,
+        "twi": 8.87,
+        "dist_to_stream_m": 1266.0
+      }
+    },
+    {
+      "name": "Dhalwala",
+      "lat": 30.12139,
+      "lon": 78.28608,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 377.0,
+        "slope_deg": 0.9,
+        "twi": 8.65,
+        "dist_to_stream_m": 217.0
+      }
+    },
+    {
+      "name": "Muni Ki Reti",
+      "lat": 30.11983,
+      "lon": 78.30629,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 3.8,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 374.0,
+        "slope_deg": 8.7,
+        "twi": 6.38,
+        "dist_to_stream_m": 307.0
+      }
+    },
+    {
+      "name": "Ganga Vatika",
+      "lat": 30.12416,
+      "lon": 78.30537,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 4.0,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.009,
+      "terrain": {
+        "elevation_m": 405.0,
+        "slope_deg": 13.3,
+        "twi": 5.94,
+        "dist_to_stream_m": 217.0
+      }
+    },
+    {
+      "name": "Adarsh Nagar",
+      "lat": 30.10431,
+      "lon": 78.28817,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.25,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 365.0,
+        "slope_deg": 3.0,
+        "twi": 8.14,
+        "dist_to_stream_m": 307.0
+      }
+    },
+    {
+      "name": "TDHC Colony",
+      "lat": 30.10791,
+      "lon": 78.28211,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.004,
+      "terrain": {
+        "elevation_m": 380.0,
+        "slope_deg": 0.4,
+        "twi": 10.11,
+        "dist_to_stream_m": 906.0
+      }
+    },
+    {
+      "name": "Pragati Vihar",
+      "lat": 30.11066,
+      "lon": 78.28408,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 3.6,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.003,
+      "terrain": {
+        "elevation_m": 382.0,
+        "slope_deg": 1.1,
+        "twi": 8.5,
+        "dist_to_stream_m": 2136.0
+      }
+    },
+    {
+      "name": "Ashutosh Nagar",
+      "lat": 30.11429,
+      "lon": 78.28635,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 379.0,
+        "slope_deg": 1.2,
+        "twi": 9.48,
+        "dist_to_stream_m": 435.0
+      }
+    },
+    {
+      "name": "Adarsh Gram",
+      "lat": 30.11047,
+      "lon": 78.29381,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 364.0,
+        "slope_deg": 0.8,
+        "twi": 8.81,
+        "dist_to_stream_m": 435.0
+      }
+    },
+    {
+      "name": "BSNL Colony",
+      "lat": 30.11512,
+      "lon": 78.28179,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 388.0,
+        "slope_deg": 1.2,
+        "twi": 8.38,
+        "dist_to_stream_m": 599.0
+      }
+    },
+    {
+      "name": "Someshwar Nagar",
+      "lat": 30.0973,
+      "lon": 78.27773,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.005,
+      "terrain": {
+        "elevation_m": 371.0,
+        "slope_deg": 2.1,
+        "twi": 8.92,
+        "dist_to_stream_m": 1589.0
+      }
+    },
+    {
+      "name": "Kolghatti",
+      "lat": 30.09573,
+      "lon": 78.28623,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 350.0,
+        "slope_deg": 0.4,
+        "twi": 9.37,
+        "dist_to_stream_m": 1986.0
+      }
+    },
+    {
+      "name": "Lala Bazar",
+      "lat": 29.59893,
+      "lon": 79.66013,
+      "kind": "locality",
+      "parent_town": "Almora",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.037,
+      "terrain": {
+        "elevation_m": 1599.0,
+        "slope_deg": 3.2,
+        "twi": 7.38,
+        "dist_to_stream_m": 2210.0
+      }
+    },
+    {
+      "name": "Kaulagarh",
+      "lat": 30.35011,
+      "lon": 78.00702,
+      "kind": "locality",
+      "parent_town": "Dehradun",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.003,
+      "terrain": {
+        "elevation_m": 682.0,
+        "slope_deg": 0.9,
+        "twi": 8.66,
+        "dist_to_stream_m": 1409.0
+      }
+    },
+    {
+      "name": "Sivananda Nagar",
+      "lat": 30.12347,
+      "lon": 78.31088,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.004,
+      "terrain": {
+        "elevation_m": 376.0,
+        "slope_deg": 13.3,
+        "twi": 7.55,
+        "dist_to_stream_m": 180.0
+      }
+    },
+    {
+      "name": "Shyampur",
+      "lat": 30.06334,
+      "lon": 78.23532,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 3.6,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.005,
+      "terrain": {
+        "elevation_m": 343.0,
+        "slope_deg": 0.5,
+        "twi": 9.27,
+        "dist_to_stream_m": 217.0
+      }
+    },
+    {
+      "name": "Har Ki Pauri",
+      "lat": 29.95664,
+      "lon": 78.17086,
+      "kind": "locality",
+      "parent_town": "Haridwar",
+      "ffpi": 5.8,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 295.0,
+        "slope_deg": 8.6,
+        "twi": 7.77,
+        "dist_to_stream_m": 180.0
+      }
+    },
+    {
+      "name": "IDPL Colony",
+      "lat": 30.0783,
+      "lon": 78.26413,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 6.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 353.0,
+        "slope_deg": 0.9,
+        "twi": 11.24,
+        "dist_to_stream_m": 705.0
+      }
+    },
+    {
+      "name": "Chhoti Haldwani",
+      "lat": 29.28241,
+      "lon": 79.34928,
+      "kind": "locality",
+      "parent_town": "Nainital",
+      "ffpi": 5.8,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.003,
+      "terrain": {
+        "elevation_m": 396.0,
+        "slope_deg": 2.1,
+        "twi": 9.58,
+        "dist_to_stream_m": 4727.0
+      }
+    },
+    {
+      "name": "Panchayat Ghar",
+      "lat": 29.17139,
+      "lon": 79.48863,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 366.0,
+        "slope_deg": 0.6,
+        "twi": 8.99,
+        "dist_to_stream_m": 1903.0
+      }
+    },
+    {
+      "name": "Ganna Centre",
+      "lat": 29.15784,
+      "lon": 79.48054,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 3.6,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 344.0,
+        "slope_deg": 1.1,
+        "twi": 8.42,
+        "dist_to_stream_m": 90.0
+      }
+    },
+    {
+      "name": "Mukhani",
+      "lat": 29.21804,
+      "lon": 79.51853,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.014,
+      "terrain": {
+        "elevation_m": 438.0,
+        "slope_deg": 1.0,
+        "twi": 8.52,
+        "dist_to_stream_m": 487.0
+      }
+    },
+    {
+      "name": "Panchakki",
+      "lat": 29.24098,
+      "lon": 79.52881,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 9.0
+      },
+      "model_prob": 0.004,
+      "terrain": {
+        "elevation_m": 472.0,
+        "slope_deg": 1.0,
+        "twi": 14.43,
+        "dist_to_stream_m": 90.0
+      }
+    },
+    {
+      "name": "Lal Danth",
+      "lat": 29.23006,
+      "lon": 79.51785,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.017,
+      "terrain": {
+        "elevation_m": 449.0,
+        "slope_deg": 0.4,
+        "twi": 9.49,
+        "dist_to_stream_m": 90.0
+      }
+    },
+    {
+      "name": "Unchapul",
+      "lat": 29.22586,
+      "lon": 79.49736,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.011,
+      "terrain": {
+        "elevation_m": 431.0,
+        "slope_deg": 1.4,
+        "twi": 8.2,
+        "dist_to_stream_m": 270.0
+      }
+    },
+    {
+      "name": "Roshanabad",
+      "lat": 29.9732,
+      "lon": 78.05713,
+      "kind": "locality",
+      "parent_town": "Haridwar",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 6.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 319.0,
+        "slope_deg": 0.5,
+        "twi": 9.94,
+        "dist_to_stream_m": 2375.0
+      }
+    },
+    {
+      "name": "Integrated Industrial Estate",
+      "lat": 29.95962,
+      "lon": 78.06576,
+      "kind": "locality",
+      "parent_town": "Haridwar",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 4.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 317.0,
+        "slope_deg": 1.1,
+        "twi": 8.41,
+        "dist_to_stream_m": 5289.0
+      }
+    },
+    {
+      "name": "BHEL Township",
+      "lat": 29.93861,
+      "lon": 78.11228,
+      "kind": "locality",
+      "parent_town": "Haridwar",
+      "ffpi": 3.8,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 296.0,
+        "slope_deg": 1.4,
+        "twi": 9.86,
+        "dist_to_stream_m": 2368.0
+      }
+    },
+    {
+      "name": "Mallital",
+      "lat": 29.39221,
+      "lon": 79.45476,
+      "kind": "locality",
+      "parent_town": "Nainital",
+      "ffpi": 6.2,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.053,
+      "terrain": {
+        "elevation_m": 1957.0,
+        "slope_deg": 10.6,
+        "twi": 7.56,
+        "dist_to_stream_m": 906.0
+      }
+    },
+    {
+      "name": "Talllital",
+      "lat": 29.37901,
+      "lon": 79.46275,
+      "kind": "locality",
+      "parent_town": "Nainital",
+      "ffpi": 5.75,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.112,
+      "terrain": {
+        "elevation_m": 1983.0,
+        "slope_deg": 16.6,
+        "twi": 5.71,
+        "dist_to_stream_m": 270.0
+      }
+    },
+    {
+      "name": "Halduchaur",
+      "lat": 29.11016,
+      "lon": 79.51955,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 6.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 300.0,
+        "slope_deg": 1.0,
+        "twi": 9.96,
+        "dist_to_stream_m": 3306.0
+      }
+    },
+    {
+      "name": "Motahaldu",
+      "lat": 29.14042,
+      "lon": 79.52093,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 338.0,
+        "slope_deg": 0.8,
+        "twi": 8.72,
+        "dist_to_stream_m": 5621.0
+      }
+    },
+    {
+      "name": "Judge Farm",
+      "lat": 29.21104,
+      "lon": 79.51265,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.021,
+      "terrain": {
+        "elevation_m": 424.0,
+        "slope_deg": 1.2,
+        "twi": 8.37,
+        "dist_to_stream_m": 6233.0
+      }
+    },
+    {
+      "name": "Pilikothi",
+      "lat": 29.21445,
+      "lon": 79.50795,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 3.0,
+      "ffpi_band": "VERY LOW",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 2.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.021,
+      "terrain": {
+        "elevation_m": 424.0,
+        "slope_deg": 0.7,
+        "twi": 11.31,
+        "dist_to_stream_m": 5836.0
+      }
+    },
+    {
+      "name": "Heera Nagar",
+      "lat": 29.21391,
+      "lon": 79.51897,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.011,
+      "terrain": {
+        "elevation_m": 430.0,
+        "slope_deg": 0.5,
+        "twi": 9.23,
+        "dist_to_stream_m": 2862.0
+      }
+    },
+    {
+      "name": "Chharayal",
+      "lat": 29.20325,
+      "lon": 79.48998,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 399.0,
+        "slope_deg": 1.1,
+        "twi": 9.14,
+        "dist_to_stream_m": 3386.0
+      }
+    },
+    {
+      "name": "Kusumkhera",
+      "lat": 29.219,
+      "lon": 79.50249,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.024,
+      "terrain": {
+        "elevation_m": 426.0,
+        "slope_deg": 0.8,
+        "twi": 8.79,
+        "dist_to_stream_m": 5798.0
+      }
+    },
+    {
+      "name": "Bomari Tallikham",
+      "lat": 29.22352,
+      "lon": 79.512,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 3.6,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.016,
+      "terrain": {
+        "elevation_m": 440.0,
+        "slope_deg": 0.7,
+        "twi": 8.95,
+        "dist_to_stream_m": 1139.0
+      }
+    },
+    {
+      "name": "Bithoria No1",
+      "lat": 29.23319,
+      "lon": 79.51182,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 9.0
+      },
+      "model_prob": 0.03,
+      "terrain": {
+        "elevation_m": 448.0,
+        "slope_deg": 1.0,
+        "twi": 12.48,
+        "dist_to_stream_m": 1356.0
+      }
+    },
+    {
+      "name": "Bamori Malli",
+      "lat": 29.23462,
+      "lon": 79.52711,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.023,
+      "terrain": {
+        "elevation_m": 462.0,
+        "slope_deg": 1.0,
+        "twi": 8.59,
+        "dist_to_stream_m": 6009.0
+      }
+    },
+    {
+      "name": "Bamori Talli Kham",
+      "lat": 29.23594,
+      "lon": 79.51433,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 4.8,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 6.0,
+        "convergence": 9.0
+      },
+      "model_prob": 0.011,
+      "terrain": {
+        "elevation_m": 453.0,
+        "slope_deg": 1.3,
+        "twi": 13.78,
+        "dist_to_stream_m": 1844.0
+      }
+    },
+    {
+      "name": "Dewarchaur Kham",
+      "lat": 29.19662,
+      "lon": 79.52337,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 409.0,
+        "slope_deg": 1.8,
+        "twi": 9.33,
+        "dist_to_stream_m": 4594.0
+      }
+    },
+    {
+      "name": "Haldwani Talli",
+      "lat": 29.18682,
+      "lon": 79.5162,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 394.0,
+        "slope_deg": 0.4,
+        "twi": 9.4,
+        "dist_to_stream_m": 4826.0
+      }
+    },
+    {
+      "name": "Bithoria No 2",
+      "lat": 29.23435,
+      "lon": 79.50513,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.023,
+      "terrain": {
+        "elevation_m": 448.0,
+        "slope_deg": 0.7,
+        "twi": 11.2,
+        "dist_to_stream_m": 5836.0
+      }
+    },
+    {
+      "name": "Damua Dhunga Kham",
+      "lat": 29.24441,
+      "lon": 79.51762,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 503.0,
+        "slope_deg": 4.4,
+        "twi": 7.75,
+        "dist_to_stream_m": 2893.0
+      }
+    },
+    {
+      "name": "Haripur Seel",
+      "lat": 29.24045,
+      "lon": 79.52662,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.014,
+      "terrain": {
+        "elevation_m": 472.0,
+        "slope_deg": 1.6,
+        "twi": 9.47,
+        "dist_to_stream_m": 615.0
+      }
+    },
+    {
+      "name": "Harinagar",
+      "lat": 29.2214,
+      "lon": 79.51981,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.25,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 9.0
+      },
+      "model_prob": 0.022,
+      "terrain": {
+        "elevation_m": 440.0,
+        "slope_deg": 0.1,
+        "twi": 14.83,
+        "dist_to_stream_m": 4038.0
+      }
+    },
+    {
+      "name": "Kamaluwa Ganja Narsingh Talla",
+      "lat": 29.21091,
+      "lon": 79.47846,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 6.0,
+        "convergence": 10.0
+      },
+      "model_prob": 0.003,
+      "terrain": {
+        "elevation_m": 393.0,
+        "slope_deg": 0.5,
+        "twi": 16.11,
+        "dist_to_stream_m": 0.0
+      }
+    },
+    {
+      "name": "Chharaval Nayabad",
+      "lat": 29.20405,
+      "lon": 79.48044,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.005,
+      "terrain": {
+        "elevation_m": 393.0,
+        "slope_deg": 0.7,
+        "twi": 8.84,
+        "dist_to_stream_m": 1446.0
+      }
+    },
+    {
+      "name": "Chharayal Nayak",
+      "lat": 29.20158,
+      "lon": 79.48604,
+      "kind": "locality",
+      "parent_town": "Haldwani",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.002,
+      "terrain": {
+        "elevation_m": 395.0,
+        "slope_deg": 0.9,
+        "twi": 9.36,
+        "dist_to_stream_m": 2741.0
+      }
+    },
+    {
+      "name": "Ganga Vihar Colony",
+      "lat": 30.09704,
+      "lon": 78.28744,
+      "kind": "locality",
+      "parent_town": "Rishikesh",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 348.0,
+        "slope_deg": 0.8,
+        "twi": 8.82,
+        "dist_to_stream_m": 270.0
+      }
+    },
+    {
+      "name": "Missarpur",
+      "lat": 29.88985,
+      "lon": 78.13382,
+      "kind": "locality",
+      "parent_town": "Haridwar",
+      "ffpi": 4.0,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 9.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 273.0,
+        "slope_deg": 0.3,
+        "twi": 15.93,
+        "dist_to_stream_m": 1506.0
+      }
+    },
+    {
+      "name": "Arhat Bazar",
+      "lat": 30.31694,
+      "lon": 78.0297,
+      "kind": "locality",
+      "parent_town": "Dehradun",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.011,
+      "terrain": {
+        "elevation_m": 650.0,
+        "slope_deg": 1.6,
+        "twi": 9.16,
+        "dist_to_stream_m": 2697.0
+      }
+    },
+    {
+      "name": "Kochar Colony",
+      "lat": 30.36811,
+      "lon": 78.07113,
+      "kind": "locality",
+      "parent_town": "Dehradun",
+      "ffpi": 5.8,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 781.0,
+        "slope_deg": 7.7,
+        "twi": 7.89,
+        "dist_to_stream_m": 180.0
+      }
+    },
+    {
+      "name": "Bungalow ki Kandli",
+      "lat": 30.48102,
+      "lon": 78.03614,
+      "kind": "locality",
+      "parent_town": "Mussoorie",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.036,
+      "terrain": {
+        "elevation_m": 1577.0,
+        "slope_deg": 22.0,
+        "twi": 6.1,
+        "dist_to_stream_m": 255.0
+      }
+    },
+    {
+      "name": "Picture Palace",
+      "lat": 30.45572,
+      "lon": 78.0804,
+      "kind": "locality",
+      "parent_town": "Mussoorie",
+      "ffpi": 6.2,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.121,
+      "terrain": {
+        "elevation_m": 2007.0,
+        "slope_deg": 18.0,
+        "twi": 6.32,
+        "dist_to_stream_m": 2787.0
+      }
+    },
+    {
+      "name": "Dakra Bazar",
+      "lat": 30.35402,
+      "lon": 78.0307,
+      "kind": "locality",
+      "parent_town": "Dehradun",
+      "ffpi": 4.75,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 1.0,
+        "soil": null,
+        "landcover": 10.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.032,
+      "terrain": {
+        "elevation_m": 702.0,
+        "slope_deg": 1.4,
+        "twi": 9.28,
+        "dist_to_stream_m": 2300.0
+      }
+    },
+    {
+      "name": "Happy Valley",
+      "lat": 30.46975,
+      "lon": 78.05152,
+      "kind": "locality",
+      "parent_town": "Mussoorie",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.326,
+      "terrain": {
+        "elevation_m": 1968.0,
+        "slope_deg": 6.6,
+        "twi": 6.66,
+        "dist_to_stream_m": 2142.0
+      }
+    },
+    {
+      "name": "Deckyiling",
+      "lat": 30.3696,
+      "lon": 78.09941,
+      "kind": "locality",
+      "parent_town": "Dehradun",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.001,
+      "terrain": {
+        "elevation_m": 860.0,
+        "slope_deg": 3.5,
+        "twi": 7.98,
+        "dist_to_stream_m": 3889.0
+      }
+    },
+    {
+      "name": "Gagarigol",
+      "lat": 29.90309,
+      "lon": 79.63945,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 6.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.817,
+      "terrain": {
+        "elevation_m": 1109.0,
+        "slope_deg": 8.6,
+        "twi": 7.49,
+        "dist_to_stream_m": 217.0
+      }
+    },
+    {
+      "name": "Charethi",
+      "lat": 30.81802,
+      "lon": 78.61817,
+      "kind": "locality",
+      "parent_town": "Uttarkashi district",
+      "ffpi": 6.0,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.297,
+      "terrain": {
+        "elevation_m": 1637.0,
+        "slope_deg": 21.8,
+        "twi": 7.5,
+        "dist_to_stream_m": 217.0
+      }
+    },
+    {
+      "name": "Bhatwari",
+      "lat": 30.81116,
+      "lon": 78.61954,
+      "kind": "locality",
+      "parent_town": "Uttarkashi district",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.274,
+      "terrain": {
+        "elevation_m": 1574.0,
+        "slope_deg": 18.8,
+        "twi": 7.78,
+        "dist_to_stream_m": 90.0
+      }
+    },
+    {
+      "name": "Raithal",
+      "lat": 30.81672,
+      "lon": 78.60379,
+      "kind": "locality",
+      "parent_town": "Uttarkashi district",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.781,
+      "terrain": {
+        "elevation_m": 2145.0,
+        "slope_deg": 16.0,
+        "twi": 6.84,
+        "dist_to_stream_m": 1506.0
+      }
+    },
+    {
+      "name": "Dwari",
+      "lat": 30.80485,
+      "lon": 78.61998,
+      "kind": "locality",
+      "parent_town": "Uttarkashi district",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 7.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.112,
+      "terrain": {
+        "elevation_m": 1584.0,
+        "slope_deg": 28.2,
+        "twi": 6.22,
+        "dist_to_stream_m": 180.0
+      }
+    },
+    {
+      "name": "Kadari",
+      "lat": 30.60934,
+      "lon": 78.78501,
+      "kind": "locality",
+      "parent_town": "Tehri Garhwal district",
+      "ffpi": 6.0,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.762,
+      "terrain": {
+        "elevation_m": 3252.0,
+        "slope_deg": 22.5,
+        "twi": 7.87,
+        "dist_to_stream_m": 2300.0
+      }
+    },
+    {
+      "name": "Chhani",
+      "lat": 30.9478,
+      "lon": 78.24004,
+      "kind": "locality",
+      "parent_town": "Uttarkashi district",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 4.0,
+        "landcover": 5.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.25,
+      "terrain": {
+        "elevation_m": 2223.0,
+        "slope_deg": 22.0,
+        "twi": 6.5,
+        "dist_to_stream_m": 742.0
+      }
+    },
+    {
+      "name": "Dingari",
+      "lat": 30.94652,
+      "lon": 78.21732,
+      "kind": "locality",
+      "parent_town": "Uttarkashi district",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 4.0,
+        "landcover": 10.0,
+        "convergence": 2.0
+      },
+      "model_prob": 0.717,
+      "terrain": {
+        "elevation_m": 2118.0,
+        "slope_deg": 21.0,
+        "twi": 5.46,
+        "dist_to_stream_m": 630.0
+      }
+    },
+    {
+      "name": "Paunti",
+      "lat": 30.9474,
+      "lon": 78.23579,
+      "kind": "locality",
+      "parent_town": "Uttarkashi district",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 4.0,
+        "landcover": 5.0,
+        "convergence": 2.0
+      },
+      "model_prob": 0.176,
+      "terrain": {
+        "elevation_m": 2075.0,
+        "slope_deg": 24.2,
+        "twi": 5.3,
+        "dist_to_stream_m": 217.0
+      }
+    },
+    {
+      "name": "Surnaul",
+      "lat": 30.92511,
+      "lon": 78.22216,
+      "kind": "locality",
+      "parent_town": "Uttarkashi district",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.778,
+      "terrain": {
+        "elevation_m": 2130.0,
+        "slope_deg": 17.2,
+        "twi": 6.36,
+        "dist_to_stream_m": 1124.0
+      }
+    },
+    {
+      "name": "Banthapla",
+      "lat": 30.31934,
+      "lon": 79.10833,
+      "kind": "locality",
+      "parent_town": "Rudraprayag district",
+      "ffpi": 6.0,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.04,
+      "terrain": {
+        "elevation_m": 1563.0,
+        "slope_deg": 15.9,
+        "twi": 5.75,
+        "dist_to_stream_m": 3110.0
+      }
+    },
+    {
+      "name": "Baneshwar",
+      "lat": 29.8913,
+      "lon": 79.62387,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.929,
+      "terrain": {
+        "elevation_m": 1324.0,
+        "slope_deg": 13.7,
+        "twi": 6.61,
+        "dist_to_stream_m": 1034.0
+      }
+    },
+    {
+      "name": "Garaser",
+      "lat": 29.90074,
+      "lon": 79.62049,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 10.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.853,
+      "terrain": {
+        "elevation_m": 1147.0,
+        "slope_deg": 6.4,
+        "twi": 6.69,
+        "dist_to_stream_m": 255.0
+      }
+    },
+    {
+      "name": "Kotuli",
+      "lat": 29.89382,
+      "lon": 79.63403,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.883,
+      "terrain": {
+        "elevation_m": 1188.0,
+        "slope_deg": 13.9,
+        "twi": 7.68,
+        "dist_to_stream_m": 1086.0
+      }
+    },
+    {
+      "name": "Jinakhola",
+      "lat": 29.89306,
+      "lon": 79.63134,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.4,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.905,
+      "terrain": {
+        "elevation_m": 1237.0,
+        "slope_deg": 17.1,
+        "twi": 5.68,
+        "dist_to_stream_m": 1394.0
+      }
+    },
+    {
+      "name": "Matena",
+      "lat": 29.89749,
+      "lon": 79.62612,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.2,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.844,
+      "terrain": {
+        "elevation_m": 1151.0,
+        "slope_deg": 12.5,
+        "twi": 7.39,
+        "dist_to_stream_m": 270.0
+      }
+    },
+    {
+      "name": "Selakhula",
+      "lat": 29.89527,
+      "lon": 79.62785,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.886,
+      "terrain": {
+        "elevation_m": 1195.0,
+        "slope_deg": 17.9,
+        "twi": 6.32,
+        "dist_to_stream_m": 1176.0
+      }
+    },
+    {
+      "name": "Band",
+      "lat": 29.89551,
+      "lon": 79.6403,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.85,
+      "terrain": {
+        "elevation_m": 1140.0,
+        "slope_deg": 15.5,
+        "twi": 7.39,
+        "dist_to_stream_m": 472.0
+      }
+    },
+    {
+      "name": "mamooya ka Paur",
+      "lat": 30.29278,
+      "lon": 78.42586,
+      "kind": "locality",
+      "parent_town": "Tehri Garhwal district",
+      "ffpi": 4.4,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.081,
+      "terrain": {
+        "elevation_m": 1879.0,
+        "slope_deg": 19.4,
+        "twi": 5.54,
+        "dist_to_stream_m": 2166.0
+      }
+    },
+    {
+      "name": "Baungad",
+      "lat": 29.86739,
+      "lon": 80.04763,
+      "kind": "locality",
+      "parent_town": "Pithoragarh district",
+      "ffpi": 4.2,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.368,
+      "terrain": {
+        "elevation_m": 1362.0,
+        "slope_deg": 11.8,
+        "twi": 6.07,
+        "dist_to_stream_m": 270.0
+      }
+    },
+    {
+      "name": "Bhainsket",
+      "lat": 29.86435,
+      "lon": 80.06289,
+      "kind": "locality",
+      "parent_town": "Pithoragarh district",
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.292,
+      "terrain": {
+        "elevation_m": 1352.0,
+        "slope_deg": 22.8,
+        "twi": 6.06,
+        "dist_to_stream_m": 795.0
+      }
+    },
+    {
+      "name": "Lohari Talli",
+      "lat": 29.88847,
+      "lon": 79.61747,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 3.8,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.928,
+      "terrain": {
+        "elevation_m": 1306.0,
+        "slope_deg": 9.6,
+        "twi": 6.27,
+        "dist_to_stream_m": 885.0
+      }
+    },
+    {
+      "name": "Selihat",
+      "lat": 29.89453,
+      "lon": 79.61629,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.881,
+      "terrain": {
+        "elevation_m": 1207.0,
+        "slope_deg": 18.7,
+        "twi": 6.28,
+        "dist_to_stream_m": 435.0
+      }
+    },
+    {
+      "name": "gadholi",
+      "lat": 29.65916,
+      "lon": 79.6694,
+      "kind": "locality",
+      "parent_town": "Almora",
+      "ffpi": 4.4,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.116,
+      "terrain": {
+        "elevation_m": 1778.0,
+        "slope_deg": 17.6,
+        "twi": 5.65,
+        "dist_to_stream_m": 2930.0
+      }
+    },
+    {
+      "name": "pilkha",
+      "lat": 29.66577,
+      "lon": 79.66146,
+      "kind": "locality",
+      "parent_town": "Almora",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.472,
+      "terrain": {
+        "elevation_m": 1394.0,
+        "slope_deg": 17.4,
+        "twi": 6.76,
+        "dist_to_stream_m": 2188.0
+      }
+    },
+    {
+      "name": "malera",
+      "lat": 29.66533,
+      "lon": 79.65107,
+      "kind": "locality",
+      "parent_town": "Almora",
+      "ffpi": 4.4,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.341,
+      "terrain": {
+        "elevation_m": 1242.0,
+        "slope_deg": 8.8,
+        "twi": 6.36,
+        "dist_to_stream_m": 1049.0
+      }
+    },
+    {
+      "name": "Chaura Gutti",
+      "lat": 29.47799,
+      "lon": 79.89408,
+      "kind": "locality",
+      "parent_town": "Champawat district",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.238,
+      "terrain": {
+        "elevation_m": 996.0,
+        "slope_deg": 24.7,
+        "twi": 5.97,
+        "dist_to_stream_m": 1049.0
+      }
+    },
+    {
+      "name": "Gagar",
+      "lat": 29.46129,
+      "lon": 79.89269,
+      "kind": "locality",
+      "parent_town": "Champawat district",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 7.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.415,
+      "terrain": {
+        "elevation_m": 1377.0,
+        "slope_deg": 27.2,
+        "twi": 6.78,
+        "dist_to_stream_m": 1484.0
+      }
+    },
+    {
+      "name": "Kholagad",
+      "lat": 29.47583,
+      "lon": 79.90715,
+      "kind": "locality",
+      "parent_town": "Champawat district",
+      "ffpi": 4.8,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.048,
+      "terrain": {
+        "elevation_m": 1045.0,
+        "slope_deg": 17.0,
+        "twi": 6.78,
+        "dist_to_stream_m": 1552.0
+      }
+    },
+    {
+      "name": "Gagrar",
+      "lat": 29.47828,
+      "lon": 79.89939,
+      "kind": "locality",
+      "parent_town": "Champawat district",
+      "ffpi": 4.8,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.192,
+      "terrain": {
+        "elevation_m": 1055.0,
+        "slope_deg": 18.8,
+        "twi": 6.96,
+        "dist_to_stream_m": 996.0
+      }
+    },
+    {
+      "name": "mayun",
+      "lat": 29.79783,
+      "lon": 79.84838,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 6.0,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.887,
+      "terrain": {
+        "elevation_m": 1391.0,
+        "slope_deg": 21.4,
+        "twi": 7.05,
+        "dist_to_stream_m": 944.0
+      }
+    },
+    {
+      "name": "gadkhet",
+      "lat": 29.79481,
+      "lon": 79.84988,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.4,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 8.0
+      },
+      "model_prob": 0.927,
+      "terrain": {
+        "elevation_m": 1288.0,
+        "slope_deg": 18.7,
+        "twi": 11.37,
+        "dist_to_stream_m": 562.0
+      }
+    },
+    {
+      "name": "shyaldoba",
+      "lat": 29.8022,
+      "lon": 79.82932,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.4,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.314,
+      "terrain": {
+        "elevation_m": 1459.0,
+        "slope_deg": 7.0,
+        "twi": 9.16,
+        "dist_to_stream_m": 1903.0
+      }
+    },
+    {
+      "name": "chamoli",
+      "lat": 29.79043,
+      "lon": 79.82808,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 6.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.913,
+      "terrain": {
+        "elevation_m": 1374.0,
+        "slope_deg": 9.7,
+        "twi": 7.37,
+        "dist_to_stream_m": 1918.0
+      }
+    },
+    {
+      "name": "bhiri",
+      "lat": 29.79215,
+      "lon": 79.83338,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 2.0,
+        "soil": 7.0,
+        "landcover": 6.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.744,
+      "terrain": {
+        "elevation_m": 1450.0,
+        "slope_deg": 3.4,
+        "twi": 7.32,
+        "dist_to_stream_m": 2263.0
+      }
+    },
+    {
+      "name": "matoli",
+      "lat": 29.78656,
+      "lon": 79.83299,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.219,
+      "terrain": {
+        "elevation_m": 1288.0,
+        "slope_deg": 13.9,
+        "twi": 5.9,
+        "dist_to_stream_m": 922.0
+      }
+    },
+    {
+      "name": "halda",
+      "lat": 29.79427,
+      "lon": 79.8564,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.8,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 5.0
+      },
+      "model_prob": 0.728,
+      "terrain": {
+        "elevation_m": 1420.0,
+        "slope_deg": 18.4,
+        "twi": 6.7,
+        "dist_to_stream_m": 1378.0
+      }
+    },
+    {
+      "name": "gurana",
+      "lat": 29.79701,
+      "lon": 79.85868,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.71,
+      "terrain": {
+        "elevation_m": 1492.0,
+        "slope_deg": 24.4,
+        "twi": 6.39,
+        "dist_to_stream_m": 1558.0
+      }
+    },
+    {
+      "name": "tachhni",
+      "lat": 29.78619,
+      "lon": 79.84474,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.4,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.2,
+      "terrain": {
+        "elevation_m": 1096.0,
+        "slope_deg": 16.8,
+        "twi": 5.7,
+        "dist_to_stream_m": 345.0
+      }
+    },
+    {
+      "name": "dabauli",
+      "lat": 29.78025,
+      "lon": 79.84099,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.6,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.014,
+      "terrain": {
+        "elevation_m": 941.0,
+        "slope_deg": 12.8,
+        "twi": 7.59,
+        "dist_to_stream_m": 127.0
+      }
+    },
+    {
+      "name": "amkhet",
+      "lat": 29.77731,
+      "lon": 79.84512,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 6.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.03,
+      "terrain": {
+        "elevation_m": 934.0,
+        "slope_deg": 23.8,
+        "twi": 8.21,
+        "dist_to_stream_m": 90.0
+      }
+    },
+    {
+      "name": "kimoli",
+      "lat": 29.80295,
+      "lon": 79.84893,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.0,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.649,
+      "terrain": {
+        "elevation_m": 1623.0,
+        "slope_deg": 13.3,
+        "twi": 5.95,
+        "dist_to_stream_m": 1776.0
+      }
+    },
+    {
+      "name": "hurali",
+      "lat": 29.8801,
+      "lon": 79.93867,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.2,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.108,
+      "terrain": {
+        "elevation_m": 1267.0,
+        "slope_deg": 12.5,
+        "twi": 6.01,
+        "dist_to_stream_m": 397.0
+      }
+    },
+    {
+      "name": "khatigaon",
+      "lat": 29.88843,
+      "lon": 79.94304,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 5.6,
+      "ffpi_band": "HIGH",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 5.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.211,
+      "terrain": {
+        "elevation_m": 1301.0,
+        "slope_deg": 17.7,
+        "twi": 7.43,
+        "dist_to_stream_m": 435.0
+      }
+    },
+    {
+      "name": "pothan",
+      "lat": 29.88849,
+      "lon": 79.93701,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.4,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 3.0
+      },
+      "model_prob": 0.19,
+      "terrain": {
+        "elevation_m": 1399.0,
+        "slope_deg": 15.4,
+        "twi": 5.79,
+        "dist_to_stream_m": 816.0
+      }
+    },
+    {
+      "name": "binari",
+      "lat": 29.89228,
+      "lon": 79.93538,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 3.8,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.014,
+      "terrain": {
+        "elevation_m": 1468.0,
+        "slope_deg": 8.0,
+        "twi": 6.46,
+        "dist_to_stream_m": 1341.0
+      }
+    },
+    {
+      "name": "kirai",
+      "lat": 29.88862,
+      "lon": 79.95002,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 4.8,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 4.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 7.0
+      },
+      "model_prob": 0.371,
+      "terrain": {
+        "elevation_m": 1330.0,
+        "slope_deg": 14.9,
+        "twi": 8.46,
+        "dist_to_stream_m": 562.0
+      }
+    },
+    {
+      "name": "odyar",
+      "lat": 29.90022,
+      "lon": 79.94596,
+      "kind": "locality",
+      "parent_town": "Bageshwar district",
+      "ffpi": 3.8,
+      "ffpi_band": "LOW",
+      "ffpi_components": {
+        "slope": 3.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 4.0
+      },
+      "model_prob": 0.007,
+      "terrain": {
+        "elevation_m": 1566.0,
+        "slope_deg": 8.3,
+        "twi": 6.43,
+        "dist_to_stream_m": 1155.0
+      }
+    },
+    {
+      "name": "Tripuradevi",
+      "lat": 29.76062,
+      "lon": 80.04392,
+      "kind": "locality",
+      "parent_town": "Pithoragarh district",
+      "ffpi": 5.0,
+      "ffpi_band": "MODERATE",
+      "ffpi_components": {
+        "slope": 5.0,
+        "soil": 7.0,
+        "landcover": 2.0,
+        "convergence": 6.0
+      },
+      "model_prob": 0.626,
+      "terrain": {
+        "elevation_m": 1581.0,
+        "slope_deg": 19.5,
+        "twi": 7.15,
+        "dist_to_stream_m": 1049.0
+      }
+    }
+  ]
+}

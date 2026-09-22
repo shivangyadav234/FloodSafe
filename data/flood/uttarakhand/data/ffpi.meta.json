@@ -1,0 +1,59 @@
+{
+  "created_utc": "2026-09-22T13:26:49.206249+00:00",
+  "resolution_m": 90,
+  "method": "Flash Flood Potential Index (Smith 2003), weighted mean of 1-10 reindexed physical drivers",
+  "weights": {
+    "slope": 2.0,
+    "soil": 1.0,
+    "landcover": 1.0,
+    "convergence": 1.0
+  },
+  "sources": {
+    "slope": "Copernicus DEM GLO-30 (ESA) via WhiteboxTools",
+    "convergence": "topographic wetness index from the same DEM",
+    "soil": "SoilGrids v2.0 (ISRIC) -> simplified NRCS Hydrologic Soil Group",
+    "landcover": "ESA WorldCover 2021 v200"
+  },
+  "scale": "1-10, higher = greater flash-flood potential",
+  "is_probability": false,
+  "coverage_cells": 6752549,
+  "statistics": {
+    "min": 2.2,
+    "max": 9.25,
+    "mean": 5.316469802736715,
+    "median": 5.2
+  },
+  "bands": [
+    {
+      "upper": 3.5,
+      "name": "VERY LOW"
+    },
+    {
+      "upper": 4.5,
+      "name": "LOW"
+    },
+    {
+      "upper": 5.5,
+      "name": "MODERATE"
+    },
+    {
+      "upper": 6.5,
+      "name": "HIGH"
+    },
+    {
+      "upper": 99.0,
+      "name": "VERY HIGH"
+    }
+  ],
+  "lookup_grid": {
+    "bounds": [
+      77.5,
+      28.65,
+      81.1,
+      31.5
+    ],
+    "step_deg": 0.001,
+    "scale": 25.0,
+    "nodata": 255
+  }
+}

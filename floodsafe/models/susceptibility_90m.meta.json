@@ -1,0 +1,83 @@
+{
+  "created_utc": "2026-09-22T13:17:40.710316+00:00",
+  "resolution_m": 90,
+  "target": "P(elevated flash-flood hazard: EXTREME/SIGNIFICANT/MODERATE vs LOW)",
+  "n_rows": 13792,
+  "n_polygons": 189,
+  "label_counts": {
+    "0": 10857,
+    "1": 2935
+  },
+  "features": [
+    "elevation_m",
+    "slope_deg",
+    "plan_curv",
+    "prof_curv",
+    "twi",
+    "spi",
+    "sca",
+    "flowacc_cells",
+    "dist_to_stream_m",
+    "ruggedness",
+    "soil_sand_pct",
+    "soil_clay_pct",
+    "soil_silt_pct",
+    "soil_hsg",
+    "catchment_up_km2",
+    "catchment_sub_km2"
+  ],
+  "params": {
+    "objective": "binary:logistic",
+    "eval_metric": "logloss",
+    "max_depth": 4,
+    "eta": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 20,
+    "reg_lambda": 2.0,
+    "tree_method": "hist"
+  },
+  "num_rounds": 400,
+  "validation": {
+    "scheme": "GroupKFold on source hazard polygon",
+    "spatial": {
+      "roc_auc": 0.6595967179968051,
+      "pr_auc": 0.29014194544083266,
+      "brier": 0.20634346962571568,
+      "fold_auc_mean": 0.6806712446604498,
+      "fold_auc_std": 0.04175293278454802
+    },
+    "random_for_contrast": {
+      "roc_auc": 0.9869100066388842,
+      "pr_auc": 0.9477246831118483,
+      "brier": 0.04450374975969071,
+      "fold_auc_mean": 0.9869285045079701,
+      "fold_auc_std": 0.0017242344835063546
+    },
+    "leakage_gap_roc_auc": 0.3273132886420791,
+    "confusion_at_0.5": {
+      "tn": 8905,
+      "fp": 1952,
+      "fn": 2050,
+      "tp": 885
+    }
+  },
+  "feature_importance_gain": {
+    "catchment_up_km2": 34.625789642333984,
+    "catchment_sub_km2": 32.1274528503418,
+    "elevation_m": 26.832056045532227,
+    "soil_sand_pct": 24.474809646606445,
+    "soil_clay_pct": 24.420732498168945,
+    "soil_silt_pct": 23.91647720336914,
+    "dist_to_stream_m": 22.001819610595703,
+    "ruggedness": 17.548553466796875,
+    "soil_hsg": 14.36385440826416,
+    "slope_deg": 9.64381217956543,
+    "spi": 9.563222885131836,
+    "prof_curv": 8.441719055175781,
+    "twi": 6.456267833709717,
+    "plan_curv": 5.804976463317871,
+    "sca": 5.2733378410339355,
+    "flowacc_cells": 3.7326278686523438
+  }
+}

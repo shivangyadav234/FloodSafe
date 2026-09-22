@@ -3916,7 +3916,10 @@ async function loadLocalityZones() {
             return;
         }
 
-        const localities = data.zones.filter(function(z) { return z.kind === "locality" && z.hazard_class; });
+        // effective_class, not hazard_class: localities outside the
+        // hazard atlas now get a class from FFPI, and filtering on the
+        // atlas class would keep dropping them from this layer.
+        const localities = data.zones.filter(function(z) { return z.kind === "locality" && z.effective_class; });
         const durations = data.durations || ["1h", "3h", "24h"];
 
         localityMarkers.forEach(function(marker) {
@@ -3946,7 +3949,9 @@ async function loadLocalityZones() {
 
             marker.bindPopup(
                 "<b>" + escapeHtml(zone.name) + "</b> — " + escapeHtml(zone.parent_town) + "<br>" +
-                escapeHtml(zone.hazard_class) + " hazard · " + (overall || "—") + "<br>" +
+                escapeHtml(zone.effective_class) + " hazard" +
+                (zone.hazard_source === "ffpi" ? " (modelled, FFPI " + zone.ffpi.toFixed(1) + ")" : "") +
+                " · " + (overall || "—") + "<br>" +
                 durationText + "<br>" +
                 '<a href="/ffgs" target="_blank">Full Flash Flood Guidance System →</a>'
             );

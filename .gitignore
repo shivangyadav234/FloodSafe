@@ -6,6 +6,14 @@ cache/
 data/osm/**/*.osm.pbf
 202607291528447525.pdf
 
+# Build-time artifacts for the risk pipeline: cached source tiles
+# (~800MB Copernicus DEM, ~550MB ESA WorldCover), the WhiteboxTools
+# raster chain, and the training table. All regenerable from
+# floodsafe/pipeline/. The small outputs the web app actually loads
+# (ffpi_lookup.npz, location_scores.json) are committed under
+# data/flood/uttarakhand/data/ instead.
+floodsafe/data/
+
 # Old routing graph location (now consolidated under data/flood/uttarakhand/data)
 data/routing/
 
