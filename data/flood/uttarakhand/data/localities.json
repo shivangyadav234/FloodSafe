@@ -4,482 +4,943 @@
     "town": "Rishikesh",
     "lat": 30.12592,
     "lon": 78.32853,
-    "dist_km": 7.29
+    "dist_km": 7.29,
+    "source": "near_town"
   },
   {
     "name": "Bahādrābād",
     "town": "Haridwar",
     "lat": 29.91973,
     "lon": 78.04367,
-    "dist_km": 11.97
+    "dist_km": 11.97,
+    "source": "near_town"
   },
   {
     "name": "Rājpur",
     "town": "Mussoorie",
     "lat": 30.38194,
     "lon": 78.08873,
-    "dist_km": 8.92
+    "dist_km": 8.92,
+    "source": "near_town"
   },
   {
     "name": "Swargashram",
     "town": "Rishikesh",
     "lat": 30.11855,
     "lon": 78.31382,
-    "dist_km": 5.67
+    "dist_km": 5.67,
+    "source": "near_town"
   },
   {
     "name": "Panditwadi",
     "town": "Dehradun",
     "lat": 30.33156,
     "lon": 77.99161,
-    "dist_km": 4.24
+    "dist_km": 4.24,
+    "source": "near_town"
   },
   {
     "name": "Premnagar",
     "town": "Dehradun",
     "lat": 30.33523,
     "lon": 77.964,
-    "dist_km": 6.87
+    "dist_km": 6.87,
+    "source": "near_town"
   },
   {
     "name": "Ashirwad Enclave",
     "town": "Dehradun",
     "lat": 30.33118,
     "lon": 78.00767,
-    "dist_km": 2.86
+    "dist_km": 2.86,
+    "source": "near_town"
   },
   {
     "name": "Tapovan",
     "town": "Rishikesh",
     "lat": 30.12966,
     "lon": 78.32211,
-    "dist_km": 7.08
+    "dist_km": 7.08,
+    "source": "near_town"
   },
   {
     "name": "Pandav Gufa",
     "town": "Rishikesh",
     "lat": 30.1322,
     "lon": 78.33335,
-    "dist_km": 8.09
+    "dist_km": 8.09,
+    "source": "near_town"
   },
   {
     "name": "Maya Kund",
     "town": "Rishikesh",
     "lat": 30.10587,
     "lon": 78.29885,
-    "dist_km": 3.67
+    "dist_km": 3.67,
+    "source": "near_town"
   },
   {
     "name": "Chauda Bigha",
     "town": "Rishikesh",
     "lat": 30.11335,
     "lon": 78.30246,
-    "dist_km": 4.46
+    "dist_km": 4.46,
+    "source": "near_town"
   },
   {
     "name": "Dhalwala",
     "town": "Rishikesh",
     "lat": 30.12139,
     "lon": 78.28608,
-    "dist_km": 4.23
+    "dist_km": 4.23,
+    "source": "near_town"
   },
   {
     "name": "Muni Ki Reti",
     "town": "Rishikesh",
     "lat": 30.11983,
     "lon": 78.30629,
-    "dist_km": 5.22
+    "dist_km": 5.22,
+    "source": "near_town"
   },
   {
     "name": "Ganga Vatika",
     "town": "Rishikesh",
     "lat": 30.12416,
     "lon": 78.30537,
-    "dist_km": 5.51
+    "dist_km": 5.51,
+    "source": "near_town"
   },
   {
     "name": "Adarsh Nagar",
     "town": "Rishikesh",
     "lat": 30.10431,
     "lon": 78.28817,
-    "dist_km": 2.77
+    "dist_km": 2.77,
+    "source": "near_town"
   },
   {
     "name": "TDHC Colony",
     "town": "Rishikesh",
     "lat": 30.10791,
     "lon": 78.28211,
-    "dist_km": 2.72
+    "dist_km": 2.72,
+    "source": "near_town"
   },
   {
     "name": "Pragati Vihar",
     "town": "Rishikesh",
     "lat": 30.11066,
     "lon": 78.28408,
-    "dist_km": 3.08
+    "dist_km": 3.08,
+    "source": "near_town"
   },
   {
     "name": "Ashutosh Nagar",
     "town": "Rishikesh",
     "lat": 30.11429,
     "lon": 78.28635,
-    "dist_km": 3.54
+    "dist_km": 3.54,
+    "source": "near_town"
   },
   {
     "name": "Adarsh Gram",
     "town": "Rishikesh",
     "lat": 30.11047,
     "lon": 78.29381,
-    "dist_km": 3.64
+    "dist_km": 3.64,
+    "source": "near_town"
   },
   {
     "name": "BSNL Colony",
     "town": "Rishikesh",
     "lat": 30.11512,
     "lon": 78.28179,
-    "dist_km": 3.42
+    "dist_km": 3.42,
+    "source": "near_town"
   },
   {
     "name": "Someshwar Nagar",
     "town": "Rishikesh",
     "lat": 30.0973,
     "lon": 78.27773,
-    "dist_km": 1.51
+    "dist_km": 1.51,
+    "source": "near_town"
   },
   {
     "name": "Kolghatti",
     "town": "Rishikesh",
     "lat": 30.09573,
     "lon": 78.28623,
-    "dist_km": 2.04
+    "dist_km": 2.04,
+    "source": "near_town"
   },
   {
     "name": "Lala Bazar",
     "town": "Almora",
     "lat": 29.59893,
     "lon": 79.66013,
-    "dist_km": 1.69
+    "dist_km": 1.69,
+    "source": "near_town"
   },
   {
     "name": "Kaulagarh",
     "town": "Dehradun",
     "lat": 30.35011,
     "lon": 78.00702,
-    "dist_km": 4.45
+    "dist_km": 4.45,
+    "source": "near_town"
   },
   {
     "name": "Sivananda Nagar",
     "town": "Rishikesh",
     "lat": 30.12347,
     "lon": 78.31088,
-    "dist_km": 5.82
+    "dist_km": 5.82,
+    "source": "near_town"
   },
   {
     "name": "Shyampur",
     "town": "Rishikesh",
     "lat": 30.06334,
     "lon": 78.23532,
-    "dist_km": 4.06
+    "dist_km": 4.06,
+    "source": "near_town"
   },
   {
     "name": "Har Ki Pauri",
     "town": "Haridwar",
     "lat": 29.95664,
     "lon": 78.17086,
-    "dist_km": 1.38
+    "dist_km": 1.38,
+    "source": "near_town"
   },
   {
     "name": "IDPL Colony",
     "town": "Rishikesh",
     "lat": 30.0783,
     "lon": 78.26413,
-    "dist_km": 1.01
+    "dist_km": 1.01,
+    "source": "near_town"
   },
   {
     "name": "Chhoti Haldwani",
     "town": "Nainital",
     "lat": 29.28241,
     "lon": 79.34928,
-    "dist_km": 15.53
+    "dist_km": 15.53,
+    "source": "near_town"
   },
   {
     "name": "Panchayat Ghar",
     "town": "Haldwani",
     "lat": 29.17139,
     "lon": 79.48863,
-    "dist_km": 5.73
+    "dist_km": 5.73,
+    "source": "near_town"
   },
   {
     "name": "Ganna Centre",
     "town": "Haldwani",
     "lat": 29.15784,
     "lon": 79.48054,
-    "dist_km": 7.42
+    "dist_km": 7.42,
+    "source": "near_town"
   },
   {
     "name": "Mukhani",
     "town": "Haldwani",
     "lat": 29.21804,
     "lon": 79.51853,
-    "dist_km": 0.54
+    "dist_km": 0.54,
+    "source": "near_town"
   },
   {
     "name": "Panchakki",
     "town": "Haldwani",
     "lat": 29.24098,
     "lon": 79.52881,
-    "dist_km": 2.95
+    "dist_km": 2.95,
+    "source": "near_town"
   },
   {
     "name": "Lal Danth",
     "town": "Haldwani",
     "lat": 29.23006,
     "lon": 79.51785,
-    "dist_km": 1.39
+    "dist_km": 1.39,
+    "source": "near_town"
   },
   {
     "name": "Unchapul",
     "town": "Haldwani",
     "lat": 29.22586,
     "lon": 79.49736,
-    "dist_km": 1.74
+    "dist_km": 1.74,
+    "source": "near_town"
   },
   {
     "name": "Roshanabad",
     "town": "Haridwar",
     "lat": 29.9732,
     "lon": 78.05713,
-    "dist_km": 10.76
+    "dist_km": 10.76,
+    "source": "near_town"
   },
   {
     "name": "Integrated Industrial Estate",
     "town": "Haridwar",
     "lat": 29.95962,
     "lon": 78.06576,
-    "dist_km": 9.61
+    "dist_km": 9.61,
+    "source": "near_town"
   },
   {
     "name": "BHEL Township",
     "town": "Haridwar",
     "lat": 29.93861,
     "lon": 78.11228,
-    "dist_km": 5.06
+    "dist_km": 5.06,
+    "source": "near_town"
   },
   {
     "name": "Mallital",
     "town": "Nainital",
     "lat": 29.39221,
     "lon": 79.45476,
-    "dist_km": 1.58
+    "dist_km": 1.58,
+    "source": "near_town"
   },
   {
     "name": "Talllital",
     "town": "Nainital",
     "lat": 29.37901,
     "lon": 79.46275,
-    "dist_km": 0.17
+    "dist_km": 0.17,
+    "source": "near_town"
   },
   {
     "name": "Halduchaur",
     "town": "Haldwani",
     "lat": 29.11016,
     "lon": 79.51955,
-    "dist_km": 12.04
+    "dist_km": 12.04,
+    "source": "near_town"
   },
   {
     "name": "Motahaldu",
     "town": "Haldwani",
     "lat": 29.14042,
     "lon": 79.52093,
-    "dist_km": 8.69
+    "dist_km": 8.69,
+    "source": "near_town"
   },
   {
     "name": "Judge Farm",
     "town": "Haldwani",
     "lat": 29.21104,
     "lon": 79.51265,
-    "dist_km": 0.81
+    "dist_km": 0.81,
+    "source": "near_town"
   },
   {
     "name": "Pilikothi",
     "town": "Haldwani",
     "lat": 29.21445,
     "lon": 79.50795,
-    "dist_km": 0.65
+    "dist_km": 0.65,
+    "source": "near_town"
   },
   {
     "name": "Heera Nagar",
     "town": "Haldwani",
     "lat": 29.21391,
     "lon": 79.51897,
-    "dist_km": 0.76
+    "dist_km": 0.76,
+    "source": "near_town"
   },
   {
     "name": "Chharayal",
     "town": "Haldwani",
     "lat": 29.20325,
     "lon": 79.48998,
-    "dist_km": 2.79
+    "dist_km": 2.79,
+    "source": "near_town"
   },
   {
     "name": "Kusumkhera",
     "town": "Haldwani",
     "lat": 29.219,
     "lon": 79.50249,
-    "dist_km": 1.02
+    "dist_km": 1.02,
+    "source": "near_town"
   },
   {
     "name": "Bomari Tallikham",
     "town": "Haldwani",
     "lat": 29.22352,
     "lon": 79.512,
-    "dist_km": 0.59
+    "dist_km": 0.59,
+    "source": "near_town"
   },
   {
     "name": "Bithoria No1",
     "town": "Haldwani",
     "lat": 29.23319,
     "lon": 79.51182,
-    "dist_km": 1.66
+    "dist_km": 1.66,
+    "source": "near_town"
   },
   {
     "name": "Bamori Malli",
     "town": "Haldwani",
     "lat": 29.23462,
     "lon": 79.52711,
-    "dist_km": 2.27
+    "dist_km": 2.27,
+    "source": "near_town"
   },
   {
     "name": "Bamori Talli Kham",
     "town": "Haldwani",
     "lat": 29.23594,
     "lon": 79.51433,
-    "dist_km": 1.97
+    "dist_km": 1.97,
+    "source": "near_town"
   },
   {
     "name": "Dewarchaur Kham",
     "town": "Haldwani",
     "lat": 29.19662,
     "lon": 79.52337,
-    "dist_km": 2.61
+    "dist_km": 2.61,
+    "source": "near_town"
   },
   {
     "name": "Haldwani Talli",
     "town": "Haldwani",
     "lat": 29.18682,
     "lon": 79.5162,
-    "dist_km": 3.51
+    "dist_km": 3.51,
+    "source": "near_town"
   },
   {
     "name": "Bithoria No 2",
     "town": "Haldwani",
     "lat": 29.23435,
     "lon": 79.50513,
-    "dist_km": 1.94
+    "dist_km": 1.94,
+    "source": "near_town"
   },
   {
     "name": "Damua Dhunga Kham",
     "town": "Haldwani",
     "lat": 29.24441,
     "lon": 79.51762,
-    "dist_km": 2.94
+    "dist_km": 2.94,
+    "source": "near_town"
   },
   {
     "name": "Haripur Seel",
     "town": "Haldwani",
     "lat": 29.24045,
     "lon": 79.52662,
-    "dist_km": 2.8
+    "dist_km": 2.8,
+    "source": "near_town"
   },
   {
     "name": "Harinagar",
     "town": "Haldwani",
     "lat": 29.2214,
     "lon": 79.51981,
-    "dist_km": 0.75
+    "dist_km": 0.75,
+    "source": "near_town"
   },
   {
     "name": "Kamaluwa Ganja Narsingh Talla",
     "town": "Haldwani",
     "lat": 29.21091,
     "lon": 79.47846,
-    "dist_km": 3.45
+    "dist_km": 3.45,
+    "source": "near_town"
   },
   {
     "name": "Chharaval Nayabad",
     "town": "Haldwani",
     "lat": 29.20405,
     "lon": 79.48044,
-    "dist_km": 3.54
+    "dist_km": 3.54,
+    "source": "near_town"
   },
   {
     "name": "Chharayal Nayak",
     "town": "Haldwani",
     "lat": 29.20158,
     "lon": 79.48604,
-    "dist_km": 3.21
+    "dist_km": 3.21,
+    "source": "near_town"
   },
   {
     "name": "Ganga Vihar Colony",
     "town": "Rishikesh",
     "lat": 30.09704,
     "lon": 78.28744,
-    "dist_km": 2.22
+    "dist_km": 2.22,
+    "source": "near_town"
   },
   {
     "name": "Missarpur",
     "town": "Haridwar",
     "lat": 29.88985,
     "lon": 78.13382,
-    "dist_km": 6.87
+    "dist_km": 6.87,
+    "source": "near_town"
   },
   {
     "name": "Arhat Bazar",
     "town": "Dehradun",
     "lat": 30.31694,
     "lon": 78.0297,
-    "dist_km": 0.24
+    "dist_km": 0.24,
+    "source": "near_town"
   },
   {
     "name": "Kochar Colony",
     "town": "Dehradun",
     "lat": 30.36811,
     "lon": 78.07113,
-    "dist_km": 6.85
+    "dist_km": 6.85,
+    "source": "near_town"
   },
   {
     "name": "Bungalow ki Kandli",
     "town": "Mussoorie",
     "lat": 30.48102,
     "lon": 78.03614,
-    "dist_km": 3.74
+    "dist_km": 3.74,
+    "source": "near_town"
   },
   {
     "name": "Picture Palace",
     "town": "Mussoorie",
     "lat": 30.45572,
     "lon": 78.0804,
-    "dist_km": 1.42
+    "dist_km": 1.42,
+    "source": "near_town"
   },
   {
     "name": "Dakra Bazar",
     "town": "Dehradun",
     "lat": 30.35402,
     "lon": 78.0307,
-    "dist_km": 4.17
+    "dist_km": 4.17,
+    "source": "near_town"
   },
   {
     "name": "Happy Valley",
     "town": "Mussoorie",
     "lat": 30.46975,
     "lon": 78.05152,
-    "dist_km": 1.8
+    "dist_km": 1.8,
+    "source": "near_town"
   },
   {
     "name": "Deckyiling",
     "town": "Dehradun",
     "lat": 30.3696,
     "lon": 78.09941,
-    "dist_km": 8.74
+    "dist_km": 8.74,
+    "source": "near_town"
+  },
+  {
+    "name": "Gagarigol",
+    "town": "Bageshwar district",
+    "lat": 29.90309,
+    "lon": 79.63945,
+    "dist_km": 0.83,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Charethi",
+    "town": "Uttarkashi district",
+    "lat": 30.81802,
+    "lon": 78.61817,
+    "dist_km": 0.88,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Bhatwari",
+    "town": "Uttarkashi district",
+    "lat": 30.81116,
+    "lon": 78.61954,
+    "dist_km": 0.89,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Raithal",
+    "town": "Uttarkashi district",
+    "lat": 30.81672,
+    "lon": 78.60379,
+    "dist_km": 0.33,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Dwari",
+    "town": "Uttarkashi district",
+    "lat": 30.80485,
+    "lon": 78.61998,
+    "dist_km": 0.93,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Kadari",
+    "town": "Tehri Garhwal district",
+    "lat": 30.60934,
+    "lon": 78.78501,
+    "dist_km": 0.92,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Chhani",
+    "town": "Uttarkashi district",
+    "lat": 30.9478,
+    "lon": 78.24004,
+    "dist_km": 0.82,
+    "source": "flood_prone_moderate"
+  },
+  {
+    "name": "Dingari",
+    "town": "Uttarkashi district",
+    "lat": 30.94652,
+    "lon": 78.21732,
+    "dist_km": 0.84,
+    "source": "flood_prone_significant"
+  },
+  {
+    "name": "Paunti",
+    "town": "Uttarkashi district",
+    "lat": 30.9474,
+    "lon": 78.23579,
+    "dist_km": 0.76,
+    "source": "flood_prone_moderate"
+  },
+  {
+    "name": "Surnaul",
+    "town": "Uttarkashi district",
+    "lat": 30.92511,
+    "lon": 78.22216,
+    "dist_km": 0.06,
+    "source": "flood_prone_moderate"
+  },
+  {
+    "name": "Banthapla",
+    "town": "Rudraprayag district",
+    "lat": 30.31934,
+    "lon": 79.10833,
+    "dist_km": 0.85,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Baneshwar",
+    "town": "Bageshwar district",
+    "lat": 29.8913,
+    "lon": 79.62387,
+    "dist_km": 0.01,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Garaser",
+    "town": "Bageshwar district",
+    "lat": 29.90074,
+    "lon": 79.62049,
+    "dist_km": 0.59,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Kotuli",
+    "town": "Bageshwar district",
+    "lat": 29.89382,
+    "lon": 79.63403,
+    "dist_km": 0.0,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Jinakhola",
+    "town": "Bageshwar district",
+    "lat": 29.89306,
+    "lon": 79.63134,
+    "dist_km": 0.04,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Matena",
+    "town": "Bageshwar district",
+    "lat": 29.89749,
+    "lon": 79.62612,
+    "dist_km": 0.12,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Selakhula",
+    "town": "Bageshwar district",
+    "lat": 29.89527,
+    "lon": 79.62785,
+    "dist_km": 0.0,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Band",
+    "town": "Bageshwar district",
+    "lat": 29.89551,
+    "lon": 79.6403,
+    "dist_km": 0.44,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "mamooya ka Paur",
+    "town": "Tehri Garhwal district",
+    "lat": 30.29278,
+    "lon": 78.42586,
+    "dist_km": 0.79,
+    "source": "flood_prone_moderate"
+  },
+  {
+    "name": "Baungad",
+    "town": "Pithoragarh district",
+    "lat": 29.86739,
+    "lon": 80.04763,
+    "dist_km": 0.78,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Bhainsket",
+    "town": "Pithoragarh district",
+    "lat": 29.86435,
+    "lon": 80.06289,
+    "dist_km": 0.59,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Lohari Talli",
+    "town": "Bageshwar district",
+    "lat": 29.88847,
+    "lon": 79.61747,
+    "dist_km": 0.62,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Selihat",
+    "town": "Bageshwar district",
+    "lat": 29.89453,
+    "lon": 79.61629,
+    "dist_km": 0.74,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "gadholi",
+    "town": "Almora",
+    "lat": 29.65916,
+    "lon": 79.6694,
+    "dist_km": 0.99,
+    "source": "flood_prone_significant"
+  },
+  {
+    "name": "pilkha",
+    "town": "Almora",
+    "lat": 29.66577,
+    "lon": 79.66146,
+    "dist_km": 0.38,
+    "source": "flood_prone_significant"
+  },
+  {
+    "name": "malera",
+    "town": "Almora",
+    "lat": 29.66533,
+    "lon": 79.65107,
+    "dist_km": 0.48,
+    "source": "flood_prone_significant"
+  },
+  {
+    "name": "Chaura Gutti",
+    "town": "Champawat district",
+    "lat": 29.47799,
+    "lon": 79.89408,
+    "dist_km": 0.92,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Gagar",
+    "town": "Champawat district",
+    "lat": 29.46129,
+    "lon": 79.89269,
+    "dist_km": 0.99,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Kholagad",
+    "town": "Champawat district",
+    "lat": 29.47583,
+    "lon": 79.90715,
+    "dist_km": 0.32,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Gagrar",
+    "town": "Champawat district",
+    "lat": 29.47828,
+    "lon": 79.89939,
+    "dist_km": 0.61,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "mayun",
+    "town": "Bageshwar district",
+    "lat": 29.79783,
+    "lon": 79.84838,
+    "dist_km": 0.13,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "gadkhet",
+    "town": "Bageshwar district",
+    "lat": 29.79481,
+    "lon": 79.84988,
+    "dist_km": 0.14,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "shyaldoba",
+    "town": "Bageshwar district",
+    "lat": 29.8022,
+    "lon": 79.82932,
+    "dist_km": 0.78,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "chamoli",
+    "town": "Bageshwar district",
+    "lat": 29.79043,
+    "lon": 79.82808,
+    "dist_km": 0.7,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "bhiri",
+    "town": "Bageshwar district",
+    "lat": 29.79215,
+    "lon": 79.83338,
+    "dist_km": 0.18,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "matoli",
+    "town": "Bageshwar district",
+    "lat": 29.78656,
+    "lon": 79.83299,
+    "dist_km": 0.41,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "halda",
+    "town": "Bageshwar district",
+    "lat": 29.79427,
+    "lon": 79.8564,
+    "dist_km": 0.53,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "gurana",
+    "town": "Bageshwar district",
+    "lat": 29.79701,
+    "lon": 79.85868,
+    "dist_km": 0.84,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "tachhni",
+    "town": "Bageshwar district",
+    "lat": 29.78619,
+    "lon": 79.84474,
+    "dist_km": 0.22,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "dabauli",
+    "town": "Bageshwar district",
+    "lat": 29.78025,
+    "lon": 79.84099,
+    "dist_km": 0.84,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "amkhet",
+    "town": "Bageshwar district",
+    "lat": 29.77731,
+    "lon": 79.84512,
+    "dist_km": 0.95,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "kimoli",
+    "town": "Bageshwar district",
+    "lat": 29.80295,
+    "lon": 79.84893,
+    "dist_km": 0.63,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "hurali",
+    "town": "Bageshwar district",
+    "lat": 29.8801,
+    "lon": 79.93867,
+    "dist_km": 0.96,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "khatigaon",
+    "town": "Bageshwar district",
+    "lat": 29.88843,
+    "lon": 79.94304,
+    "dist_km": 0.01,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "pothan",
+    "town": "Bageshwar district",
+    "lat": 29.88849,
+    "lon": 79.93701,
+    "dist_km": 0.38,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "binari",
+    "town": "Bageshwar district",
+    "lat": 29.89228,
+    "lon": 79.93538,
+    "dist_km": 0.54,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "kirai",
+    "town": "Bageshwar district",
+    "lat": 29.88862,
+    "lon": 79.95002,
+    "dist_km": 0.5,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "odyar",
+    "town": "Bageshwar district",
+    "lat": 29.90022,
+    "lon": 79.94596,
+    "dist_km": 0.87,
+    "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Tripuradevi",
+    "town": "Pithoragarh district",
+    "lat": 29.76062,
+    "lon": 80.04392,
+    "dist_km": 0.57,
+    "source": "flood_prone_extreme"
   }
 ]

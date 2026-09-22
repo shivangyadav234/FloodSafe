@@ -571,16 +571,16 @@ FFGS_TOWN_ZONES = [
 # ============================================================
 # FFGS locality-level granularity
 #
-# extract_localities.py pulls real OSM place=suburb/neighbourhood/
-# quarter nodes near each anchor town (see its own header comment for
-# why village/hamlet and official "ward" data aren't used). Whether
-# any of them end up here depends entirely on the hazard atlas
-# separately covering that exact point — same nearest-zone-within-15km
-# rule as everything else in this file, applied per locality rather
-# than per town. In practice most towns have zero mapped localities
-# (their center itself is outside the atlas's hazard-prone corridors);
-# Rishikesh is the one town where this adds real, meaningful
-# granularity.
+# extract_localities.py pulls real, named OSM localities via two
+# passes: near a known anchor town (place=suburb/neighbourhood/
+# quarter), and separately anything within 1km of a MODERATE/
+# SIGNIFICANT/EXTREME hazard polygon specifically (place=village/
+# hamlet included there too — see its own header comment for why
+# that's fine for the second pass but not the first). Whether any of
+# them end up in FFGS_LOCALITY_ZONES depends entirely on the hazard
+# atlas separately covering that exact point — same
+# nearest-zone-within-15km rule as everything else in this file,
+# applied per locality rather than per town.
 # ============================================================
 
 LOCALITIES_FILE = os.path.join(DATA_DIR, "localities.json")
@@ -595,9 +595,14 @@ def _load_localities():
         return json.load(f)
 
 
+# Loaded once and reused both for FFGS's hazard-filtered zone list
+# below and for the nearest-locality lookup used to label hazard
+# reports and shelters further down (see nearest_locality_for_point).
+ALL_LOCALITIES = _load_localities()
+
 FFGS_LOCALITY_ZONES = []
 
-for _loc in _load_localities():
+for _loc in ALL_LOCALITIES:
 
     _zone = ffgs_guidance_for_point(_loc["lat"], _loc["lon"])
 
@@ -612,6 +617,50 @@ for _loc in _load_localities():
     ))
 
 FFGS_ZONES = FFGS_TOWN_ZONES + FFGS_LOCALITY_ZONES
+
+
+# ============================================================
+# NEAREST-LOCALITY LOOKUP (for labeling hazard reports and shelters)
+#
+# Unlike FFGS_LOCALITY_ZONES above, this isn't gated on hazard-atlas
+# coverage — it's purely "what's the closest named place to this
+# point," used as human-readable context on a report or shelter
+# ("near Muni Ki Reti, Rishikesh") regardless of whether that spot
+# happens to fall inside a mapped hazard zone. Returns None past
+# NEAREST_LOCALITY_MAX_KM rather than always attaching some distant,
+# misleading locality name.
+# ============================================================
+
+NEAREST_LOCALITY_MAX_KM = 5.0
+
+
+def nearest_locality_for_point(lat, lon):
+
+    nearest, nearest_km = None, None
+
+    for loc in ALL_LOCALITIES:
+        d = _haversine_km(lat, lon, loc["lat"], loc["lon"])
+        if nearest_km is None or d < nearest_km:
+            nearest_km, nearest = d, loc
+
+    if nearest is None or nearest_km > NEAREST_LOCALITY_MAX_KM:
+        return None
+
+    return {
+        "name": nearest["name"],
+        "town": nearest["town"],
+        "distance_km": round(nearest_km, 2)
+    }
+
+
+# Computed once at startup, same reasoning as FFGS_ZONES above --
+# shelters is a static list loaded once at import time (see the
+# routing_engine import near the top of this file), so there's no
+# reason to redo this per shelter on every /shelters request.
+SHELTERS_WITH_LOCALITY = [
+    dict(shelter, nearest_locality=nearest_locality_for_point(shelter["lat"], shelter["lon"]))
+    for shelter in shelters
+]
 
 
 # ============================================================
@@ -2269,6 +2318,12 @@ header a.back-link:hover {
     margin-bottom: 4px;
 }
 
+.report-ward {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 6px;
+}
+
 .report-description {
     font-size: 14px;
     color: #444;
@@ -2544,10 +2599,15 @@ async function loadReportsView() {
             const reporterLabel = report.reporter_name ?
                 escapeHtml(report.reporter_name) : "Anonymous";
 
+            const wardLabel = report.nearest_locality ?
+                "Near " + escapeHtml(report.nearest_locality.name) + ", " + escapeHtml(report.nearest_locality.town) :
+                "";
+
             const marker = L.marker([report.lat, report.lon]).addTo(map);
 
             marker.bindPopup(
                 "<b>" + escapeHtml(label) + "</b><br>" +
+                (wardLabel ? "<span style='color:#888; font-size:12px;'>" + wardLabel + "</span><br>" : "") +
                 escapeHtml(report.description) + "<br>" +
                 "<span style='color:#888; font-size:12px;'>Reported by " +
                 reporterLabel + "</span>"
@@ -2574,6 +2634,7 @@ async function loadReportsView() {
 
             card.innerHTML =
                 '<div class="report-place">📍 ' + escapeHtml(label) + '</div>' +
+                (wardLabel ? '<div class="report-ward">' + wardLabel + '</div>' : '') +
                 '<div class="report-description">' +
                 escapeHtml(report.description) + '</div>' +
                 '<div class="report-reporter">👤 ' + reporterLabel + '</div>' +
@@ -2702,6 +2763,7 @@ def post_report():
         "lat": lat,
         "lon": lon,
         "place_name": place_name,
+        "nearest_locality": nearest_locality_for_point(lat, lon),
         "description": description,
         "reporter_name": reporter_name,
         "timestamp": time.time(),
@@ -3948,7 +4010,7 @@ def ffgs_point():
 @app.route("/shelters")
 def get_shelters():
 
-    return jsonify(shelters)
+    return jsonify(SHELTERS_WITH_LOCALITY)
 
 
 # ============================================================

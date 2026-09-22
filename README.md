@@ -95,20 +95,28 @@ produced a route distinct from both Fastest and Safest.
   municipal corporations don't publish machine-readable ward boundaries
   (checked: zero ward-level boundaries exist in OSM for any Uttarakhand
   ULB, and no free GeoJSON/shapefile exists beyond PDF ward maps), so
-  instead of faking ward polygons, FFGS pulls real OSM
-  `place=suburb/neighbourhood/quarter` nodes near each town
-  (`extract_localities.py`) and includes every one that the hazard atlas
-  actually covers. In practice that's concentrated around Rishikesh (20
-  real, named localities along the Ganga — Laxman Jhula, Muni Ki Reti,
-  Tapovan, etc.), since most other towns' centers fall outside the
-  atlas's mapped corridors entirely. Each locality is labeled with its
-  parent town (e.g. "Muni Ki Reti — Rishikesh") rather than presented as
-  an official ward.
+  instead of faking ward polygons, FFGS pulls real, named OSM localities
+  (`extract_localities.py`) via two passes and includes every one the
+  hazard atlas actually covers: localities near a known town (Rishikesh's
+  20 real neighborhoods along the Ganga — Laxman Jhula, Muni Ki Reti,
+  Tapovan, etc.), and separately, any named village/hamlet/suburb within
+  1km of a MODERATE/SIGNIFICANT/EXTREME hazard polygon specifically —
+  which surfaces real flood-prone villages across Uttarkashi, Rudraprayag,
+  Bageshwar, Pithoragarh and Champawat districts (~50 more, labeled by
+  district when no anchor town is close enough to name them by). Each
+  locality is labeled with its parent town or district (e.g. "Muni Ki
+  Reti — Rishikesh", "Bhatwari — Uttarkashi district") rather than
+  presented as an official ward.
 - **The same locality layer on the routing map** — `/app`'s map carries a
   live-status marker for every one of those localities too (colored
   SAFE/WATCH/CRITICAL, same thresholds as FFGS), so route planning has
   the same neighborhood-level context without leaving the map tool. Each
   marker's popup links back to the full FFGS page.
+- **Ward-aware hazard reports and shelters** — every hazard report and
+  every shelter/hospital is tagged server-side with its nearest known
+  locality (if one is within 5km), shown as "Near Muni Ki Reti,
+  Rishikesh" in report cards, map popups, and the shelter list — using
+  the same locality data as FFGS, not a separate lookup.
 
 ## Project layout
 

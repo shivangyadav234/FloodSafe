@@ -3535,6 +3535,10 @@ function hazardPopupHtml(report) {
         report.place_name.split(",").slice(0, 2).join(",") :
         null;
 
+    const wardLabel = report.nearest_locality ?
+        "Near " + escapeHtml(report.nearest_locality.name) + ", " + escapeHtml(report.nearest_locality.town) :
+        null;
+
     const reporterLabel = report.reporter_name ?
         "Reported by " + escapeHtml(report.reporter_name) :
         "Reported anonymously";
@@ -3555,6 +3559,7 @@ function hazardPopupHtml(report) {
         "<div class='fs-hazard-popup'>" +
         "<b>Reported hazard</b>" +
         (placeLabel ? "<br>" + escapeHtml(placeLabel) : "") +
+        (wardLabel ? "<br><span style='color:#888; font-size:12px;'>" + wardLabel + "</span>" : "") +
         "<br>" + escapeHtml(report.description) +
         "<br><span style='color:#888; font-size:12px;'>" +
         reporterLabel + "</span>" +
@@ -3841,8 +3846,14 @@ async function loadShelters() {
 
             const label = shelter.kind === "hospital" ? "Hospital" : "Shelter";
 
+            const wardLabel = shelter.nearest_locality ?
+                "<br><span style='color:#888; font-size:12px;'>Near " +
+                escapeHtml(shelter.nearest_locality.name) + ", " +
+                escapeHtml(shelter.nearest_locality.town) + "</span>" :
+                "";
+
             marker.bindPopup(
-                "<b>" + label + "</b><br>" + escapeHtml(shelter.name)
+                "<b>" + label + "</b><br>" + escapeHtml(shelter.name) + wardLabel
             );
 
             shelterMarkers.push(marker);
