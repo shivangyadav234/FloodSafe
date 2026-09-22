@@ -74,12 +74,29 @@ produced a route distinct from both Fastest and Safest.
   OpenStreetMap tags (`amenity=shelter`, `community_centre`,
   `social_facility`, `hospital`) — not an official government list, so
   treat them as a starting point, not verified capacity or open status.
+- **Flash Flood Guidance System (FFGS)** — a dedicated page (`/ffgs`, linked
+  from a button on the landing page's Flood Guidance section and from the
+  main nav) that goes beyond the landing page's single-reading "headroom"
+  panel: it pairs each mapped hazard zone with live rainfall over three
+  separate windows (1h / 3h / 24h), each with its own watch/critical
+  threshold, plus a heuristic adjustment for antecedent 48h rainfall
+  (wetter ground needs less fresh rain to reach the same risk). A map
+  shades the hazard atlas by class and plots every zone colored by its
+  current worst status across the three windows, a sortable table lists
+  all zones with a "check my location" option, and a banner surfaces any
+  zone currently in WATCH or CRITICAL. It auto-refreshes every 60s and
+  supports the same English/Hindi toggle and text-size control as the
+  landing page. This is a heuristic built on this project's own hazard
+  atlas, explicitly **not** an official CWC/IMD Flash Flood Guidance
+  product — that would require a full hydrological model this repo
+  doesn't have.
 
 ## Project layout
 
 - `data/flood/uttarakhand/` — the live app: `server.py` (Flask API, the `/`
-  landing page, and the `/reports-view` page), `map_app.py` (generates the
-  Leaflet frontend served at `/app`), `routing_engine.py`
+  landing page, the `/reports-view` page, and the `/ffgs` Flash Flood
+  Guidance System page + its `/ffgs/*` endpoints), `map_app.py` (generates
+  the Leaflet frontend served at `/app`), `routing_engine.py`
   (risk-weighted Dijkstra), the data-build pipeline
   (`extract_hazard.py` → `get_boundary.py` → `clip_hazard.py` →
   `create_road_hazard_geojson.py` → `road_flood_risk.py`) that turns the raw
@@ -114,10 +131,11 @@ cd data/flood/uttarakhand
 python server.py
 ```
 
-Open **http://127.0.0.1:5000/** for the landing page, or go straight to
-**http://127.0.0.1:5000/app** for the map tool. The routing graph (~2M nodes)
-takes a few seconds to load on startup — the server prints "Spatial index
-ready." when it's done.
+Open **http://127.0.0.1:5000/** for the landing page, go straight to
+**http://127.0.0.1:5000/app** for the map tool, or
+**http://127.0.0.1:5000/ffgs** for the Flash Flood Guidance System. The
+routing graph (~2M nodes) takes a few seconds to load on startup — the
+server prints "Spatial index ready." when it's done.
 
 If `pyproj` complains about its CRS database on Windows, point it at your
 env's copy:
@@ -150,6 +168,10 @@ python map_app.py
    shelter/community facility, routed to using the same flood-aware engine.
 7. Click **Route to Nearest Hospital** — same idea, against the hospital
    list instead of shelters.
+8. Back on the landing page, click **Open full Flash Flood Guidance System →**
+   in the Flood Guidance section (or `/ffgs` directly) — show the map shaded
+   by hazard class with live-status markers, the per-zone 1h/3h/24h table,
+   and "Check guidance at my location."
 
 ## Tech stack
 

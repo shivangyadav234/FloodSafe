@@ -436,6 +436,139 @@ GUIDANCE_ZONES = [
 
 
 # ============================================================
+# FLASH FLOOD GUIDANCE SYSTEM (FFGS) — duration-bucketed thresholds
+#
+# Extends the single watch/critical pair above (which only covers a
+# "right now" reading) with thresholds for three rainfall durations:
+# 1h, 3h and 24h. A short, sharp burst and a long, steady soak are
+# different hazards even at the same total mm, so real Flash Flood
+# Guidance products are duration-specific — this is a heuristic
+# approximation of that shape, not an official CWC/IMD value (same
+# caveat as GUIDANCE_HAZARD_THRESHOLDS_MM above, which this leaves
+# untouched so the existing /flood-guidance panel keeps working
+# unchanged while this is built out beside it).
+#
+# 1h values match GUIDANCE_HAZARD_THRESHOLDS_MM exactly. 3h and 24h
+# scale up sub-linearly (longer windows need proportionally more total
+# rain to reach the same runoff risk, since some of it infiltrates or
+# runs off before the window closes) — roughly 1.8x at 3h and 4-5x at
+# 24h relative to the 1h critical value, tightest for EXTREME zones
+# (steep terrain, least infiltration capacity) and loosest for LOW.
+# ============================================================
+
+FFGS_DURATION_THRESHOLDS_MM = {
+    "EXTREME": {
+        "1h":  {"watch": 4.0,  "critical": 8.0},
+        "3h":  {"watch": 8.0,  "critical": 15.0},
+        "24h": {"watch": 20.0, "critical": 40.0},
+    },
+    "SIGNIFICANT": {
+        "1h":  {"watch": 12.0, "critical": 20.0},
+        "3h":  {"watch": 20.0, "critical": 35.0},
+        "24h": {"watch": 45.0, "critical": 80.0},
+    },
+    "MODERATE": {
+        "1h":  {"watch": 20.0, "critical": 35.0},
+        "3h":  {"watch": 35.0, "critical": 55.0},
+        "24h": {"watch": 70.0, "critical": 120.0},
+    },
+    "LOW": {
+        "1h":  {"watch": 35.0,  "critical": 60.0},
+        "3h":  {"watch": 55.0,  "critical": 90.0},
+        "24h": {"watch": 110.0, "critical": 180.0},
+    },
+}
+
+FFGS_DURATIONS = ("1h", "3h", "24h")
+
+# Antecedent-rainfall adjustment: heuristic only — this repo has no
+# soil-moisture model, so 48h antecedent rainfall is used as a rough
+# stand-in for how saturated the ground already is. Wetter ground needs
+# less fresh rain to produce the same runoff, so heavy antecedent rain
+# scales every threshold above down. The multiplier is applied
+# uniformly across all three duration buckets rather than modelling
+# duration-specific saturation effects there's no data here to
+# calibrate. Sorted highest floor first; the first breakpoint the
+# antecedent total clears wins.
+FFGS_ANTECEDENT_BREAKPOINTS_MM = [
+    (100.0, 0.70),  # ground already very wet -> thresholds cut 30%
+    (50.0, 0.85),   # moderately wet -> thresholds cut 15%
+    (0.0, 1.0),     # dry / no data -> no adjustment
+]
+
+
+def _antecedent_multiplier(antecedent_48h_mm):
+
+    if antecedent_48h_mm is None:
+        return 1.0
+
+    for floor_mm, multiplier in FFGS_ANTECEDENT_BREAKPOINTS_MM:
+        if antecedent_48h_mm >= floor_mm:
+            return multiplier
+
+    return 1.0
+
+
+def ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm=None):
+    """
+    Returns {"1h": {"watch", "critical"}, "3h": {...}, "24h": {...}}
+    for one hazard class, with the antecedent-rainfall adjustment
+    applied. None if hazard_class is unmapped/unknown.
+    """
+
+    base = FFGS_DURATION_THRESHOLDS_MM.get(hazard_class)
+
+    if base is None:
+        return None
+
+    multiplier = _antecedent_multiplier(antecedent_48h_mm)
+
+    return {
+        duration: {
+            "watch": round(vals["watch"] * multiplier, 1),
+            "critical": round(vals["critical"] * multiplier, 1),
+        }
+        for duration, vals in base.items()
+    }
+
+
+def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
+    """
+    Like guidance_for_point() above, but returns the full
+    duration-bucketed threshold set instead of a single watch/critical
+    pair. Rainfall itself is still fetched by the browser directly
+    from Open-Meteo (never bulk-fetched by this server) — see the
+    Render shared-IP rate-limit note on /weather further down; the
+    same reasoning applies here, doubly so for a bulk zones endpoint.
+    """
+
+    hazard_class, exact, distance_km = classify_point(lat, lon)
+    thresholds = ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm)
+
+    return {
+        "lat": lat,
+        "lon": lon,
+        "hazard_class": hazard_class,
+        "exact_match": exact,
+        "distance_km": round(distance_km, 1) if distance_km is not None else None,
+        "thresholds_mm": thresholds,
+    }
+
+
+# Computed once at startup, same reasoning as GUIDANCE_ZONES above.
+# Antecedent rainfall isn't known at startup (or in bulk, without
+# re-introducing the server-side Open-Meteo fan-out that caused the
+# Render rate-limit bug), so these carry unadjusted base thresholds;
+# the antecedent adjustment is only applied on the single-point
+# /ffgs/point lookup, where the browser supplies the antecedent total
+# it already fetched for that one location.
+FFGS_ZONES = [
+    dict(ffgs_guidance_for_point(town["lat"], town["lon"]), name=town["name"])
+    for town in GUIDANCE_TOWNS
+]
+
+
+# ============================================================
 # LANDING PAGE
 #
 # The site's front door. Pulls live numbers from this same
@@ -985,6 +1118,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
     <nav class="main-nav">
       <a class="nav-link" href="#status" data-i18n="navStatus">Live Status</a>
       <a class="nav-link" href="#flood-guidance" data-i18n="navGuidance">Flood Guidance</a>
+      <a class="nav-link" href="/ffgs" data-i18n="navFfgs">FFGS</a>
       <a class="nav-link" href="#features" data-i18n="navServices">Services</a>
       <a class="nav-link" href="/reports-view" data-i18n="navReports">Hazard Reports</a>
       <a class="btn-official" href="/app" data-i18n="navOpenMap">Open Map Tool</a>
@@ -1076,6 +1210,9 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
     <div class="section-label" data-i18n="guidanceLabel">Flood Guidance</div>
     <h2 data-i18n="guidanceTitle">How much more rain before it's dangerous, here?</h2>
     <p class="guidance-intro" data-i18n="guidanceIntro">Pairs each location's static hazard classification with its live rainfall right now to show the remaining headroom before that location's flood risk escalates.</p>
+    <div style="margin-bottom:18px;">
+      <a class="btn-official" href="/ffgs" data-i18n="guidanceOpenFfgs">Open full Flash Flood Guidance System →</a>
+    </div>
     <table class="guidance-table">
       <thead>
         <tr>
@@ -1269,8 +1406,10 @@ const translations = {
     footerTagline: "FloodSafe — Flood-Aware Road Advisory Service for Uttarakhand.",
     footerDisclaimer: "FloodSafe is an independent citizen-safety project and is not an official service of the Government of Uttarakhand or the Government of India. Hazard classifications are derived from published government flash-flood hazard data; road conditions should always be independently verified before travel, particularly during active monsoon or alert conditions.",
     navGuidance: "Flood Guidance",
+    navFfgs: "FFGS",
     noGeolocationSupport: "Your browser doesn't support geolocation.",
     guidanceLabel: "Flood Guidance",
+    guidanceOpenFfgs: "Open full Flash Flood Guidance System →",
     guidanceTitle: "How much more rain before it's dangerous, here?",
     guidanceIntro: "Pairs each location's static hazard classification with its live rainfall right now to show the remaining headroom before that location's flood risk escalates.",
     guidanceColTown: "Location",
@@ -1374,8 +1513,10 @@ const translations = {
     footerTagline: "FloodSafe — उत्तराखंड के लिए बाढ़-जागरूक सड़क परामर्श सेवा।",
     footerDisclaimer: "FloodSafe एक स्वतंत्र नागरिक-सुरक्षा परियोजना है और यह उत्तराखंड सरकार या भारत सरकार की कोई आधिकारिक सेवा नहीं है। खतरा वर्गीकरण प्रकाशित सरकारी बाढ़ खतरा डेटा से लिया गया है; यात्रा से पहले सड़क की स्थिति की हमेशा स्वतंत्र रूप से पुष्टि करें, विशेष रूप से सक्रिय मानसून या चेतावनी की स्थिति के दौरान।",
     navGuidance: "बाढ़ मार्गदर्शन",
+    navFfgs: "FFGS",
     noGeolocationSupport: "आपका ब्राउज़र जियोलोकेशन का समर्थन नहीं करता।",
     guidanceLabel: "बाढ़ मार्गदर्शन",
+    guidanceOpenFfgs: "पूर्ण फ्लैश फ्लड गाइडेंस सिस्टम खोलें →",
     guidanceTitle: "यहाँ खतरनाक होने से पहले और कितनी बारिश बाकी है?",
     guidanceIntro: "प्रत्येक स्थान के स्थिर खतरा वर्गीकरण को उसकी वर्तमान लाइव वर्षा के साथ जोड़कर, यह दिखाता है कि उस स्थान का बाढ़ जोखिम बढ़ने से पहले कितनी गुंजाइश बची है।",
     guidanceColTown: "स्थान",
@@ -2796,6 +2937,896 @@ def flood_guidance_point():
         }), 400
 
     return jsonify(guidance_for_point(lat, lon))
+
+
+# ============================================================
+# FLASH FLOOD GUIDANCE SYSTEM (FFGS) — page
+#
+# Its own standalone page (same pattern as REPORTS_VIEW_HTML above)
+# rather than folded into the landing page's design system, since it
+# has its own map + table + alert banner. Rainfall for the map markers,
+# table and "check my location" panel is fetched by the browser
+# directly from Open-Meteo (never proxied through this server) for the
+# same reason as everywhere else in this app — see the comment on
+# ffgs_guidance_for_point() above and the /weather rate-limit note
+# further down.
+# ============================================================
+
+FFGS_PAGE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FloodSafe — Flash Flood Guidance System</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+<style>
+
+:root {
+  --navy: #0b3558;
+  --navy-dark: #062338;
+  --ink: #1a1f24;
+  --muted: #4a5560;
+  --faint: #6b7680;
+  --border: #c9d2d9;
+  --bg: #f3f5f6;
+  --panel: #ffffff;
+  --notice-bg: #fff8e1;
+  --notice-border: #b5860f;
+  --safe: #14532d;
+  --safe-bg: #eaf3ec;
+  --watch: #8a5a00;
+  --watch-bg: #fff2d9;
+  --risk: #7a1f1f;
+  --risk-bg: #f7eceb;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: -apple-system, Segoe UI, Arial, Helvetica, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+}
+
+.utility-bar {
+    background: var(--navy-dark);
+    color: #cfe0ee;
+    font-size: 12px;
+}
+.utility-bar .wrap {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 5px 20px;
+    gap: 18px;
+    flex-wrap: wrap;
+}
+.lang-toggle { display: flex; align-items: center; gap: 6px; }
+.lang-toggle button {
+    background: transparent;
+    border: none;
+    color: #9db4c9;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 3px;
+    font-family: inherit;
+}
+.lang-toggle button.active { color: white; font-weight: 700; text-decoration: underline; }
+.lang-toggle .sep { color: #3a5674; }
+.text-size-controls { display: flex; align-items: center; gap: 6px; }
+.text-size-controls button {
+    background: transparent;
+    border: 1px solid #3a5674;
+    color: #cfe0ee;
+    border-radius: 3px;
+    padding: 1px 7px;
+    cursor: pointer;
+    font-size: 11px;
+}
+.text-size-controls button:hover { background: #123553; }
+
+header {
+    background: var(--navy);
+    color: white;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+header h1 { margin: 0; font-size: 21px; }
+
+header .subtitle {
+    font-size: 13px;
+    opacity: 0.88;
+    margin-top: 2px;
+    font-weight: normal;
+}
+
+header nav { display: flex; gap: 10px; align-items: center; }
+
+header nav a {
+    color: white;
+    text-decoration: none;
+    background: rgba(255,255,255,0.15);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13.5px;
+}
+
+header nav a:hover { background: rgba(255,255,255,0.28); }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+
+.notice {
+    background: var(--notice-bg);
+    border-left: 4px solid var(--notice-border);
+    padding: 12px 16px;
+    margin: 18px 0;
+    font-size: 13.5px;
+    color: #5c4400;
+    border-radius: 4px;
+}
+
+#ffgsAlert {
+    display: none;
+    margin: 0 0 18px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ffgs-alert-critical { background: var(--risk-bg); color: var(--risk); border: 1px solid var(--risk); }
+.ffgs-alert-watch { background: var(--watch-bg); color: var(--watch); border: 1px solid var(--watch); }
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.panel h2 {
+    margin: 0;
+    padding: 14px 18px;
+    font-size: 15px;
+    border-bottom: 1px solid var(--border);
+    background: #f8fafb;
+}
+
+#map { height: 420px; width: 100%; }
+
+.mylocation-body { padding: 16px 18px; }
+
+#ffgsMyLocationBtn {
+    background: var(--navy);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#ffgsMyLocationBtn:hover { background: var(--navy-dark); }
+
+#ffgsMyLocationResult { margin-top: 12px; font-size: 13.5px; }
+
+table.ffgs-table, table.popup-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+}
+
+table.ffgs-table th, table.ffgs-table td,
+table.popup-table th, table.popup-table td {
+    padding: 9px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+table.ffgs-table td.num, table.popup-table td.num { text-align: right; }
+
+table.ffgs-table thead th {
+    background: #f8fafb;
+    font-weight: 700;
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.table-scroll { overflow-x: auto; }
+
+.ffgs-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.ffgs-safe { background: var(--safe-bg); color: var(--safe); }
+.ffgs-watch { background: var(--watch-bg); color: var(--watch); }
+.ffgs-critical { background: var(--risk-bg); color: var(--risk); }
+.ffgs-unmapped { background: #eceff1; color: var(--faint); }
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 12px 18px;
+    font-size: 12.5px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+}
+
+.legend .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+
+footer {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 8px 16px 40px;
+    font-size: 12px;
+    color: var(--faint);
+}
+
+</style>
+</head>
+<body>
+
+<div class="utility-bar">
+    <div class="wrap">
+        <div class="lang-toggle" role="group" aria-label="Language selector">
+            <button type="button" data-lang="en" class="active">English</button>
+            <span class="sep">|</span>
+            <button type="button" data-lang="hi">हिंदी</button>
+        </div>
+        <div class="text-size-controls">
+            <span data-i18n="textSizeLabel">Text size:</span>
+            <button type="button" id="textSmaller" aria-label="Decrease text size">A-</button>
+            <button type="button" id="textReset" aria-label="Reset text size">A</button>
+            <button type="button" id="textLarger" aria-label="Increase text size">A+</button>
+        </div>
+    </div>
+</div>
+
+<header>
+    <div>
+        <h1 data-i18n="pageTitle">Flash Flood Guidance System</h1>
+        <div class="subtitle" data-i18n="pageSubtitle">Duration-based rainfall guidance for Uttarakhand</div>
+    </div>
+    <nav>
+        <a href="/app" data-i18n="navMapTool">Map tool →</a>
+        <a href="/" data-i18n="navBackDashboard">← Back to dashboard</a>
+    </nav>
+</header>
+
+<div class="container">
+
+    <div class="notice" data-i18n-html="noticeHtml">
+        This page pairs each mapped hazard zone's static classification with live rainfall
+        over three windows (1h / 3h / 24h) to show whether it is SAFE, in WATCH, or in
+        CRITICAL status right now. Thresholds are a heuristic calibrated against this app's
+        hazard atlas — <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would
+        require a full hydrological model this project doesn't have. The hazard atlas only
+        covers specific hazard-prone corridors of Uttarakhand, not the whole state.
+    </div>
+
+    <div id="ffgsAlert"></div>
+
+    <div class="panel">
+        <h2 data-i18n="myLocationHeading">Check guidance at my location</h2>
+        <div class="mylocation-body">
+            <button id="ffgsMyLocationBtn" data-i18n="myLocationBtn">Use my current location</button>
+            <div id="ffgsMyLocationResult" hidden></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2 data-i18n="zoneMapHeading">Zone map — live status</h2>
+        <div id="map"></div>
+        <div class="legend">
+            <span><span class="dot" style="background:#4c8c4a"></span><span data-i18n="hazardLow">LOW hazard</span></span>
+            <span><span class="dot" style="background:#c99a2e"></span><span data-i18n="hazardModerate">MODERATE hazard</span></span>
+            <span><span class="dot" style="background:#cf7a2a"></span><span data-i18n="hazardSignificant">SIGNIFICANT hazard</span></span>
+            <span><span class="dot" style="background:#7a1f1f"></span><span data-i18n="hazardExtreme">EXTREME hazard</span></span>
+            <span style="margin-left:auto;" data-i18n="markerNote">Marker color = current worst status across all three windows</span>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2><span data-i18n="allZonesHeading">All monitored zones</span> <span id="ffgsUpdated" style="font-weight:normal; color:var(--faint); font-size:12px;"></span></h2>
+        <div class="table-scroll">
+            <table class="ffgs-table">
+                <thead>
+                    <tr>
+                        <th data-i18n="colLocation">Location</th>
+                        <th data-i18n="colHazardZone">Hazard zone</th>
+                        <th class="num" data-i18n="col1h">1h rain</th>
+                        <th class="num" data-i18n="col3h">3h rain</th>
+                        <th class="num" data-i18n="col24h">24h rain</th>
+                        <th data-i18n="colStatus">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="ffgsTableBody">
+                    <tr><td colspan="6" data-i18n="loading">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<footer data-i18n="footerText">
+    Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo
+    forecast API, fetched directly by your browser. Refreshes automatically every 60 seconds.
+</footer>
+
+<script>
+
+const FFGS_STATUS_ORDER = { SAFE: 0, WATCH: 1, CRITICAL: 2 };
+const HAZARD_COLORS = { LOW: "#4c8c4a", MODERATE: "#c99a2e", SIGNIFICANT: "#cf7a2a", EXTREME: "#7a1f1f" };
+
+// Declared up here (rather than next to the render functions that use
+// them) so applyLanguage()'s re-render call below never hits a
+// temporal-dead-zone ReferenceError from a `let` that hasn't executed
+// yet — same reasoning as guidanceRows in the landing page's script.
+let ffgsZones = [];
+let ffgsDurations = ["1h", "3h", "24h"];
+let ffgsLoadFailed = false;
+let zoneMarkerLayer = null;
+
+// ---- i18n (mirrors the landing page's translations/applyLanguage
+// pattern, kept local to this page since it's a standalone template
+// with no shared JS file) ----
+
+const translations = {
+  en: {
+    textSizeLabel: "Text size:",
+    pageTitle: "Flash Flood Guidance System",
+    pageSubtitle: "Duration-based rainfall guidance for Uttarakhand",
+    navMapTool: "Map tool →",
+    navBackDashboard: "← Back to dashboard",
+    noticeHtml: "This page pairs each mapped hazard zone's static classification with live rainfall over three windows (1h / 3h / 24h) to show whether it is SAFE, in WATCH, or in CRITICAL status right now. Thresholds are a heuristic calibrated against this app's hazard atlas — <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would require a full hydrological model this project doesn't have. The hazard atlas only covers specific hazard-prone corridors of Uttarakhand, not the whole state.",
+    myLocationHeading: "Check guidance at my location",
+    myLocationBtn: "Use my current location",
+    zoneMapHeading: "Zone map — live status",
+    hazardLow: "LOW hazard",
+    hazardModerate: "MODERATE hazard",
+    hazardSignificant: "SIGNIFICANT hazard",
+    hazardExtreme: "EXTREME hazard",
+    hclsLOW: "LOW", hclsMODERATE: "MODERATE", hclsSIGNIFICANT: "SIGNIFICANT", hclsEXTREME: "EXTREME",
+    markerNote: "Marker color = current worst status across all three windows",
+    allZonesHeading: "All monitored zones",
+    colLocation: "Location",
+    colHazardZone: "Hazard zone",
+    col1h: "1h rain",
+    col3h: "3h rain",
+    col24h: "24h rain",
+    colStatus: "Status",
+    loading: "Loading…",
+    updatedLabel: "Updated ",
+    noZones: "No mapped zones with live data right now.",
+    guidanceUnavailable: "Guidance data unavailable right now.",
+    footerText: "Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, fetched directly by your browser. Refreshes automatically every 60 seconds.",
+    statusSAFE: "SAFE", statusWATCH: "WATCH", statusCRITICAL: "CRITICAL", statusUNMAPPED: "UNMAPPED",
+    hazardZoneSuffix: " hazard zone",
+    popupWindow: "Window", popupRain: "Rain", popupCriticalAt: "Critical at", popupStatus: "Status",
+    alertCriticalPrefix: "CRITICAL: ",
+    alertCriticalSuffix: " — live rainfall has crossed the critical threshold for at least one window.",
+    alertWatchPrefix: "WATCH: ",
+    alertWatchSuffix: " — live rainfall is approaching the critical threshold.",
+    locating: "Locating…",
+    checkingGuidance: "Checking guidance…",
+    noGeoSupport: "Geolocation is not supported by this browser.",
+    noMappedZoneNear: "No mapped hazard zone within range of your location (nearest is {km} km away).",
+    noMappedZone: "No mapped hazard zone at your location.",
+    nearestZoneNote: " (nearest mapped zone, {km} km away)",
+    locationError: "Could not check guidance for your location right now.",
+    locationDenied: "Location access denied or unavailable.",
+    townDehradun: "Dehradun", townRishikesh: "Rishikesh", townHaridwar: "Haridwar",
+    townMussoorie: "Mussoorie", townNainital: "Nainital", townHaldwani: "Haldwani",
+    townAlmora: "Almora", townPithoragarh: "Pithoragarh", townJoshimath: "Joshimath"
+  },
+  hi: {
+    textSizeLabel: "टेक्स्ट आकार:",
+    pageTitle: "फ्लैश फ्लड गाइडेंस सिस्टम",
+    pageSubtitle: "उत्तराखंड के लिए अवधि-आधारित वर्षा मार्गदर्शन",
+    navMapTool: "मानचित्र टूल →",
+    navBackDashboard: "← डैशबोर्ड पर वापस जाएं",
+    noticeHtml: "यह पृष्ठ प्रत्येक मैप किए गए खतरा क्षेत्र के स्थिर वर्गीकरण को तीन अवधियों (1 घंटा / 3 घंटा / 24 घंटा) की लाइव वर्षा के साथ जोड़ता है, ताकि यह दिखाया जा सके कि वह अभी सुरक्षित (SAFE), सतर्क (WATCH) या गंभीर (CRITICAL) स्थिति में है। सीमाएँ इस ऐप के खतरा एटलस पर आधारित एक अनुमानित गणना हैं — <b>न कि</b> कोई आधिकारिक CWC/IMD फ्लैश फ्लड गाइडेंस मान, जिसके लिए एक पूर्ण जल-विज्ञान मॉडल चाहिए जो इस प्रोजेक्ट के पास नहीं है। खतरा एटलस केवल उत्तराखंड के विशिष्ट खतरा-प्रवण क्षेत्रों को कवर करता है, पूरे राज्य को नहीं।",
+    myLocationHeading: "मेरे स्थान पर मार्गदर्शन जांचें",
+    myLocationBtn: "मेरा वर्तमान स्थान उपयोग करें",
+    zoneMapHeading: "क्षेत्र मानचित्र — लाइव स्थिति",
+    hazardLow: "कम खतरा",
+    hazardModerate: "मध्यम खतरा",
+    hazardSignificant: "उच्च खतरा",
+    hazardExtreme: "अत्यधिक खतरा",
+    hclsLOW: "कम", hclsMODERATE: "मध्यम", hclsSIGNIFICANT: "उच्च", hclsEXTREME: "अत्यधिक",
+    markerNote: "मार्कर का रंग = तीनों अवधियों में सबसे खराब वर्तमान स्थिति",
+    allZonesHeading: "सभी निगरानी क्षेत्र",
+    colLocation: "स्थान",
+    colHazardZone: "खतरा क्षेत्र",
+    col1h: "1 घंटे की वर्षा",
+    col3h: "3 घंटे की वर्षा",
+    col24h: "24 घंटे की वर्षा",
+    colStatus: "स्थिति",
+    loading: "लोड हो रहा है…",
+    updatedLabel: "अद्यतन ",
+    noZones: "अभी कोई मैप किया गया क्षेत्र लाइव डेटा के साथ उपलब्ध नहीं है।",
+    guidanceUnavailable: "मार्गदर्शन डेटा अभी उपलब्ध नहीं है।",
+    footerText: "खतरा वर्गीकरण: राज्य का जियोरेफ़रेंस्ड फ्लैश फ्लड खतरा एटलस। वर्षा: Open-Meteo पूर्वानुमान API, आपके ब्राउज़र द्वारा सीधे प्राप्त। हर 60 सेकंड में स्वतः अद्यतन होता है।",
+    statusSAFE: "सुरक्षित", statusWATCH: "सतर्क", statusCRITICAL: "गंभीर", statusUNMAPPED: "अचिह्नित",
+    hazardZoneSuffix: " खतरा क्षेत्र",
+    popupWindow: "अवधि", popupRain: "वर्षा", popupCriticalAt: "गंभीर स्तर", popupStatus: "स्थिति",
+    alertCriticalPrefix: "गंभीर: ",
+    alertCriticalSuffix: " — लाइव वर्षा ने कम से कम एक अवधि में गंभीर सीमा पार कर ली है।",
+    alertWatchPrefix: "सतर्क: ",
+    alertWatchSuffix: " — लाइव वर्षा गंभीर सीमा के करीब पहुंच रही है।",
+    locating: "स्थान प्राप्त किया जा रहा है…",
+    checkingGuidance: "मार्गदर्शन जांचा जा रहा है…",
+    noGeoSupport: "आपका ब्राउज़र जियोलोकेशन का समर्थन नहीं करता।",
+    noMappedZoneNear: "आपके स्थान के आसपास कोई मैप किया गया खतरा क्षेत्र नहीं है (निकटतम {km} किमी दूर है)।",
+    noMappedZone: "आपके स्थान पर कोई मैप किया गया खतरा क्षेत्र नहीं है।",
+    nearestZoneNote: " (निकटतम मैप किया गया क्षेत्र, {km} किमी दूर)",
+    locationError: "अभी आपके स्थान के लिए मार्गदर्शन जांचा नहीं जा सका।",
+    locationDenied: "स्थान की अनुमति अस्वीकृत या अनुपलब्ध।",
+    townDehradun: "देहरादून", townRishikesh: "ऋषिकेश", townHaridwar: "हरिद्वार",
+    townMussoorie: "मसूरी", townNainital: "नैनीताल", townHaldwani: "हल्द्वानी",
+    townAlmora: "अल्मोड़ा", townPithoragarh: "पिथौरागढ़", townJoshimath: "जोशीमठ"
+  }
+};
+
+let currentLang = "en";
+
+function t(key) {
+    const dict = translations[currentLang] || translations.en;
+    return dict[key] !== undefined ? dict[key] : key;
+}
+
+function ffgsTownName(name) {
+    if (!name) return "";
+    const key = "town" + name;
+    const val = t(key);
+    return val !== key ? val : name;
+}
+
+function hazardClassLabel(cls) {
+    if (!cls) return "";
+    const key = "hcls" + cls;
+    const val = t(key);
+    return val !== key ? val : cls;
+}
+
+function statusLabel(status) {
+    if (!status) return t("statusUNMAPPED");
+    const key = "status" + status;
+    const val = t(key);
+    return val !== key ? val : status;
+}
+
+function applyLanguage(lang) {
+    currentLang = translations[lang] ? lang : "en";
+    document.documentElement.lang = currentLang;
+
+    const dict = translations[currentLang];
+
+    document.querySelectorAll("[data-i18n]").forEach(function(el) {
+        const key = el.getAttribute("data-i18n");
+        if (dict[key] !== undefined) el.textContent = dict[key];
+    });
+
+    document.querySelectorAll("[data-i18n-html]").forEach(function(el) {
+        const key = el.getAttribute("data-i18n-html");
+        if (dict[key] !== undefined) el.innerHTML = dict[key];
+    });
+
+    document.querySelectorAll(".lang-toggle button").forEach(function(btn) {
+        btn.classList.toggle("active", btn.getAttribute("data-lang") === currentLang);
+    });
+
+    try {
+        localStorage.setItem("floodsafeLang", currentLang);
+    } catch (error) {
+        // Private browsing / storage disabled -- just skip remembering it.
+    }
+
+    // Re-render the fetched-data parts too, since they're built with
+    // innerHTML/textContent in JS rather than scanned from data-i18n.
+    if (ffgsZones.length || ffgsLoadFailed) {
+        renderMarkers();
+        renderFfgsTable();
+        renderAlertBanner();
+    }
+}
+
+document.querySelectorAll(".lang-toggle button").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+        applyLanguage(btn.getAttribute("data-lang"));
+    });
+});
+
+(function initLanguage() {
+    let saved = "en";
+    try {
+        saved = localStorage.getItem("floodsafeLang") || "en";
+    } catch (error) {
+        saved = "en";
+    }
+    applyLanguage(saved);
+})();
+
+// ---- Text size control (same steps as the landing page) ----
+
+let fontStep = 0;
+
+function applyFontStep() {
+    document.documentElement.style.fontSize = (100 + fontStep * 12.5) + "%";
+}
+
+document.getElementById("textSmaller").addEventListener("click", function() {
+    fontStep = Math.max(fontStep - 1, -2);
+    applyFontStep();
+});
+document.getElementById("textLarger").addEventListener("click", function() {
+    fontStep = Math.min(fontStep + 1, 3);
+    applyFontStep();
+});
+document.getElementById("textReset").addEventListener("click", function() {
+    fontStep = 0;
+    applyFontStep();
+});
+
+const map = L.map("map").setView([30.0668, 79.0193], 8);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors",
+    maxZoom: 19
+}).addTo(map);
+
+fetch("/ffgs/hazard-atlas.geojson")
+    .then(function(r) { return r.json(); })
+    .then(function(geojson) {
+        L.geoJSON(geojson, {
+            style: function(feature) {
+                const cls = feature.properties && feature.properties.hazard;
+                const color = HAZARD_COLORS[cls] || "#6b7680";
+                return { color: color, weight: 1, fillColor: color, fillOpacity: 0.25 };
+            }
+        }).addTo(map);
+    })
+    .catch(function() {});
+
+function worseStatus(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    return FFGS_STATUS_ORDER[a] >= FFGS_STATUS_ORDER[b] ? a : b;
+}
+
+function statusForDuration(rainMm, thresholds) {
+    if (rainMm == null || !thresholds) return null;
+    if (rainMm >= thresholds.critical) return "CRITICAL";
+    if (rainMm >= thresholds.watch) return "WATCH";
+    return "SAFE";
+}
+
+function statusColor(status) {
+    if (status === "CRITICAL") return "#7a1f1f";
+    if (status === "WATCH") return "#b5860f";
+    if (status === "SAFE") return "#14532d";
+    return "#6b7680";
+}
+
+// Fetched directly from the browser (own IP), never proxied through
+// this server — same reasoning as fetchLiveConditions in map_app.py:
+// all visitors sharing Render's one outbound IP against Open-Meteo
+// trips its rate limit.
+async function fetchDurationRainfall(lat, lon) {
+
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
+        "&longitude=" + lon +
+        "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=1&timezone=auto";
+
+    const payload = await (await fetch(url)).json();
+
+    const hourlyTimes = (payload.hourly && payload.hourly.time) || [];
+    const hourlyPrecip = (payload.hourly && payload.hourly.precipitation) || [];
+    const currentTime = payload.current && payload.current.time;
+
+    let idx = currentTime ? hourlyTimes.indexOf(currentTime) : -1;
+    if (idx === -1) idx = hourlyTimes.length - 1;
+
+    function sumLast(n) {
+        if (idx < 0) return null;
+        const start = Math.max(0, idx - n + 1);
+        return hourlyPrecip.slice(start, idx + 1).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
+    }
+
+    return {
+        "1h": sumLast(1),
+        "3h": sumLast(3),
+        "24h": sumLast(24),
+        antecedent_48h: sumLast(48)
+    };
+}
+
+function renderAlertBanner() {
+    const el = document.getElementById("ffgsAlert");
+    const critical = ffgsZones.filter(function(z) { return z.overall === "CRITICAL"; });
+    const watch = ffgsZones.filter(function(z) { return z.overall === "WATCH"; });
+
+    if (critical.length) {
+        el.style.display = "block";
+        el.className = "ffgs-alert-critical";
+        el.textContent = t("alertCriticalPrefix") + critical.map(function(z) { return ffgsTownName(z.name); }).join(", ") + t("alertCriticalSuffix");
+    } else if (watch.length) {
+        el.style.display = "block";
+        el.className = "ffgs-alert-watch";
+        el.textContent = t("alertWatchPrefix") + watch.map(function(z) { return ffgsTownName(z.name); }).join(", ") + t("alertWatchSuffix");
+    } else {
+        el.style.display = "none";
+    }
+}
+
+function renderFfgsTable() {
+    const tbody = document.getElementById("ffgsTableBody");
+
+    if (ffgsLoadFailed) {
+        tbody.innerHTML = '<tr><td colspan="6">' + t("guidanceUnavailable") + "</td></tr>";
+        return;
+    }
+
+    if (ffgsZones.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6">' + t("noZones") + "</td></tr>";
+        return;
+    }
+
+    const sorted = ffgsZones.slice().sort(function(a, b) {
+        return (FFGS_STATUS_ORDER[b.overall] || 0) - (FFGS_STATUS_ORDER[a.overall] || 0);
+    });
+
+    tbody.innerHTML = sorted.map(function(z) {
+        function cell(d) {
+            const info = z.perDuration[d];
+            if (!info || info.rainMm == null) return "—";
+            return info.rainMm.toFixed(1) + " mm";
+        }
+        const badgeClass = "ffgs-badge ffgs-" + (z.overall || "unmapped").toLowerCase();
+        return "<tr><td>" + ffgsTownName(z.name) + "</td><td>" + hazardClassLabel(z.hazard_class) + "</td>" +
+            '<td class="num">' + cell("1h") + "</td>" +
+            '<td class="num">' + cell("3h") + "</td>" +
+            '<td class="num">' + cell("24h") + "</td>" +
+            "<td><span class=\\"" + badgeClass + "\\">" + statusLabel(z.overall) + "</span></td></tr>";
+    }).join("");
+
+    const updatedEl = document.getElementById("ffgsUpdated");
+    if (updatedEl) {
+        updatedEl.textContent = "(" + t("updatedLabel") + new Date().toLocaleTimeString() + ")";
+    }
+}
+
+function renderMarkers() {
+    if (!zoneMarkerLayer) {
+        zoneMarkerLayer = L.layerGroup().addTo(map);
+    }
+    zoneMarkerLayer.clearLayers();
+
+    ffgsZones.forEach(function(z) {
+        const color = statusColor(z.overall);
+
+        const marker = L.circleMarker([z.lat, z.lon], {
+            radius: 9, color: color, fillColor: color, fillOpacity: 0.85, weight: 2
+        }).addTo(zoneMarkerLayer);
+
+        const rows = ffgsDurations.map(function(d) {
+            const info = z.perDuration[d];
+            const rainText = (info && info.rainMm != null) ? info.rainMm.toFixed(1) + " mm" : "—";
+            const critical = z.thresholds_mm && z.thresholds_mm[d] ? z.thresholds_mm[d].critical.toFixed(0) + " mm" : "—";
+            const statusText = statusLabel(info && info.status);
+            return "<tr><td>" + d + "</td><td>" + rainText + "</td><td>" + critical + "</td><td>" + statusText + "</td></tr>";
+        }).join("");
+
+        marker.bindPopup(
+            "<b>" + ffgsTownName(z.name) + "</b> — " + hazardClassLabel(z.hazard_class) + t("hazardZoneSuffix") + "<br>" +
+            '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
+            rows + "</tbody></table>"
+        );
+    });
+}
+
+async function loadFfgsZones() {
+    const tbody = document.getElementById("ffgsTableBody");
+
+    let data;
+    try {
+        data = await (await fetch("/ffgs/zones")).json();
+    } catch (error) {
+        ffgsLoadFailed = true;
+        renderFfgsTable();
+        return;
+    }
+
+    if (!data.available) {
+        ffgsLoadFailed = true;
+        tbody.innerHTML = '<tr><td colspan="6">' + (data.error || t("guidanceUnavailable")) + "</td></tr>";
+        return;
+    }
+
+    ffgsLoadFailed = false;
+    ffgsDurations = data.durations || ffgsDurations;
+
+    const mappedZones = data.zones.filter(function(z) { return z.hazard_class; });
+
+    const rainfalls = await Promise.all(mappedZones.map(function(z) {
+        return fetchDurationRainfall(z.lat, z.lon).catch(function() { return null; });
+    }));
+
+    ffgsZones = mappedZones.map(function(zone, i) {
+        const rain = rainfalls[i];
+        const perDuration = {};
+        let overall = null;
+
+        ffgsDurations.forEach(function(duration) {
+            const rainMm = rain ? rain[duration] : null;
+            const thresholds = zone.thresholds_mm ? zone.thresholds_mm[duration] : null;
+            const status = statusForDuration(rainMm, thresholds);
+            perDuration[duration] = { rainMm: rainMm, status: status };
+            overall = worseStatus(overall, status);
+        });
+
+        return {
+            name: zone.name,
+            lat: zone.lat,
+            lon: zone.lon,
+            hazard_class: zone.hazard_class,
+            thresholds_mm: zone.thresholds_mm,
+            perDuration: perDuration,
+            overall: overall
+        };
+    });
+
+    renderMarkers();
+    renderFfgsTable();
+    renderAlertBanner();
+}
+
+loadFfgsZones();
+
+// Rainfall changes slowly enough that a 60s poll is more than
+// sufficient, and stays well clear of Open-Meteo's free-tier rate
+// limit even with 9 zones fetched per cycle from each visitor's own
+// browser (see fetchDurationRainfall's comment on why this is
+// client-side in the first place).
+setInterval(loadFfgsZones, 60000);
+
+document.getElementById("ffgsMyLocationBtn").addEventListener("click", function() {
+    const resultEl = document.getElementById("ffgsMyLocationResult");
+    resultEl.hidden = false;
+    resultEl.textContent = t("locating");
+
+    if (!navigator.geolocation) {
+        resultEl.textContent = t("noGeoSupport");
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async function(pos) {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        resultEl.textContent = t("checkingGuidance");
+
+        try {
+            const rain = await fetchDurationRainfall(lat, lon);
+            const antecedentParam = rain.antecedent_48h != null ? rain.antecedent_48h : "";
+            const point = await (await fetch(
+                "/ffgs/point?lat=" + lat + "&lon=" + lon + "&antecedent_48h_mm=" + antecedentParam
+            )).json();
+
+            if (!point.hazard_class || !point.thresholds_mm) {
+                resultEl.innerHTML = point.exact_match === false && point.distance_km != null
+                    ? t("noMappedZoneNear").replace("{km}", point.distance_km)
+                    : t("noMappedZone");
+                return;
+            }
+
+            const rows = ffgsDurations.map(function(d) {
+                const rainMm = rain[d];
+                const thresholds = point.thresholds_mm[d];
+                const status = statusForDuration(rainMm, thresholds);
+                const rainText = rainMm == null ? "—" : rainMm.toFixed(1) + " mm";
+                const critText = thresholds ? thresholds.critical.toFixed(0) + " mm" : "—";
+                const badgeClass = "ffgs-badge ffgs-" + (status || "unmapped").toLowerCase();
+                return "<tr><td>" + d + "</td><td>" + rainText + "</td><td>" + critText + "</td>" +
+                    "<td><span class=\\"" + badgeClass + "\\">" + statusLabel(status) + "</span></td></tr>";
+            }).join("");
+
+            const approxNote = (!point.exact_match && point.distance_km != null)
+                ? t("nearestZoneNote").replace("{km}", point.distance_km)
+                : "";
+
+            resultEl.innerHTML = "<b>" + hazardClassLabel(point.hazard_class) + t("hazardZoneSuffix") + "</b>" + approxNote +
+                '<table class="popup-table" style="margin-top:8px;"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
+                rows + "</tbody></table>";
+        } catch (error) {
+            resultEl.textContent = t("locationError");
+        }
+    }, function() {
+        resultEl.textContent = t("locationDenied");
+    });
+});
+
+</script>
+
+</body>
+</html>
+"""
+
+
+@app.route("/ffgs")
+def ffgs_page():
+
+    return FFGS_PAGE_HTML
+
+
+@app.route("/ffgs/hazard-atlas.geojson")
+def ffgs_hazard_atlas():
+
+    geojson_path = os.path.join(DATA_DIR, "uttarakhand_flash_flood_hazard_clean.geojson")
+
+    if not os.path.exists(geojson_path):
+        return jsonify({"type": "FeatureCollection", "features": []})
+
+    return send_file(geojson_path, mimetype="application/geo+json")
+
+
+# ============================================================
+# FLASH FLOOD GUIDANCE SYSTEM (FFGS) — endpoints
+# ============================================================
+
+@app.route("/ffgs/zones")
+def ffgs_zones():
+
+    return jsonify({
+        "available": GUIDANCE_AVAILABLE,
+        "error": None if GUIDANCE_AVAILABLE else GUIDANCE_ERROR,
+        "durations": list(FFGS_DURATIONS),
+        "zones": FFGS_ZONES,
+    })
+
+
+@app.route("/ffgs/point")
+def ffgs_point():
+
+    try:
+        lat = float(request.args.get("lat"))
+        lon = float(request.args.get("lon"))
+    except (TypeError, ValueError):
+        return jsonify({
+            "error": "lat and lon query parameters are required numbers."
+        }), 400
+
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return jsonify({
+            "error": "lat/lon out of range."
+        }), 400
+
+    antecedent_48h_mm = request.args.get("antecedent_48h_mm", type=float)
+
+    return jsonify(ffgs_guidance_for_point(lat, lon, antecedent_48h_mm))
 
 
 # ============================================================
