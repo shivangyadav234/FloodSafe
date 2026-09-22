@@ -84,12 +84,20 @@ produced a route distinct from both Fastest and Safest.
   shades the hazard atlas by class and plots every zone colored by its
   current worst status across the three windows, a sortable table lists
   all zones with a "check my location" option, and a banner surfaces any
-  zone currently in WATCH or CRITICAL. It auto-refreshes every 60s (one
-  batched Open-Meteo request covers every zone, regardless of count) and
-  supports the same English/Hindi toggle and text-size control as the
-  landing page. This is a heuristic built on this project's own hazard
-  atlas, explicitly **not** an official CWC/IMD Flash Flood Guidance
-  product — that would require a full hydrological model this repo
+  zone currently in WATCH or CRITICAL. It auto-refreshes every 60s.
+  Rainfall for the zone list is fetched server-side and cached for 10
+  minutes (`_fetch_ffgs_live_rainfall` in `server.py`) rather than by each
+  visitor's own browser — every visitor wants the exact same data, so one
+  cached server-side call serves all of them, instead of N visitors each
+  re-fetching identical data and burning through Open-Meteo's free-tier
+  daily quota (a real failure mode hit during development: a handful of
+  people testing from the same network exhausted it within minutes).
+  "Check my location" is still a genuine client-side fetch, since that's
+  a one-off, per-visitor, arbitrary point. FFGS supports the same
+  English/Hindi toggle and text-size control as the landing page. This is
+  a heuristic built on this project's own hazard atlas, explicitly **not**
+  an official CWC/IMD Flash Flood Guidance product — that would require a
+  full hydrological model this repo
   doesn't have.
 - **Locality-level granularity where the data supports it** — India's
   municipal corporations don't publish machine-readable ward boundaries

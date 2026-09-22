@@ -3869,15 +3869,17 @@ async function loadShelters() {
 // LOCALITY HAZARD LAYER (ward-level granularity)
 //
 // Shows the same real, named localities as the Flash Flood Guidance
-// System (/ffgs) -- OSM place=suburb/neighbourhood/quarter nodes the
-// hazard atlas actually covers, concentrated around Rishikesh -- as
-// a live-status layer on the routing map itself, so route planning
-// has the same neighborhood-level context FFGS shows on its own
-// page. Zone metadata comes from this same server's /ffgs/zones
-// (same-origin, safe to fetch normally); the rainfall behind each
-// zone's live status is fetched directly from Open-Meteo by the
-// browser in one batched multi-location call, same reasoning as
-// fetchLiveConditions above -- never proxied through this server.
+// System (/ffgs) -- OSM place=suburb/neighbourhood/quarter/village/
+// hamlet nodes the hazard atlas actually covers -- as a live-status
+// layer on the routing map itself, so route planning has the same
+// neighborhood-level context FFGS shows on its own page. Both zone
+// metadata AND live rainfall come from this same server's
+// /ffgs/zones, which caches one server-side Open-Meteo call for
+// every visitor (see _fetch_ffgs_live_rainfall in server.py) rather
+// than each visitor's browser re-fetching the same data -- that used
+// to be client-side here too, but N visitors independently hitting
+// Open-Meteo for identical data burns through its free-tier daily
+// quota fast, especially from a shared network.
 // =======================================================
 
 let localityMarkers = [];
@@ -3903,37 +3905,6 @@ function localityStatusColor(status) {
     return "#6b7680";
 }
 
-async function fetchLocalityRainfallBatch(zones) {
-    if (zones.length === 0) return [];
-
-    const lats = zones.map(function(z) { return z.lat; }).join(",");
-    const lons = zones.map(function(z) { return z.lon; }).join(",");
-
-    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lats +
-        "&longitude=" + lons +
-        "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=1&timezone=auto";
-
-    const payload = await (await fetch(url)).json();
-    const perLocation = Array.isArray(payload) ? payload : [payload];
-
-    return perLocation.map(function(loc) {
-        const hourlyTimes = (loc.hourly && loc.hourly.time) || [];
-        const hourlyPrecip = (loc.hourly && loc.hourly.precipitation) || [];
-        const currentTime = loc.current && loc.current.time;
-
-        let idx = currentTime ? hourlyTimes.indexOf(currentTime) : -1;
-        if (idx === -1) idx = hourlyTimes.length - 1;
-
-        function sumLast(n) {
-            if (idx < 0) return null;
-            const start = Math.max(0, idx - n + 1);
-            return hourlyPrecip.slice(start, idx + 1).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
-        }
-
-        return { "1h": sumLast(1), "3h": sumLast(3), "24h": sumLast(24) };
-    });
-}
-
 async function loadLocalityZones() {
 
     try {
@@ -3948,21 +3919,14 @@ async function loadLocalityZones() {
         const localities = data.zones.filter(function(z) { return z.kind === "locality" && z.hazard_class; });
         const durations = data.durations || ["1h", "3h", "24h"];
 
-        let rainfalls;
-        try {
-            rainfalls = await fetchLocalityRainfallBatch(localities);
-        } catch (error) {
-            rainfalls = localities.map(function() { return null; });
-        }
-
         localityMarkers.forEach(function(marker) {
             FLOODSAFE_MAP.removeLayer(marker);
         });
         localityMarkers = [];
 
-        localities.forEach(function(zone, i) {
+        localities.forEach(function(zone) {
 
-            const rain = rainfalls[i];
+            const rain = zone.live_rainfall || null;
             let overall = null;
 
             const durationText = durations.map(function(d) {
@@ -4392,10 +4356,10 @@ document.addEventListener("DOMContentLoaded", function() {
     loadShelters();
     loadLocalityZones();
 
-    // Rainfall changes slowly enough that a 60s poll is plenty, and
-    // this is one batched Open-Meteo request per cycle regardless of
-    // how many localities are mapped (see fetchLocalityRainfallBatch
-    // above).
+    // Rainfall itself now comes from /ffgs/zones (server-cached, see
+    // _fetch_ffgs_live_rainfall in server.py) rather than a client-side
+    // Open-Meteo call, so this 60s poll is just a same-origin request —
+    // no external rate-limit exposure at all, regardless of visitor count.
     setInterval(loadLocalityZones, 60000);
 
 });

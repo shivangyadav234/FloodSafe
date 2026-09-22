@@ -737,11 +737,12 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
     """
     Like guidance_for_point() above, but returns the full
     duration-bucketed threshold set instead of a single watch/critical
-    pair, plus watershed and soil context. Rainfall itself is still
-    fetched by the browser directly from Open-Meteo (never bulk-fetched
-    by this server) — see the Render shared-IP rate-limit note on
-    /weather further down; the same reasoning applies here, doubly so
-    for a bulk zones endpoint.
+    pair, plus watershed and soil context. This function itself never
+    touches rainfall — /ffgs/point (a single arbitrary point) still
+    has the browser fetch rainfall directly from Open-Meteo, same
+    reasoning as the /weather rate-limit note further down; /ffgs/zones
+    (the fixed, shared zone list) instead merges in a server-side
+    cached rainfall fetch — see _fetch_ffgs_live_rainfall above.
     """
 
     hazard_class, exact, distance_km = classify_point(lat, lon)
@@ -3949,55 +3950,6 @@ async function fetchDurationRainfall(lat, lon) {
     };
 }
 
-function extractDurationsFromPayload(payload) {
-    const hourlyTimes = (payload.hourly && payload.hourly.time) || [];
-    const hourlyPrecip = (payload.hourly && payload.hourly.precipitation) || [];
-    const currentTime = payload.current && payload.current.time;
-
-    let idx = currentTime ? hourlyTimes.indexOf(currentTime) : -1;
-    if (idx === -1) idx = hourlyTimes.length - 1;
-
-    function sumLast(n) {
-        if (idx < 0) return null;
-        const start = Math.max(0, idx - n + 1);
-        return hourlyPrecip.slice(start, idx + 1).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
-    }
-
-    return {
-        "1h": sumLast(1),
-        "3h": sumLast(3),
-        "24h": sumLast(24),
-        antecedent_48h: sumLast(48)
-    };
-}
-
-// One Open-Meteo call for every zone at once (it accepts comma-
-// separated lat/lon lists and returns one result per point, in the
-// same order) instead of one fetch per zone — at 25+ zones, a
-// per-zone loop would mean 25+ requests every 60s from a single
-// visitor's browser, which risks the same kind of rate-limiting this
-// app has already hit before (see the Render shared-IP note above).
-// A single batched call sidesteps that regardless of zone count.
-async function fetchDurationRainfallBatch(zones) {
-    if (zones.length === 0) return [];
-
-    const lats = zones.map(function(z) { return z.lat; }).join(",");
-    const lons = zones.map(function(z) { return z.lon; }).join(",");
-
-    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lats +
-        "&longitude=" + lons +
-        "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=1&timezone=auto";
-
-    const payload = await (await fetch(url)).json();
-
-    // Open-Meteo returns a plain object (not an array) when only one
-    // location was requested, and an array of per-location objects
-    // otherwise -- normalize to always be an array here.
-    const perLocation = Array.isArray(payload) ? payload : [payload];
-
-    return perLocation.map(extractDurationsFromPayload);
-}
-
 function alertZoneLabel(z) {
     return z.parent_town ? z.name + " (" + ffgsTownName(z.parent_town) + ")" : ffgsTownName(z.name);
 }
@@ -4121,15 +4073,8 @@ async function loadFfgsZones() {
 
     const mappedZones = data.zones.filter(function(z) { return z.hazard_class; });
 
-    let rainfalls;
-    try {
-        rainfalls = await fetchDurationRainfallBatch(mappedZones);
-    } catch (error) {
-        rainfalls = mappedZones.map(function() { return null; });
-    }
-
-    ffgsZones = mappedZones.map(function(zone, i) {
-        const rain = rainfalls[i];
+    ffgsZones = mappedZones.map(function(zone) {
+        const rain = zone.live_rainfall || null;
         const perDuration = {};
         let overall = null;
 
@@ -4162,11 +4107,10 @@ async function loadFfgsZones() {
 
 loadFfgsZones();
 
-// Rainfall changes slowly enough that a 60s poll is more than
-// sufficient, and this is one batched Open-Meteo request per cycle
-// regardless of zone count (see fetchDurationRainfallBatch above),
-// so it stays well clear of Open-Meteo's free-tier rate limit even
-// as the zone list grows with more mapped localities.
+// Rainfall itself now comes from /ffgs/zones (server-cached, see
+// _fetch_ffgs_live_rainfall in server.py) rather than a client-side
+// Open-Meteo call, so this 60s poll is just a same-origin request —
+// no external rate-limit exposure at all, regardless of visitor count.
 setInterval(loadFfgsZones, 60000);
 
 document.getElementById("ffgsMyLocationBtn").addEventListener("click", function() {
@@ -4264,17 +4208,138 @@ def ffgs_watersheds():
 
 
 # ============================================================
+# FFGS LIVE RAINFALL — server-side, cached
+#
+# Originally fetched by each visitor's own browser directly from
+# Open-Meteo (one batched call per page load), to avoid Render's
+# shared outbound IP getting rate-limited the way it did for /weather
+# and Nominatim before (see their own comments). In practice, though,
+# every visitor's FFGS page wants the exact same data — the same
+# fixed zone list — so client-side fetching means N visitors each
+# independently re-fetch identical data instead of sharing one
+# answer, and a handful of people testing from the same network (a
+# hackathon venue's WiFi, for instance) can exhaust Open-Meteo's
+# free-tier daily quota for that shared IP within minutes — which is
+# exactly what happened during development here. A short server-side
+# cache fixes both: one outbound call per
+# FFGS_RAINFALL_CACHE_TTL_SECONDS serves every visitor, and a failed
+# refresh falls back to the last good reading instead of leaving the
+# whole page blank — same resilience pattern as /weather above.
+# "Check my location" stays a genuine client-side fetch (see
+# fetchDurationRainfall in FFGS_PAGE_HTML) — that's a one-off,
+# per-visitor, arbitrary point, not worth caching.
+# ============================================================
+
+FFGS_RAINFALL_CACHE_TTL_SECONDS = 10 * 60
+_ffgs_rainfall_cache = {"timestamp": 0.0, "data": {}}
+
+
+def _parse_open_meteo_durations(payload):
+
+    hourly = payload.get("hourly") or {}
+    hourly_times = hourly.get("time") or []
+    hourly_precip = hourly.get("precipitation") or []
+    current_time = (payload.get("current") or {}).get("time")
+
+    try:
+        idx = hourly_times.index(current_time) if current_time else len(hourly_times) - 1
+    except ValueError:
+        idx = len(hourly_times) - 1
+
+    def sum_last(n):
+        if idx < 0:
+            return None
+        start = max(0, idx - n + 1)
+        return round(sum(float(v or 0.0) for v in hourly_precip[start:idx + 1]), 2)
+
+    return {
+        "1h": sum_last(1),
+        "3h": sum_last(3),
+        "24h": sum_last(24),
+        "antecedent_48h": sum_last(48),
+    }
+
+
+def _fetch_ffgs_live_rainfall():
+    """
+    One batched Open-Meteo call covering every FFGS zone with a
+    mapped hazard class, cached for FFGS_RAINFALL_CACHE_TTL_SECONDS.
+    Returns {(lat, lon): {"1h", "3h", "24h", "antecedent_48h"}} — the
+    last successful reading if this refresh fails, or {} if there's
+    never been a successful fetch.
+    """
+
+    now = time.time()
+    cache = _ffgs_rainfall_cache
+
+    if cache["data"] and (now - cache["timestamp"]) < FFGS_RAINFALL_CACHE_TTL_SECONDS:
+        return cache["data"]
+
+    mapped_zones = [z for z in FFGS_ZONES if z.get("hazard_class")]
+
+    if not mapped_zones:
+        return cache["data"]
+
+    try:
+
+        response = requests.get(
+            "https://api.open-meteo.com/v1/forecast",
+
+            params={
+                "latitude": ",".join(str(z["lat"]) for z in mapped_zones),
+                "longitude": ",".join(str(z["lon"]) for z in mapped_zones),
+                "current": "precipitation",
+                "hourly": "precipitation",
+                "past_days": 2,
+                "forecast_days": 1,
+                "timezone": "auto",
+            },
+
+            timeout=20
+        )
+
+        response.raise_for_status()
+        payload = response.json()
+
+        # Open-Meteo returns a bare object (not a list) for a single
+        # location, and a list of one object per location otherwise.
+        per_location = payload if isinstance(payload, list) else [payload]
+
+        fresh = {
+            (zone["lat"], zone["lon"]): _parse_open_meteo_durations(loc)
+            for zone, loc in zip(mapped_zones, per_location)
+        }
+
+        _ffgs_rainfall_cache["timestamp"] = now
+        _ffgs_rainfall_cache["data"] = fresh
+
+        return fresh
+
+    except Exception as e:
+
+        print("WARNING: FFGS live rainfall refresh failed:", repr(e))
+        return cache["data"]
+
+
+# ============================================================
 # FLASH FLOOD GUIDANCE SYSTEM (FFGS) — endpoints
 # ============================================================
 
 @app.route("/ffgs/zones")
 def ffgs_zones():
 
+    rainfall_by_point = _fetch_ffgs_live_rainfall()
+
+    zones_with_rainfall = [
+        dict(zone, live_rainfall=rainfall_by_point.get((zone["lat"], zone["lon"])))
+        for zone in FFGS_ZONES
+    ]
+
     return jsonify({
         "available": GUIDANCE_AVAILABLE,
         "error": None if GUIDANCE_AVAILABLE else GUIDANCE_ERROR,
         "durations": list(FFGS_DURATIONS),
-        "zones": FFGS_ZONES,
+        "zones": zones_with_rainfall,
     })
 
 
