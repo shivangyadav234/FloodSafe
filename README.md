@@ -84,12 +84,26 @@ produced a route distinct from both Fastest and Safest.
   shades the hazard atlas by class and plots every zone colored by its
   current worst status across the three windows, a sortable table lists
   all zones with a "check my location" option, and a banner surfaces any
-  zone currently in WATCH or CRITICAL. It auto-refreshes every 60s and
+  zone currently in WATCH or CRITICAL. It auto-refreshes every 60s (one
+  batched Open-Meteo request covers every zone, regardless of count) and
   supports the same English/Hindi toggle and text-size control as the
   landing page. This is a heuristic built on this project's own hazard
   atlas, explicitly **not** an official CWC/IMD Flash Flood Guidance
   product — that would require a full hydrological model this repo
   doesn't have.
+- **Locality-level granularity where the data supports it** — India's
+  municipal corporations don't publish machine-readable ward boundaries
+  (checked: zero ward-level boundaries exist in OSM for any Uttarakhand
+  ULB, and no free GeoJSON/shapefile exists beyond PDF ward maps), so
+  instead of faking ward polygons, FFGS pulls real OSM
+  `place=suburb/neighbourhood/quarter` nodes near each town
+  (`extract_localities.py`) and includes every one that the hazard atlas
+  actually covers. In practice that's concentrated around Rishikesh (20
+  real, named localities along the Ganga — Laxman Jhula, Muni Ki Reti,
+  Tapovan, etc.), since most other towns' centers fall outside the
+  atlas's mapped corridors entirely. Each locality is labeled with its
+  parent town (e.g. "Muni Ki Reti — Rishikesh") rather than presented as
+  an official ward.
 
 ## Project layout
 
@@ -100,11 +114,13 @@ produced a route distinct from both Fastest and Safest.
   (risk-weighted Dijkstra), the data-build pipeline
   (`extract_hazard.py` → `get_boundary.py` → `clip_hazard.py` →
   `create_road_hazard_geojson.py` → `road_flood_risk.py`) that turns the raw
-  hazard atlas into the routing graph, and `extract_shelters.py` (pulls real
-  shelter/hospital points from OSM).
+  hazard atlas into the routing graph, `extract_shelters.py` (pulls real
+  shelter/hospital points from OSM), and `extract_localities.py` (pulls
+  real named localities from OSM for FFGS's locality-level granularity).
 - `data/flood/uttarakhand/data/` — the consolidated runtime data the app
   actually loads (geojson layers, the generated map HTML, the routing graph:
-  `roads.npz`, `coordinates.npy`, `road_flood_risk.npz`, and `shelters.json`).
+  `roads.npz`, `coordinates.npy`, `road_flood_risk.npz`, `shelters.json`,
+  and `localities.json`).
 - `legacy/` — an earlier, synthetic-data prototype (`routing/` package,
   ad hoc test scripts) and abandoned diagnostic scripts, kept for reference
   but not part of the live app.

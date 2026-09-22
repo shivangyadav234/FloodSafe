@@ -1,0 +1,485 @@
+[
+  {
+    "name": "Laxman Jhula",
+    "town": "Rishikesh",
+    "lat": 30.12592,
+    "lon": 78.32853,
+    "dist_km": 7.29
+  },
+  {
+    "name": "Bahādrābād",
+    "town": "Haridwar",
+    "lat": 29.91973,
+    "lon": 78.04367,
+    "dist_km": 11.97
+  },
+  {
+    "name": "Rājpur",
+    "town": "Mussoorie",
+    "lat": 30.38194,
+    "lon": 78.08873,
+    "dist_km": 8.92
+  },
+  {
+    "name": "Swargashram",
+    "town": "Rishikesh",
+    "lat": 30.11855,
+    "lon": 78.31382,
+    "dist_km": 5.67
+  },
+  {
+    "name": "Panditwadi",
+    "town": "Dehradun",
+    "lat": 30.33156,
+    "lon": 77.99161,
+    "dist_km": 4.24
+  },
+  {
+    "name": "Premnagar",
+    "town": "Dehradun",
+    "lat": 30.33523,
+    "lon": 77.964,
+    "dist_km": 6.87
+  },
+  {
+    "name": "Ashirwad Enclave",
+    "town": "Dehradun",
+    "lat": 30.33118,
+    "lon": 78.00767,
+    "dist_km": 2.86
+  },
+  {
+    "name": "Tapovan",
+    "town": "Rishikesh",
+    "lat": 30.12966,
+    "lon": 78.32211,
+    "dist_km": 7.08
+  },
+  {
+    "name": "Pandav Gufa",
+    "town": "Rishikesh",
+    "lat": 30.1322,
+    "lon": 78.33335,
+    "dist_km": 8.09
+  },
+  {
+    "name": "Maya Kund",
+    "town": "Rishikesh",
+    "lat": 30.10587,
+    "lon": 78.29885,
+    "dist_km": 3.67
+  },
+  {
+    "name": "Chauda Bigha",
+    "town": "Rishikesh",
+    "lat": 30.11335,
+    "lon": 78.30246,
+    "dist_km": 4.46
+  },
+  {
+    "name": "Dhalwala",
+    "town": "Rishikesh",
+    "lat": 30.12139,
+    "lon": 78.28608,
+    "dist_km": 4.23
+  },
+  {
+    "name": "Muni Ki Reti",
+    "town": "Rishikesh",
+    "lat": 30.11983,
+    "lon": 78.30629,
+    "dist_km": 5.22
+  },
+  {
+    "name": "Ganga Vatika",
+    "town": "Rishikesh",
+    "lat": 30.12416,
+    "lon": 78.30537,
+    "dist_km": 5.51
+  },
+  {
+    "name": "Adarsh Nagar",
+    "town": "Rishikesh",
+    "lat": 30.10431,
+    "lon": 78.28817,
+    "dist_km": 2.77
+  },
+  {
+    "name": "TDHC Colony",
+    "town": "Rishikesh",
+    "lat": 30.10791,
+    "lon": 78.28211,
+    "dist_km": 2.72
+  },
+  {
+    "name": "Pragati Vihar",
+    "town": "Rishikesh",
+    "lat": 30.11066,
+    "lon": 78.28408,
+    "dist_km": 3.08
+  },
+  {
+    "name": "Ashutosh Nagar",
+    "town": "Rishikesh",
+    "lat": 30.11429,
+    "lon": 78.28635,
+    "dist_km": 3.54
+  },
+  {
+    "name": "Adarsh Gram",
+    "town": "Rishikesh",
+    "lat": 30.11047,
+    "lon": 78.29381,
+    "dist_km": 3.64
+  },
+  {
+    "name": "BSNL Colony",
+    "town": "Rishikesh",
+    "lat": 30.11512,
+    "lon": 78.28179,
+    "dist_km": 3.42
+  },
+  {
+    "name": "Someshwar Nagar",
+    "town": "Rishikesh",
+    "lat": 30.0973,
+    "lon": 78.27773,
+    "dist_km": 1.51
+  },
+  {
+    "name": "Kolghatti",
+    "town": "Rishikesh",
+    "lat": 30.09573,
+    "lon": 78.28623,
+    "dist_km": 2.04
+  },
+  {
+    "name": "Lala Bazar",
+    "town": "Almora",
+    "lat": 29.59893,
+    "lon": 79.66013,
+    "dist_km": 1.69
+  },
+  {
+    "name": "Kaulagarh",
+    "town": "Dehradun",
+    "lat": 30.35011,
+    "lon": 78.00702,
+    "dist_km": 4.45
+  },
+  {
+    "name": "Sivananda Nagar",
+    "town": "Rishikesh",
+    "lat": 30.12347,
+    "lon": 78.31088,
+    "dist_km": 5.82
+  },
+  {
+    "name": "Shyampur",
+    "town": "Rishikesh",
+    "lat": 30.06334,
+    "lon": 78.23532,
+    "dist_km": 4.06
+  },
+  {
+    "name": "Har Ki Pauri",
+    "town": "Haridwar",
+    "lat": 29.95664,
+    "lon": 78.17086,
+    "dist_km": 1.38
+  },
+  {
+    "name": "IDPL Colony",
+    "town": "Rishikesh",
+    "lat": 30.0783,
+    "lon": 78.26413,
+    "dist_km": 1.01
+  },
+  {
+    "name": "Chhoti Haldwani",
+    "town": "Nainital",
+    "lat": 29.28241,
+    "lon": 79.34928,
+    "dist_km": 15.53
+  },
+  {
+    "name": "Panchayat Ghar",
+    "town": "Haldwani",
+    "lat": 29.17139,
+    "lon": 79.48863,
+    "dist_km": 5.73
+  },
+  {
+    "name": "Ganna Centre",
+    "town": "Haldwani",
+    "lat": 29.15784,
+    "lon": 79.48054,
+    "dist_km": 7.42
+  },
+  {
+    "name": "Mukhani",
+    "town": "Haldwani",
+    "lat": 29.21804,
+    "lon": 79.51853,
+    "dist_km": 0.54
+  },
+  {
+    "name": "Panchakki",
+    "town": "Haldwani",
+    "lat": 29.24098,
+    "lon": 79.52881,
+    "dist_km": 2.95
+  },
+  {
+    "name": "Lal Danth",
+    "town": "Haldwani",
+    "lat": 29.23006,
+    "lon": 79.51785,
+    "dist_km": 1.39
+  },
+  {
+    "name": "Unchapul",
+    "town": "Haldwani",
+    "lat": 29.22586,
+    "lon": 79.49736,
+    "dist_km": 1.74
+  },
+  {
+    "name": "Roshanabad",
+    "town": "Haridwar",
+    "lat": 29.9732,
+    "lon": 78.05713,
+    "dist_km": 10.76
+  },
+  {
+    "name": "Integrated Industrial Estate",
+    "town": "Haridwar",
+    "lat": 29.95962,
+    "lon": 78.06576,
+    "dist_km": 9.61
+  },
+  {
+    "name": "BHEL Township",
+    "town": "Haridwar",
+    "lat": 29.93861,
+    "lon": 78.11228,
+    "dist_km": 5.06
+  },
+  {
+    "name": "Mallital",
+    "town": "Nainital",
+    "lat": 29.39221,
+    "lon": 79.45476,
+    "dist_km": 1.58
+  },
+  {
+    "name": "Talllital",
+    "town": "Nainital",
+    "lat": 29.37901,
+    "lon": 79.46275,
+    "dist_km": 0.17
+  },
+  {
+    "name": "Halduchaur",
+    "town": "Haldwani",
+    "lat": 29.11016,
+    "lon": 79.51955,
+    "dist_km": 12.04
+  },
+  {
+    "name": "Motahaldu",
+    "town": "Haldwani",
+    "lat": 29.14042,
+    "lon": 79.52093,
+    "dist_km": 8.69
+  },
+  {
+    "name": "Judge Farm",
+    "town": "Haldwani",
+    "lat": 29.21104,
+    "lon": 79.51265,
+    "dist_km": 0.81
+  },
+  {
+    "name": "Pilikothi",
+    "town": "Haldwani",
+    "lat": 29.21445,
+    "lon": 79.50795,
+    "dist_km": 0.65
+  },
+  {
+    "name": "Heera Nagar",
+    "town": "Haldwani",
+    "lat": 29.21391,
+    "lon": 79.51897,
+    "dist_km": 0.76
+  },
+  {
+    "name": "Chharayal",
+    "town": "Haldwani",
+    "lat": 29.20325,
+    "lon": 79.48998,
+    "dist_km": 2.79
+  },
+  {
+    "name": "Kusumkhera",
+    "town": "Haldwani",
+    "lat": 29.219,
+    "lon": 79.50249,
+    "dist_km": 1.02
+  },
+  {
+    "name": "Bomari Tallikham",
+    "town": "Haldwani",
+    "lat": 29.22352,
+    "lon": 79.512,
+    "dist_km": 0.59
+  },
+  {
+    "name": "Bithoria No1",
+    "town": "Haldwani",
+    "lat": 29.23319,
+    "lon": 79.51182,
+    "dist_km": 1.66
+  },
+  {
+    "name": "Bamori Malli",
+    "town": "Haldwani",
+    "lat": 29.23462,
+    "lon": 79.52711,
+    "dist_km": 2.27
+  },
+  {
+    "name": "Bamori Talli Kham",
+    "town": "Haldwani",
+    "lat": 29.23594,
+    "lon": 79.51433,
+    "dist_km": 1.97
+  },
+  {
+    "name": "Dewarchaur Kham",
+    "town": "Haldwani",
+    "lat": 29.19662,
+    "lon": 79.52337,
+    "dist_km": 2.61
+  },
+  {
+    "name": "Haldwani Talli",
+    "town": "Haldwani",
+    "lat": 29.18682,
+    "lon": 79.5162,
+    "dist_km": 3.51
+  },
+  {
+    "name": "Bithoria No 2",
+    "town": "Haldwani",
+    "lat": 29.23435,
+    "lon": 79.50513,
+    "dist_km": 1.94
+  },
+  {
+    "name": "Damua Dhunga Kham",
+    "town": "Haldwani",
+    "lat": 29.24441,
+    "lon": 79.51762,
+    "dist_km": 2.94
+  },
+  {
+    "name": "Haripur Seel",
+    "town": "Haldwani",
+    "lat": 29.24045,
+    "lon": 79.52662,
+    "dist_km": 2.8
+  },
+  {
+    "name": "Harinagar",
+    "town": "Haldwani",
+    "lat": 29.2214,
+    "lon": 79.51981,
+    "dist_km": 0.75
+  },
+  {
+    "name": "Kamaluwa Ganja Narsingh Talla",
+    "town": "Haldwani",
+    "lat": 29.21091,
+    "lon": 79.47846,
+    "dist_km": 3.45
+  },
+  {
+    "name": "Chharaval Nayabad",
+    "town": "Haldwani",
+    "lat": 29.20405,
+    "lon": 79.48044,
+    "dist_km": 3.54
+  },
+  {
+    "name": "Chharayal Nayak",
+    "town": "Haldwani",
+    "lat": 29.20158,
+    "lon": 79.48604,
+    "dist_km": 3.21
+  },
+  {
+    "name": "Ganga Vihar Colony",
+    "town": "Rishikesh",
+    "lat": 30.09704,
+    "lon": 78.28744,
+    "dist_km": 2.22
+  },
+  {
+    "name": "Missarpur",
+    "town": "Haridwar",
+    "lat": 29.88985,
+    "lon": 78.13382,
+    "dist_km": 6.87
+  },
+  {
+    "name": "Arhat Bazar",
+    "town": "Dehradun",
+    "lat": 30.31694,
+    "lon": 78.0297,
+    "dist_km": 0.24
+  },
+  {
+    "name": "Kochar Colony",
+    "town": "Dehradun",
+    "lat": 30.36811,
+    "lon": 78.07113,
+    "dist_km": 6.85
+  },
+  {
+    "name": "Bungalow ki Kandli",
+    "town": "Mussoorie",
+    "lat": 30.48102,
+    "lon": 78.03614,
+    "dist_km": 3.74
+  },
+  {
+    "name": "Picture Palace",
+    "town": "Mussoorie",
+    "lat": 30.45572,
+    "lon": 78.0804,
+    "dist_km": 1.42
+  },
+  {
+    "name": "Dakra Bazar",
+    "town": "Dehradun",
+    "lat": 30.35402,
+    "lon": 78.0307,
+    "dist_km": 4.17
+  },
+  {
+    "name": "Happy Valley",
+    "town": "Mussoorie",
+    "lat": 30.46975,
+    "lon": 78.05152,
+    "dist_km": 1.8
+  },
+  {
+    "name": "Deckyiling",
+    "town": "Dehradun",
+    "lat": 30.3696,
+    "lon": 78.09941,
+    "dist_km": 8.74
+  }
+]

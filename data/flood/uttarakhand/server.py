@@ -562,10 +562,56 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
 # the antecedent adjustment is only applied on the single-point
 # /ffgs/point lookup, where the browser supplies the antecedent total
 # it already fetched for that one location.
-FFGS_ZONES = [
-    dict(ffgs_guidance_for_point(town["lat"], town["lon"]), name=town["name"])
+FFGS_TOWN_ZONES = [
+    dict(ffgs_guidance_for_point(town["lat"], town["lon"]), name=town["name"], kind="town", parent_town=None)
     for town in GUIDANCE_TOWNS
 ]
+
+
+# ============================================================
+# FFGS locality-level granularity
+#
+# extract_localities.py pulls real OSM place=suburb/neighbourhood/
+# quarter nodes near each anchor town (see its own header comment for
+# why village/hamlet and official "ward" data aren't used). Whether
+# any of them end up here depends entirely on the hazard atlas
+# separately covering that exact point — same nearest-zone-within-15km
+# rule as everything else in this file, applied per locality rather
+# than per town. In practice most towns have zero mapped localities
+# (their center itself is outside the atlas's hazard-prone corridors);
+# Rishikesh is the one town where this adds real, meaningful
+# granularity.
+# ============================================================
+
+LOCALITIES_FILE = os.path.join(DATA_DIR, "localities.json")
+
+
+def _load_localities():
+
+    if not os.path.exists(LOCALITIES_FILE):
+        return []
+
+    with open(LOCALITIES_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+FFGS_LOCALITY_ZONES = []
+
+for _loc in _load_localities():
+
+    _zone = ffgs_guidance_for_point(_loc["lat"], _loc["lon"])
+
+    if not _zone["hazard_class"]:
+        continue
+
+    FFGS_LOCALITY_ZONES.append(dict(
+        _zone,
+        name=_loc["name"],
+        kind="locality",
+        parent_town=_loc["town"]
+    ))
+
+FFGS_ZONES = FFGS_TOWN_ZONES + FFGS_LOCALITY_ZONES
 
 
 # ============================================================
@@ -3153,6 +3199,8 @@ table.ffgs-table thead th {
     font-weight: 700;
 }
 
+.parent-town { color: var(--faint); font-weight: normal; font-size: 12px; }
+
 .ffgs-safe { background: var(--safe-bg); color: var(--safe); }
 .ffgs-watch { background: var(--watch-bg); color: var(--watch); }
 .ffgs-critical { background: var(--risk-bg); color: var(--risk); }
@@ -3564,6 +3612,59 @@ async function fetchDurationRainfall(lat, lon) {
     };
 }
 
+function extractDurationsFromPayload(payload) {
+    const hourlyTimes = (payload.hourly && payload.hourly.time) || [];
+    const hourlyPrecip = (payload.hourly && payload.hourly.precipitation) || [];
+    const currentTime = payload.current && payload.current.time;
+
+    let idx = currentTime ? hourlyTimes.indexOf(currentTime) : -1;
+    if (idx === -1) idx = hourlyTimes.length - 1;
+
+    function sumLast(n) {
+        if (idx < 0) return null;
+        const start = Math.max(0, idx - n + 1);
+        return hourlyPrecip.slice(start, idx + 1).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
+    }
+
+    return {
+        "1h": sumLast(1),
+        "3h": sumLast(3),
+        "24h": sumLast(24),
+        antecedent_48h: sumLast(48)
+    };
+}
+
+// One Open-Meteo call for every zone at once (it accepts comma-
+// separated lat/lon lists and returns one result per point, in the
+// same order) instead of one fetch per zone — at 25+ zones, a
+// per-zone loop would mean 25+ requests every 60s from a single
+// visitor's browser, which risks the same kind of rate-limiting this
+// app has already hit before (see the Render shared-IP note above).
+// A single batched call sidesteps that regardless of zone count.
+async function fetchDurationRainfallBatch(zones) {
+    if (zones.length === 0) return [];
+
+    const lats = zones.map(function(z) { return z.lat; }).join(",");
+    const lons = zones.map(function(z) { return z.lon; }).join(",");
+
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lats +
+        "&longitude=" + lons +
+        "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=1&timezone=auto";
+
+    const payload = await (await fetch(url)).json();
+
+    // Open-Meteo returns a plain object (not an array) when only one
+    // location was requested, and an array of per-location objects
+    // otherwise -- normalize to always be an array here.
+    const perLocation = Array.isArray(payload) ? payload : [payload];
+
+    return perLocation.map(extractDurationsFromPayload);
+}
+
+function alertZoneLabel(z) {
+    return z.parent_town ? z.name + " (" + ffgsTownName(z.parent_town) + ")" : ffgsTownName(z.name);
+}
+
 function renderAlertBanner() {
     const el = document.getElementById("ffgsAlert");
     const critical = ffgsZones.filter(function(z) { return z.overall === "CRITICAL"; });
@@ -3572,11 +3673,11 @@ function renderAlertBanner() {
     if (critical.length) {
         el.style.display = "block";
         el.className = "ffgs-alert-critical";
-        el.textContent = t("alertCriticalPrefix") + critical.map(function(z) { return ffgsTownName(z.name); }).join(", ") + t("alertCriticalSuffix");
+        el.textContent = t("alertCriticalPrefix") + critical.map(alertZoneLabel).join(", ") + t("alertCriticalSuffix");
     } else if (watch.length) {
         el.style.display = "block";
         el.className = "ffgs-alert-watch";
-        el.textContent = t("alertWatchPrefix") + watch.map(function(z) { return ffgsTownName(z.name); }).join(", ") + t("alertWatchSuffix");
+        el.textContent = t("alertWatchPrefix") + watch.map(alertZoneLabel).join(", ") + t("alertWatchSuffix");
     } else {
         el.style.display = "none";
     }
@@ -3606,7 +3707,10 @@ function renderFfgsTable() {
             return info.rainMm.toFixed(1) + " mm";
         }
         const badgeClass = "ffgs-badge ffgs-" + (z.overall || "unmapped").toLowerCase();
-        return "<tr><td>" + ffgsTownName(z.name) + "</td><td>" + hazardClassLabel(z.hazard_class) + "</td>" +
+        const locationCell = z.parent_town
+            ? z.name + '<span class="parent-town"> — ' + ffgsTownName(z.parent_town) + "</span>"
+            : ffgsTownName(z.name);
+        return "<tr><td>" + locationCell + "</td><td>" + hazardClassLabel(z.hazard_class) + "</td>" +
             '<td class="num">' + cell("1h") + "</td>" +
             '<td class="num">' + cell("3h") + "</td>" +
             '<td class="num">' + cell("24h") + "</td>" +
@@ -3640,8 +3744,12 @@ function renderMarkers() {
             return "<tr><td>" + d + "</td><td>" + rainText + "</td><td>" + critical + "</td><td>" + statusText + "</td></tr>";
         }).join("");
 
+        const popupTitle = z.parent_town
+            ? "<b>" + z.name + "</b> (" + ffgsTownName(z.parent_town) + ")"
+            : "<b>" + ffgsTownName(z.name) + "</b>";
+
         marker.bindPopup(
-            "<b>" + ffgsTownName(z.name) + "</b> — " + hazardClassLabel(z.hazard_class) + t("hazardZoneSuffix") + "<br>" +
+            popupTitle + " — " + hazardClassLabel(z.hazard_class) + t("hazardZoneSuffix") + "<br>" +
             '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
             rows + "</tbody></table>"
         );
@@ -3671,9 +3779,12 @@ async function loadFfgsZones() {
 
     const mappedZones = data.zones.filter(function(z) { return z.hazard_class; });
 
-    const rainfalls = await Promise.all(mappedZones.map(function(z) {
-        return fetchDurationRainfall(z.lat, z.lon).catch(function() { return null; });
-    }));
+    let rainfalls;
+    try {
+        rainfalls = await fetchDurationRainfallBatch(mappedZones);
+    } catch (error) {
+        rainfalls = mappedZones.map(function() { return null; });
+    }
 
     ffgsZones = mappedZones.map(function(zone, i) {
         const rain = rainfalls[i];
@@ -3694,6 +3805,7 @@ async function loadFfgsZones() {
             lon: zone.lon,
             hazard_class: zone.hazard_class,
             thresholds_mm: zone.thresholds_mm,
+            parent_town: zone.parent_town || null,
             perDuration: perDuration,
             overall: overall
         };
@@ -3707,10 +3819,10 @@ async function loadFfgsZones() {
 loadFfgsZones();
 
 // Rainfall changes slowly enough that a 60s poll is more than
-// sufficient, and stays well clear of Open-Meteo's free-tier rate
-// limit even with 9 zones fetched per cycle from each visitor's own
-// browser (see fetchDurationRainfall's comment on why this is
-// client-side in the first place).
+// sufficient, and this is one batched Open-Meteo request per cycle
+// regardless of zone count (see fetchDurationRainfallBatch above),
+// so it stays well clear of Open-Meteo's free-tier rate limit even
+// as the zone list grows with more mapped localities.
 setInterval(loadFfgsZones, 60000);
 
 document.getElementById("ffgsMyLocationBtn").addEventListener("click", function() {
