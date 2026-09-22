@@ -230,7 +230,7 @@ def _active_reports():
 # before this specific place is at flood risk?" It pairs the static
 # hazard-atlas classification for a point with the live rainfall this
 # app already pulls elsewhere (see RAINFALL_STATIONS in the landing
-# page JS, and /weather below) and reports the remaining "headroom" —
+# page JS, and /town-rainfall below) and reports the remaining "headroom" —
 # the gap between current rainfall and the level at which that hazard
 # class is considered to be escalating.
 #
@@ -241,7 +241,7 @@ def _active_reports():
 # offset), so a low-tolerance EXTREME zone and a high-tolerance LOW
 # zone each get a WATCH window sized to their own scale. These are a
 # simplified heuristic calibrated against this app's own
-# RAIN_HIGH_THRESHOLD_MM (see /weather) — not an official CWC/IMD
+# RAIN_HIGH_THRESHOLD_MM (see /town-rainfall) — not an official CWC/IMD
 # Flash Flood Guidance value, which would need the full hydrological
 # model this repo doesn't have.
 #
@@ -906,7 +906,7 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
     pair, plus watershed and soil context. This function itself never
     touches rainfall — /ffgs/point (a single arbitrary point) still
     has the browser fetch rainfall directly from Open-Meteo, same
-    reasoning as the /weather rate-limit note further down; /ffgs/zones
+    reasoning as the /town-rainfall rate-limit note further down; /ffgs/zones
     (the fixed, shared zone list) instead merges in a server-side
     cached rainfall fetch — see _fetch_ffgs_live_rainfall above.
     """
@@ -1081,7 +1081,7 @@ SHELTERS_WITH_LOCALITY = [
 # LANDING PAGE
 #
 # The site's front door. Pulls live numbers from this same
-# server's own endpoints (/status, /shelters, /reports, /weather)
+# server's own endpoints (/status, /shelters, /reports, /town-rainfall)
 # via same-origin fetches in the browser, so the page always
 # reflects the live deployment instead of baked-in copy.
 # ============================================================
@@ -2264,35 +2264,34 @@ async function loadLiveStrip() {
     }
 
     try {
-        // Called directly from the browser, not proxied through this
-        // server — see fetchLiveConditions() in map_app.py for why.
+        // Read from this server's cached /town-rainfall, not from
+        // Open-Meteo directly. These nine towns are the same for every
+        // visitor, so fetching them per browser multiplied one reading
+        // by the number of people watching -- and the guidance panel
+        // below fetched the identical nine all over again, eighteen
+        // calls per page load. Open-Meteo's free tier counts each
+        // location separately against a daily per-IP quota, so a
+        // roomful of people behind one venue IP could exhaust it.
+        //
         // Checking several towns spread across the state (rather than
         // one fixed point) and showing the current wettest and driest
-        // side by side makes it obvious this is a live reading, not a
-        // hard-coded number — if it isn't raining anywhere right now,
-        // both will genuinely show 0.0mm rather than looking stuck.
-        const results = await Promise.all(RAINFALL_STATIONS.map(function(station) {
-            return fetch(
-                'https://api.open-meteo.com/v1/forecast?latitude=' + station.lat +
-                '&longitude=' + station.lon +
-                '&current=precipitation&hourly=precipitation&forecast_days=1&timezone=auto'
-            )
-                .then(function(r) { return r.json(); })
-                .then(function(payload) {
-                    if (!payload || !payload.current) return null;
-                    // Current conditions only — not blended with the next
-                    // few hours' forecast. This figure exists specifically
-                    // to demonstrate live data, so it needs to match what
-                    // a visitor can independently verify is happening
-                    // right now (e.g. against any weather app), not read
-                    // as "raining" purely because rain is forecast soon.
-                    const currentMm = Number(payload.current.precipitation || 0);
-                    return { name: station.name, mm: currentMm };
-                })
-                .catch(function() { return null; });
-        }));
+        // side by side still makes it obvious this is a live reading,
+        // not a hard-coded number — if it isn't raining anywhere right
+        // now, both genuinely show 0.0mm rather than looking stuck.
+        const payload = await (await fetch('/town-rainfall')).json();
+        const towns = (payload && payload.towns) || {};
 
-        const valid = results.filter(function(r) { return r !== null; });
+        // Current conditions only — not blended with the next few
+        // hours' forecast. This figure exists specifically to
+        // demonstrate live data, so it needs to match what a visitor
+        // can independently verify is happening right now (e.g.
+        // against any weather app), not read as "raining" purely
+        // because rain is forecast soon.
+        const valid = RAINFALL_STATIONS
+            .filter(function(station) { return towns[station.name] != null; })
+            .map(function(station) {
+                return { name: station.name, mm: Number(towns[station.name]) };
+            });
 
         if (valid.length > 0) {
             valid.sort(function(a, b) { return b.mm - a.mm; });
@@ -2387,18 +2386,21 @@ async function loadGuidancePanel() {
         return;
     }
 
-    const rainResults = await Promise.all(zones.map(function(zone) {
-        return fetch(
-            'https://api.open-meteo.com/v1/forecast?latitude=' + zone.lat +
-            '&longitude=' + zone.lon +
-            '&current=precipitation&timezone=auto'
-        )
-            .then(function(r) { return r.json(); })
-            .then(function(payload) {
-                return (payload && payload.current) ? Number(payload.current.precipitation || 0) : null;
-            })
-            .catch(function() { return null; });
-    }));
+    // Same cached server-side reading the live-stations strip uses.
+    // These are the same nine towns, so fetching them again here was
+    // doubling the page's Open-Meteo cost for no new information.
+    let townRain = {};
+    try {
+        const payload = await (await fetch('/town-rainfall')).json();
+        townRain = (payload && payload.towns) || {};
+    } catch (error) {
+        townRain = {};
+    }
+
+    const rainResults = zones.map(function(zone) {
+        const mm = townRain[zone.name];
+        return mm == null ? null : Number(mm);
+    });
 
     guidanceLoading = false;
     guidanceRows = zones.map(function(zone, i) {
@@ -3290,55 +3292,62 @@ def confirm_report(report_id):
 
 
 # ============================================================
-# LIVE WEATHER
+# TOWN RAINFALL — one cached reading for the nine guidance towns
 #
-# Proxies Open-Meteo (no API key required) so the frontend can
-# show current conditions and the router can become more
-# cautious when it's actually raining, without either of them
-# calling a third-party API directly from the browser.
+# Replaces /weather, which was removed. That endpoint proxied
+# Open-Meteo for an arbitrary caller-supplied coordinate, and by the
+# time it was audited nothing called it: it was unreferenced code that
+# was nonetheless publicly reachable, accepted any lat/lon on Earth,
+# issued one upstream request per distinct ~1km cell, and cached them
+# in an unbounded dict. That is an open proxy onto a 10,000/day quota
+# shared across Render's outbound IP, drainable by anyone walking
+# query strings, and a slow memory leak besides.
 #
-# Cached briefly per rounded coordinate (~1km) because Render's
-# free tier shares one outbound IP across tenants, and Open-Meteo
-# rate-limits (429) that shared IP once request volume climbs —
-# the same failure mode hit earlier with Nominatim. Weather doesn't
-# need second-by-second freshness, so a short TTL cache avoids
-# almost all real outbound calls. On a failed refresh, a stale
-# cached value is served instead of erroring out.
+# What the landing page actually needs is far narrower: current
+# precipitation for the same nine towns, twice over. The live-stations
+# strip and the flood-guidance panel were each fetching all nine from
+# the browser -- eighteen Open-Meteo calls per page load for nine
+# distinct points, from the visitor's own IP. Behind one shared
+# venue IP that exhausts the daily quota in roughly 555 page views.
+#
+# So both now read this single server-side cached endpoint: one
+# batched call for nine towns every ten minutes, 1,296 calls/day
+# regardless of how many people are watching, and no Open-Meteo
+# traffic from visitors' browsers at all. "Check my location" stays
+# client-side, because that genuinely is a different point per caller.
+#
+# This is the same lesson as the FFGS refresh and the client-side
+# fan-out before it: data identical for every visitor gets fetched
+# once, server-side.
 # ============================================================
 
 RAIN_LOW_THRESHOLD_MM = 5.0
 RAIN_HIGH_THRESHOLD_MM = 15.0
 
-WEATHER_CACHE_TTL_SECONDS = 10 * 60
-_weather_cache = {}
+TOWN_RAINFALL_CACHE_TTL_SECONDS = 10 * 60
+_town_rainfall_cache = {
+    "timestamp": 0.0,
+    "data": {},
+    "last_error": None,
+}
 
 
-def _weather_cache_key(lat, lon):
-    return (round(lat, 2), round(lon, 2))
+def _fetch_town_rainfall():
+    """
+    Current precipitation in mm for each guidance town, keyed by name,
+    from one batched Open-Meteo call. Returns the last good reading if
+    a refresh fails, so a quota block degrades to stale rather than
+    blank — same contract as _fetch_ffgs_live_rainfall.
+    """
 
-
-@app.route("/weather")
-def weather():
-
-    try:
-        lat = float(request.args.get("lat"))
-        lon = float(request.args.get("lon"))
-    except (TypeError, ValueError):
-        return jsonify({
-            "error": "lat and lon query parameters are required numbers."
-        }), 400
-
-    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
-        return jsonify({
-            "error": "lat/lon out of range."
-        }), 400
-
-    cache_key = _weather_cache_key(lat, lon)
-    cached = _weather_cache.get(cache_key)
     now = time.time()
+    cache = _town_rainfall_cache
 
-    if cached and (now - cached["timestamp"]) < WEATHER_CACHE_TTL_SECONDS:
-        return jsonify(cached["data"])
+    if cache["data"] and (now - cache["timestamp"]) < TOWN_RAINFALL_CACHE_TTL_SECONDS:
+        return cache["data"]
+
+    towns = GUIDANCE_TOWNS
+    response = None
 
     try:
 
@@ -3346,92 +3355,62 @@ def weather():
             "https://api.open-meteo.com/v1/forecast",
 
             params={
-                "latitude": lat,
-                "longitude": lon,
+                "latitude": ",".join(str(t["lat"]) for t in towns),
+                "longitude": ",".join(str(t["lon"]) for t in towns),
                 "current": "precipitation",
-                "hourly": "precipitation",
-                "forecast_days": 1,
-                "timezone": "auto"
+                "timezone": "auto",
             },
 
-            timeout=10
+            timeout=20
         )
 
         response.raise_for_status()
-
         payload = response.json()
 
-        current_mm = float(
-            payload.get("current", {}).get("precipitation", 0.0) or 0.0
-        )
+        per_location = payload if isinstance(payload, list) else [payload]
 
-        hourly = payload.get("hourly", {})
-        hourly_times = hourly.get("time", [])
-        hourly_precip = hourly.get("precipitation", [])
-        current_time = payload.get("current", {}).get("time")
+        fresh = {}
 
-        next_3h_mm = 0.0
+        for town, loc in zip(towns, per_location):
+            current = (loc or {}).get("current") or {}
+            fresh[town["name"]] = round(float(current.get("precipitation") or 0.0), 2)
 
-        if current_time and hourly_times:
+        cache["timestamp"] = now
+        cache["data"] = fresh
+        cache["last_error"] = None
 
-            try:
-                start_index = hourly_times.index(current_time)
-            except ValueError:
-                start_index = 0
+        print(f"Town rainfall refreshed: {len(fresh)} towns", flush=True)
 
-            next_3h_mm = float(
-                sum(hourly_precip[start_index + 1:start_index + 4])
-            )
-
-        total_mm = current_mm + next_3h_mm
-
-        if total_mm < RAIN_LOW_THRESHOLD_MM:
-            risk_level = "LOW"
-        elif total_mm < RAIN_HIGH_THRESHOLD_MM:
-            risk_level = "MODERATE"
-        else:
-            risk_level = "HIGH"
-
-        result = {
-            "status": "ok",
-            "current_mm": current_mm,
-            "next_3h_mm": next_3h_mm,
-            "total_mm": total_mm,
-            "risk_level": risk_level
-        }
-
-        _weather_cache[cache_key] = {"timestamp": now, "data": result}
-
-        return jsonify(result)
-
-    except requests.exceptions.Timeout:
-
-        if cached:
-            return jsonify(cached["data"])
-
-        return jsonify({
-            "error": "Weather request timed out."
-        }), 504
-
-    except requests.exceptions.RequestException as e:
-
-        if cached:
-            return jsonify(cached["data"])
-
-        return jsonify({
-            "error": "Weather request failed.",
-            "details": str(e)
-        }), 502
+        return fresh
 
     except Exception as e:
 
-        if cached:
-            return jsonify(cached["data"])
+        detail = str(e)[:200]
 
-        return jsonify({
-            "error": "Weather lookup failed.",
-            "details": str(e)
-        }), 500
+        try:
+            if response is not None and response.status_code == 429:
+                detail = "Open-Meteo daily request quota exceeded (HTTP 429)"
+        except NameError:
+            pass
+
+        cache["last_error"] = detail
+        print("WARNING: town rainfall refresh failed:", repr(e), flush=True)
+
+        return cache["data"]
+
+
+@app.route("/town-rainfall")
+def town_rainfall():
+
+    data = _fetch_town_rainfall()
+    cache = _town_rainfall_cache
+
+    return jsonify({
+        "towns": data,
+        "age_seconds": (round(time.time() - cache["timestamp"], 1)
+                        if cache["timestamp"] else None),
+        "last_error": cache["last_error"],
+    })
 
 
 # ============================================================
@@ -3476,7 +3455,7 @@ def flood_guidance_point():
 # table and "check my location" panel is fetched by the browser
 # directly from Open-Meteo (never proxied through this server) for the
 # same reason as everywhere else in this app — see the comment on
-# ffgs_guidance_for_point() above and the /weather rate-limit note
+# ffgs_guidance_for_point() above and the /town-rainfall rate-limit note
 # further down.
 # ============================================================
 
@@ -4869,7 +4848,7 @@ def ffgs_watersheds():
 #
 # Originally fetched by each visitor's own browser directly from
 # Open-Meteo (one batched call per page load), to avoid Render's
-# shared outbound IP getting rate-limited the way it did for /weather
+# shared outbound IP getting rate-limited the way it did for the old /weather proxy
 # and Nominatim before (see their own comments). In practice, though,
 # every visitor's FFGS page wants the exact same data — the same
 # fixed zone list — so client-side fetching means N visitors each
@@ -4881,7 +4860,7 @@ def ffgs_watersheds():
 # cache fixes both: one outbound call per
 # FFGS_RAINFALL_CACHE_TTL_SECONDS serves every visitor, and a failed
 # refresh falls back to the last good reading instead of leaving the
-# whole page blank — same resilience pattern as /weather above.
+# whole page blank — same resilience pattern as /town-rainfall above.
 # "Check my location" stays a genuine client-side fetch (see
 # fetchDurationRainfall in FFGS_PAGE_HTML) — that's a one-off,
 # per-visitor, arbitrary point, not worth caching.
