@@ -166,15 +166,121 @@ def _load_reports():
 
 
 def _save_reports(reports):
+    """
+    Write the report list atomically.
+
+    Writing straight into reports.json meant a crash, restart or full
+    disk partway through json.dump left a truncated file, which then
+    failed to parse on next boot and silently reset every live hazard
+    report to an empty list. Writing to a temporary file in the same
+    directory and renaming it over the target makes the swap atomic on
+    both POSIX and Windows, so a reader either sees the whole previous
+    file or the whole new one.
+    """
+
+    tmp_path = REPORTS_FILE + ".tmp"
 
     try:
 
-        with open(REPORTS_FILE, "w", encoding="utf-8") as f:
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(reports, f)
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.replace(tmp_path, REPORTS_FILE)
 
     except OSError as e:
 
         print("WARNING: failed to save reports.json:", repr(e))
+
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+
+
+# ============================================================
+# RATE LIMITING
+#
+# Every write endpoint was previously unmetered, so a single client
+# could submit hazard reports, resolutions or confirmations as fast as
+# it could issue requests. For a public disaster feed that is both an
+# abuse vector (flooding the map with false hazards, or resolving real
+# ones) and a denial-of-service one, since each write rewrites the
+# whole report file.
+#
+# Implemented in-process rather than with a dependency: the free tier
+# runs a single gunicorn worker, so one process sees every request and
+# a shared dict is sufficient. It would need Redis behind more than one
+# worker, which is noted here so the assumption is not silently broken
+# later.
+#
+# This is a courtesy limit against accidents and casual abuse, not a
+# security control -- it keys on client IP, which a determined caller
+# can vary.
+# ============================================================
+
+RATE_LIMITS = {
+    # endpoint label -> (max requests, window seconds)
+    "report": (5, 300),       # 5 new hazard reports per 5 minutes
+    "report_action": (20, 300),  # resolve/confirm are cheaper, allow more
+}
+
+_rate_buckets = {}
+
+
+def _client_ip():
+    # Render terminates TLS upstream, so the real client address is in
+    # X-Forwarded-For; take the first hop and fall back to the socket.
+    forwarded = request.headers.get("X-Forwarded-For", "")
+
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+
+    return request.remote_addr or "unknown"
+
+
+def _rate_limited(label):
+    """
+    True if this caller has exhausted `label`'s allowance. Sliding
+    window: timestamps older than the window are dropped on each call,
+    which also keeps the bucket from growing without bound.
+    """
+
+    max_requests, window = RATE_LIMITS[label]
+    now = time.time()
+    key = (label, _client_ip())
+
+    hits = [t for t in _rate_buckets.get(key, []) if now - t < window]
+
+    if len(hits) >= max_requests:
+        _rate_buckets[key] = hits
+        return True
+
+    hits.append(now)
+    _rate_buckets[key] = hits
+
+    # Opportunistic cleanup so idle clients' buckets don't accumulate
+    # for the lifetime of the process.
+    if len(_rate_buckets) > 2000:
+        for stale_key, stale_hits in list(_rate_buckets.items()):
+            if not any(now - t < window for t in stale_hits):
+                _rate_buckets.pop(stale_key, None)
+
+    return False
+
+
+def _rate_limit_response(label):
+    max_requests, window = RATE_LIMITS[label]
+
+    return jsonify({
+        "status": "error",
+        "error": (
+            f"Too many requests. Limit is {max_requests} per "
+            f"{window // 60} minutes."
+        ),
+    }), 429
 
 
 _reports = _load_reports()
@@ -3117,6 +3223,9 @@ def reports_view():
 @app.route("/report", methods=["POST"])
 def post_report():
 
+    if _rate_limited("report"):
+        return _rate_limit_response("report")
+
     data = request.get_json(force=True, silent=True)
 
     if not isinstance(data, dict):
@@ -3219,6 +3328,9 @@ def post_report():
 @app.route("/report/<report_id>/resolve", methods=["POST"])
 def resolve_report(report_id):
 
+    if _rate_limited("report_action"):
+        return _rate_limit_response("report_action")
+
     before_count = len(_reports)
 
     _reports[:] = [
@@ -3257,6 +3369,9 @@ def resolve_report(report_id):
 
 @app.route("/report/<report_id>/confirm", methods=["POST"])
 def confirm_report(report_id):
+
+    if _rate_limited("report_action"):
+        return _rate_limit_response("report_action")
 
     report = next(
         (r for r in _reports if r.get("id") == report_id),
