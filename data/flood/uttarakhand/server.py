@@ -4888,7 +4888,16 @@ def ffgs_watersheds():
 # ============================================================
 
 FFGS_RAINFALL_CACHE_TTL_SECONDS = 10 * 60
-_ffgs_rainfall_cache = {"timestamp": 0.0, "data": {}}
+# last_error / last_attempt are diagnostics, surfaced on /ffgs/zones.
+# Without them a failed upstream fetch is indistinguishable from genuinely
+# dry weather: both render an empty rainfall column, and the only way to
+# tell them apart was reading the host's logs.
+_ffgs_rainfall_cache = {
+    "timestamp": 0.0,
+    "data": {},
+    "last_error": None,
+    "last_attempt": 0.0,
+}
 
 # Zones are collapsed onto a grid this coarse before fetching, and every
 # zone in a cell shares that cell's reading.
@@ -4976,6 +4985,7 @@ def _fetch_ffgs_live_rainfall():
         cells.setdefault(key, []).append(zone)
 
     representatives = [zones[0] for zones in cells.values()]
+    response = None
 
     try:
 
@@ -5013,6 +5023,8 @@ def _fetch_ffgs_live_rainfall():
 
         _ffgs_rainfall_cache["timestamp"] = now
         _ffgs_rainfall_cache["data"] = fresh
+        _ffgs_rainfall_cache["last_error"] = None
+        _ffgs_rainfall_cache["last_attempt"] = now
 
         print(
             f"FFGS rainfall refreshed: {len(mapped_zones)} zones "
@@ -5024,7 +5036,20 @@ def _fetch_ffgs_live_rainfall():
 
     except Exception as e:
 
-        print("WARNING: FFGS live rainfall refresh failed:", repr(e))
+        detail = str(e)[:200]
+
+        # A quota block is the failure this system actually hits, and it
+        # reads as an ordinary HTTP error unless the body is inspected.
+        try:
+            if response is not None and response.status_code == 429:
+                detail = "Open-Meteo daily request quota exceeded (HTTP 429)"
+        except NameError:
+            pass
+
+        _ffgs_rainfall_cache["last_error"] = detail
+        _ffgs_rainfall_cache["last_attempt"] = now
+
+        print("WARNING: FFGS live rainfall refresh failed:", repr(e), flush=True)
         return cache["data"]
 
 
@@ -5042,10 +5067,18 @@ def ffgs_zones():
         for zone in FFGS_ZONES
     ]
 
+    cache = _ffgs_rainfall_cache
+
     return jsonify({
         "available": GUIDANCE_AVAILABLE,
         "error": None if GUIDANCE_AVAILABLE else GUIDANCE_ERROR,
         "durations": list(FFGS_DURATIONS),
+        "rainfall": {
+            "zones_with_data": sum(1 for z in zones_with_rainfall if z.get("live_rainfall")),
+            "age_seconds": (round(time.time() - cache["timestamp"], 1)
+                            if cache["timestamp"] else None),
+            "last_error": cache["last_error"],
+        },
         "zones": zones_with_rainfall,
     })
 
