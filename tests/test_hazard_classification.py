@@ -140,3 +140,48 @@ class TestThresholds:
         all their thresholds down by 10%.
         """
         assert server.WATERSHED_SOIL_MAX_KM == 0.5
+
+
+class TestCrossPageConsistency:
+    """The landing page and /ffgs must not disagree about the same town.
+
+    They did: the landing page called Mussoorie unmapped and offered no
+    guidance, while /ffgs classified it EXTREME with a 6.8 mm/h critical
+    threshold. Six of the nine towns were blank on the landing page
+    purely because the surveyed atlas does not reach them.
+
+    A later, subtler split had them agreeing that a class existed but
+    disagreeing on which, because one resolved FFPI from the exact
+    precomputed score and the other from the regridded lookup grid --
+    a difference big enough to cross a band boundary in steep terrain.
+    """
+
+    def test_towns_classify_identically_on_both_pages(self, client):
+        landing = {z["name"]: z
+                   for z in client.get("/flood-guidance-zones").get_json()["zones"]}
+        ffgs = {z["name"]: z
+                for z in client.get("/ffgs/zones").get_json()["zones"]
+                if z["kind"] == "town"}
+
+        assert set(landing) == set(ffgs)
+
+        mismatched = [
+            name for name in landing
+            if landing[name]["effective_class"] != ffgs[name]["effective_class"]
+        ]
+        assert not mismatched, f"pages disagree about: {mismatched}"
+
+    def test_no_town_is_left_without_guidance(self, client):
+        zones = client.get("/flood-guidance-zones").get_json()["zones"]
+        blank = [z["name"] for z in zones if not z["effective_class"]]
+        assert not blank, f"no guidance offered for: {blank}"
+
+    def test_modelled_classes_are_attributed_on_the_landing_page(self, client):
+        for zone in client.get("/flood-guidance-zones").get_json()["zones"]:
+            assert zone["hazard_source"] in ("atlas", "ffpi")
+
+    def test_exact_score_beats_the_regridded_grid(self, server):
+        """Known points must resolve from the 90m sample, not the grid."""
+        lat, lon = 30.4598, 78.0664  # Mussoorie
+        exact = server.LOCATION_SCORES[(round(lat, 5), round(lon, 5))]["ffpi"]
+        assert server.resolve_ffpi(lat, lon)["ffpi"] == exact

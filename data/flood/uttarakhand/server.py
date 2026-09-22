@@ -527,12 +527,26 @@ def guidance_for_point(lat, lon):
     """
 
     hazard_class, exact, distance_km = classify_point(lat, lon)
-    thresholds = GUIDANCE_HAZARD_THRESHOLDS_MM.get(hazard_class) if hazard_class else None
+
+    # Same atlas-then-FFPI resolution the FFGS page uses. Without it the
+    # two pages disagreed about the same town: the landing page called
+    # Mussoorie unmapped and offered no guidance at all, while /ffgs
+    # classified it EXTREME with a 6.8 mm/h critical threshold. Six of
+    # the nine towns were blank here purely because the surveyed atlas
+    # does not reach them.
+    ffpi = resolve_ffpi(lat, lon)
+    effective_class, hazard_source = resolve_effective_class(hazard_class, ffpi)
+
+    thresholds = (GUIDANCE_HAZARD_THRESHOLDS_MM.get(effective_class)
+                  if effective_class else None)
 
     return {
         "lat": lat,
         "lon": lon,
         "hazard_class": hazard_class,
+        "effective_class": effective_class,
+        "hazard_source": hazard_source,
+        "ffpi": ffpi["ffpi"] if ffpi else None,
         "exact_match": exact,
         "distance_km": round(distance_km, 1) if distance_km is not None else None,
         "watch_mm": thresholds["watch"] if thresholds else None,
@@ -540,13 +554,8 @@ def guidance_for_point(lat, lon):
     }
 
 
-# Computed once at startup — the atlas and the town list are both
-# static, so there's no reason to redo ~191-polygon point checks on
-# every landing-page load.
-GUIDANCE_ZONES = [
-    dict(guidance_for_point(town["lat"], town["lon"]), name=town["name"])
-    for town in GUIDANCE_TOWNS
-]
+# GUIDANCE_ZONES is built further down, once ffpi_for_point exists --
+# see below the FFPI section.
 
 
 # ============================================================
@@ -958,6 +967,45 @@ def ffpi_for_point(lat, lon):
     return {"ffpi": value, "band": ffpi_band_for(value)}
 
 
+def resolve_ffpi(lat, lon):
+    """
+    FFPI for a point, preferring the value score_locations.py sampled
+    straight from the 90 m raster over the regridded lookup grid.
+
+    The grid is an approximation: in steep terrain it can smooth a point
+    clean across a band boundary -- Mussoorie reads 6.8 exactly and 6.28
+    off the grid, which is the difference between EXTREME and
+    SIGNIFICANT. Both pages must therefore resolve it the same way, so
+    they share this rather than each holding a copy. They already
+    disagreed about three towns when they did not.
+    """
+
+    scores = LOCATION_SCORES.get((round(lat, 5), round(lon, 5)))
+
+    if scores and scores.get("ffpi") is not None:
+        return {"ffpi": scores["ffpi"], "band": ffpi_band_for(scores["ffpi"])}
+
+    return ffpi_for_point(lat, lon)
+
+
+def resolve_effective_class(hazard_class, ffpi):
+    """
+    (effective_class, hazard_source) for a point.
+
+    The surveyed atlas always wins where it has coverage. FFPI only
+    stands in where it has none, and never silently: the source travels
+    with the class so the UI can label a modelled one as modelled.
+    """
+
+    if hazard_class:
+        return hazard_class, "atlas"
+
+    if ffpi:
+        return FFPI_BAND_TO_HAZARD_CLASS.get(ffpi["band"]), "ffpi"
+
+    return None, None
+
+
 def _load_location_scores():
 
     if not os.path.exists(LOCATION_SCORES_FILE):
@@ -1021,28 +1069,9 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
     physical = physical_factors_for_point(lat, lon)
 
     scores = LOCATION_SCORES.get((round(lat, 5), round(lon, 5)))
+    ffpi = resolve_ffpi(lat, lon)
 
-    # Known zones use the value score_locations.py sampled straight from
-    # the 90 m raster. The lookup grid is a regridded approximation and
-    # in steep terrain it can smooth a point across a band boundary, so
-    # it is only used for arbitrary "check my location" points that were
-    # never precomputed.
-    if scores and scores.get("ffpi") is not None:
-        ffpi = {"ffpi": scores["ffpi"], "band": ffpi_band_for(scores["ffpi"])}
-    else:
-        ffpi = ffpi_for_point(lat, lon)
-
-    # The surveyed atlas always wins where it has coverage. FFPI only
-    # stands in where it has none, and is flagged so the UI can say so.
-    if hazard_class:
-        hazard_source = "atlas"
-        effective_class = hazard_class
-    elif ffpi:
-        hazard_source = "ffpi"
-        effective_class = FFPI_BAND_TO_HAZARD_CLASS.get(ffpi["band"])
-    else:
-        hazard_source = None
-        effective_class = None
+    effective_class, hazard_source = resolve_effective_class(hazard_class, ffpi)
 
     thresholds = ffgs_thresholds_for_class(
         effective_class, antecedent_48h_mm, physical["static_multiplier"])
@@ -1137,6 +1166,15 @@ for _loc in ALL_LOCALITIES:
     ))
 
 FFGS_ZONES = FFGS_TOWN_ZONES + FFGS_LOCALITY_ZONES
+
+
+# Deferred from its definition above so it can use ffpi_for_point.
+# Computed once at startup: the atlas and the town list are both static,
+# so there is no reason to redo ~191-polygon point checks per request.
+GUIDANCE_ZONES = [
+    dict(guidance_for_point(town["lat"], town["lon"]), name=town["name"])
+    for town in GUIDANCE_TOWNS
+]
 
 
 # ============================================================
@@ -1672,6 +1710,7 @@ table.guidance-table th {
 table.guidance-table td.num { font-family: 'Consolas', monospace; text-align: right; }
 table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
 
+.modelled-note { color: #6b7680; font-weight: normal; font-size: 11px; font-style: italic; }
 .guidance-badge {
   display: inline-block;
   padding: 2px 9px;
@@ -2039,6 +2078,7 @@ const translations = {
     guidanceLoading: "Loading…",
     guidanceUnavailable: "Flood guidance data is unavailable right now.",
     guidanceUnmapped: "Not mapped by the hazard atlas",
+    guidanceModelled: "modelled",
     guidanceLevelSAFE: "Safe",
     guidanceLevelWATCH: "Watch",
     guidanceLevelCRITICAL: "At risk now",
@@ -2148,6 +2188,7 @@ const translations = {
     guidanceLoading: "लोड हो रहा है…",
     guidanceUnavailable: "बाढ़ मार्गदर्शन डेटा अभी उपलब्ध नहीं है।",
     guidanceUnmapped: "खतरा एटलस में मैप नहीं किया गया",
+    guidanceModelled: "अनुमानित",
     guidanceLevelSAFE: "सुरक्षित",
     guidanceLevelWATCH: "सतर्क रहें",
     guidanceLevelCRITICAL: "अभी जोखिम में",
@@ -2429,7 +2470,9 @@ loadLiveStrip();
 // other dynamic-text state — see the comment there.)
 
 function computeGuidanceLevel(zoneOrPoint, rainMm) {
-    if (!zoneOrPoint || !zoneOrPoint.hazard_class || rainMm == null) return null;
+    // effective_class, not hazard_class: a zone classified by FFPI has
+    // thresholds to breach just the same as a surveyed one.
+    if (!zoneOrPoint || !zoneOrPoint.effective_class || rainMm == null) return null;
     if (zoneOrPoint.critical_mm == null || zoneOrPoint.watch_mm == null) return null;
     if (rainMm >= zoneOrPoint.critical_mm) return 'CRITICAL';
     if (rainMm >= zoneOrPoint.watch_mm) return 'WATCH';
@@ -2463,8 +2506,12 @@ function renderGuidanceTable() {
     tbody.innerHTML = guidanceRows.map(function(row) {
         const zone = row.zone;
         const rainMm = row.rainMm;
-        const hazardKey = hazardI18nKey(zone.hazard_class);
+        const hazardKey = hazardI18nKey(zone.effective_class);
         const hazardText = hazardKey ? t(hazardKey) : t('guidanceUnmapped');
+        // A modelled class is always marked, never shown as surveyed.
+        const hazardLabel = zone.hazard_source === 'ffpi'
+            ? hazardText + " <span class='modelled-note'>· " + t('guidanceModelled') + "</span>"
+            : hazardText;
         const rainText = rainMm == null ? '—' : rainMm.toFixed(1) + ' mm';
         const level = computeGuidanceLevel(zone, rainMm);
         const headroom = guidanceHeadroomMm(zone, rainMm);
@@ -2472,7 +2519,7 @@ function renderGuidanceTable() {
         const levelClass = 'guidance-badge guidance-' + (level ? level.toLowerCase() : 'unmapped');
         const levelText = level ? t('guidanceLevel' + level) : t('guidanceUnmapped');
         return '<tr><td>' + townName(zone.name) + '</td>' +
-               '<td>' + hazardText + '</td>' +
+               '<td>' + hazardLabel + '</td>' +
                '<td class="num">' + rainText + '</td>' +
                '<td class="num">' + headroomText + '</td>' +
                '<td><span class="' + levelClass + '">' + levelText + '</span></td></tr>';
@@ -2525,13 +2572,13 @@ function renderMyLocationGuidance() {
     const point = myLocationData.point;
     const rainMm = myLocationData.rainMm;
     const level = computeGuidanceLevel(point, rainMm);
-    const hazardKey = hazardI18nKey(point.hazard_class);
+    const hazardKey = hazardI18nKey(point.effective_class);
     const hazardText = hazardKey ? t(hazardKey) : t('guidanceUnmapped');
     const rainText = rainMm == null ? '—' : rainMm.toFixed(1) + ' mm';
     const levelText = level ? t('guidanceLevel' + level) : t('guidanceUnmapped');
 
     let approxNote = '';
-    if (point.hazard_class && !point.exact_match && point.distance_km != null) {
+    if (point.hazard_source === 'atlas' && !point.exact_match && point.distance_km != null) {
         approxNote = ' ' + t('guidanceApproxNote').replace('{km}', point.distance_km);
     }
 
