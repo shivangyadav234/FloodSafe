@@ -209,6 +209,14 @@ def _active_reports():
 
     if len(fresh) != len(_reports):
 
+        expired_ids = (
+            {r.get("id") for r in _reports}
+            - {r.get("id") for r in fresh}
+        )
+
+        for report_id in expired_ids:
+            _confirmed_ips_by_report.pop(report_id, None)
+
         _reports[:] = fresh
         _save_reports(_reports)
 
