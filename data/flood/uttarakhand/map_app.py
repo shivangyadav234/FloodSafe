@@ -1725,7 +1725,13 @@ function escapeHtml(text) {
 
     div.textContent = text;
 
-    return div.innerHTML;
+    // textContent/innerHTML escapes &, < and > but not quote
+    // characters (they aren't special in a text node) — escape those
+    // too so the result is also safe to use inside an HTML attribute
+    // value, not just tag content.
+    return div.innerHTML
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 
@@ -1947,7 +1953,7 @@ async function fetchLiveConditions(lat, lon) {
             let startIndex = hourlyTimes.indexOf(currentTime);
             if (startIndex === -1) startIndex = 0;
             next3hMm = hourlyPrecip
-                .slice(startIndex, startIndex + 3)
+                .slice(startIndex + 1, startIndex + 4)
                 .reduce((sum, v) => sum + (Number(v) || 0), 0);
         }
 
@@ -2999,6 +3005,16 @@ async function calculateRoute() {
             FLOODSAFE_MAP.removeLayer(
                 routeLine
             );
+
+        }
+
+        if (compareGroup) {
+
+            FLOODSAFE_MAP.removeLayer(
+                compareGroup
+            );
+
+            compareGroup = null;
 
         }
 

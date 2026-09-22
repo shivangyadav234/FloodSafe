@@ -778,12 +778,25 @@ _evacuation_targets = [s for s in shelters if s.get("kind") == "shelter"]
 _hospital_targets = [s for s in shelters if s.get("kind") == "hospital"]
 
 
+# A degree of longitude is only ~96-97 km at Uttarakhand's latitude
+# (~29-31N), not the ~111 km a degree of latitude covers, so a KD-tree
+# built directly on raw [lon, lat] pairs distorts distance ranking
+# (see the same fix already applied to _edges_near_points above).
+# Scaling longitude by cos(reference latitude) before building/querying
+# the tree makes Euclidean distance in the tree's coordinate space
+# approximate real-world distance across this region.
+_SHELTER_TREE_REF_LAT = float(np.mean(coordinates[:, 1])) if len(coordinates) else 30.0
+_SHELTER_TREE_LON_SCALE = math.cos(math.radians(_SHELTER_TREE_REF_LAT))
+
+
 def _build_tree(targets):
 
     if not targets:
         return None
 
-    coords = np.array([[t["lon"], t["lat"]] for t in targets])
+    coords = np.array([
+        [t["lon"] * _SHELTER_TREE_LON_SCALE, t["lat"]] for t in targets
+    ])
 
     return cKDTree(coords)
 
@@ -821,7 +834,7 @@ def _find_nearest_target(
     k = min(max_candidates, len(targets))
 
     distances, indexes = tree.query(
-        [start_lon, start_lat],
+        [start_lon * _SHELTER_TREE_LON_SCALE, start_lat],
         k=k
     )
 
