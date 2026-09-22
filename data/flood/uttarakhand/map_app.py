@@ -463,6 +463,14 @@ Shelters (OpenStreetMap)
 <div>⛺ Shelter / community facility</div>
 <div>🏥 Hospital</div>
 
+<div style="font-weight:700; margin-top:10px; margin-bottom:4px;">
+Locality Hazard Status (live)
+</div>
+
+<div><span class="legend-box" style="background:#14532d;"></span>SAFE</div>
+<div><span class="legend-box" style="background:#b5860f;"></span>WATCH</div>
+<div><span class="legend-box" style="background:#7a1f1f;"></span>CRITICAL</div>
+
 </div>
 """
 
@@ -3847,6 +3855,137 @@ async function loadShelters() {
 
 
 // =======================================================
+// LOCALITY HAZARD LAYER (ward-level granularity)
+//
+// Shows the same real, named localities as the Flash Flood Guidance
+// System (/ffgs) -- OSM place=suburb/neighbourhood/quarter nodes the
+// hazard atlas actually covers, concentrated around Rishikesh -- as
+// a live-status layer on the routing map itself, so route planning
+// has the same neighborhood-level context FFGS shows on its own
+// page. Zone metadata comes from this same server's /ffgs/zones
+// (same-origin, safe to fetch normally); the rainfall behind each
+// zone's live status is fetched directly from Open-Meteo by the
+// browser in one batched multi-location call, same reasoning as
+// fetchLiveConditions above -- never proxied through this server.
+// =======================================================
+
+let localityMarkers = [];
+
+function localityStatusForDuration(rainMm, thresholds) {
+    if (rainMm == null || !thresholds) return null;
+    if (rainMm >= thresholds.critical) return "CRITICAL";
+    if (rainMm >= thresholds.watch) return "WATCH";
+    return "SAFE";
+}
+
+function localityWorseStatus(a, b) {
+    const order = { SAFE: 0, WATCH: 1, CRITICAL: 2 };
+    if (!a) return b;
+    if (!b) return a;
+    return order[a] >= order[b] ? a : b;
+}
+
+function localityStatusColor(status) {
+    if (status === "CRITICAL") return "#7a1f1f";
+    if (status === "WATCH") return "#b5860f";
+    if (status === "SAFE") return "#14532d";
+    return "#6b7680";
+}
+
+async function fetchLocalityRainfallBatch(zones) {
+    if (zones.length === 0) return [];
+
+    const lats = zones.map(function(z) { return z.lat; }).join(",");
+    const lons = zones.map(function(z) { return z.lon; }).join(",");
+
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lats +
+        "&longitude=" + lons +
+        "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=1&timezone=auto";
+
+    const payload = await (await fetch(url)).json();
+    const perLocation = Array.isArray(payload) ? payload : [payload];
+
+    return perLocation.map(function(loc) {
+        const hourlyTimes = (loc.hourly && loc.hourly.time) || [];
+        const hourlyPrecip = (loc.hourly && loc.hourly.precipitation) || [];
+        const currentTime = loc.current && loc.current.time;
+
+        let idx = currentTime ? hourlyTimes.indexOf(currentTime) : -1;
+        if (idx === -1) idx = hourlyTimes.length - 1;
+
+        function sumLast(n) {
+            if (idx < 0) return null;
+            const start = Math.max(0, idx - n + 1);
+            return hourlyPrecip.slice(start, idx + 1).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
+        }
+
+        return { "1h": sumLast(1), "3h": sumLast(3), "24h": sumLast(24) };
+    });
+}
+
+async function loadLocalityZones() {
+
+    try {
+
+        const response = await fetchWithTimeout("/ffgs/zones", {}, 15000);
+        const data = await response.json();
+
+        if (!data.available || !Array.isArray(data.zones)) {
+            return;
+        }
+
+        const localities = data.zones.filter(function(z) { return z.kind === "locality" && z.hazard_class; });
+        const durations = data.durations || ["1h", "3h", "24h"];
+
+        let rainfalls;
+        try {
+            rainfalls = await fetchLocalityRainfallBatch(localities);
+        } catch (error) {
+            rainfalls = localities.map(function() { return null; });
+        }
+
+        localityMarkers.forEach(function(marker) {
+            FLOODSAFE_MAP.removeLayer(marker);
+        });
+        localityMarkers = [];
+
+        localities.forEach(function(zone, i) {
+
+            const rain = rainfalls[i];
+            let overall = null;
+
+            const durationText = durations.map(function(d) {
+                const rainMm = rain ? rain[d] : null;
+                const thresholds = zone.thresholds_mm ? zone.thresholds_mm[d] : null;
+                const status = localityStatusForDuration(rainMm, thresholds);
+                overall = localityWorseStatus(overall, status);
+                const rainText = rainMm == null ? "—" : rainMm.toFixed(1) + " mm";
+                return d + ": " + rainText;
+            }).join(" · ");
+
+            const color = localityStatusColor(overall);
+
+            const marker = L.circleMarker([zone.lat, zone.lon], {
+                radius: 7, color: color, fillColor: color, fillOpacity: 0.85, weight: 2
+            }).addTo(FLOODSAFE_MAP);
+
+            marker.bindPopup(
+                "<b>" + escapeHtml(zone.name) + "</b> — " + escapeHtml(zone.parent_town) + "<br>" +
+                escapeHtml(zone.hazard_class) + " hazard · " + (overall || "—") + "<br>" +
+                durationText + "<br>" +
+                '<a href="/ffgs" target="_blank">Full Flash Flood Guidance System →</a>'
+            );
+
+            localityMarkers.push(marker);
+        });
+
+    } catch (error) {
+        console.error("Failed to load locality hazard zones:", error);
+    }
+}
+
+
+// =======================================================
 // EVACUATE TO NEAREST SHELTER
 // =======================================================
 
@@ -4240,6 +4379,13 @@ document.addEventListener("DOMContentLoaded", function() {
 
     loadReports();
     loadShelters();
+    loadLocalityZones();
+
+    // Rainfall changes slowly enough that a 60s poll is plenty, and
+    // this is one batched Open-Meteo request per cycle regardless of
+    // how many localities are mapped (see fetchLocalityRainfallBatch
+    // above).
+    setInterval(loadLocalityZones, 60000);
 
 });
 

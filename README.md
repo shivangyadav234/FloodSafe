@@ -104,6 +104,11 @@ produced a route distinct from both Fastest and Safest.
   atlas's mapped corridors entirely. Each locality is labeled with its
   parent town (e.g. "Muni Ki Reti — Rishikesh") rather than presented as
   an official ward.
+- **The same locality layer on the routing map** — `/app`'s map carries a
+  live-status marker for every one of those localities too (colored
+  SAFE/WATCH/CRITICAL, same thresholds as FFGS), so route planning has
+  the same neighborhood-level context without leaving the map tool. Each
+  marker's popup links back to the full FFGS page.
 
 ## Project layout
 
