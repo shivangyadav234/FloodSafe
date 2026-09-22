@@ -1,0 +1,69 @@
+# Canonical local stack: PostGIS plus the FastAPI service.
+#
+# setup_local_db.py exists as a no-admin fallback for machines without
+# Docker, and reaches the same end state. This file is the preferred
+# path where Docker is available -- prefer it, because the Postgres
+# version and PostGIS build are pinned here rather than inherited from
+# whatever the host happens to have installed.
+#
+#   docker compose up -d db          # database only
+#   docker compose up --build        # database + API
+#   docker compose run --rm ingest   # load the reference layers
+#
+# The API then answers on http://localhost:8000 (docs at /docs).
+
+name: floodsafe
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: floodsafe
+    ports:
+      # 5433 on the host so this cannot collide with a system Postgres.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d floodsafe"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: applies schema.sql and loads every reference layer.
+  # Mounts the repo so it reads the same committed source files the
+  # Flask app does, rather than a database dump.
+  ingest:
+    build:
+      context: ../..
+      dockerfile: floodsafe/db/Dockerfile
+    environment:
+      FLOODSAFE_DSN: postgresql://postgres:postgres@db:5432/floodsafe
+    volumes:
+      - ../..:/app
+    command: python -m floodsafe.db.ingest
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["tools"]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: floodsafe/db/Dockerfile
+    environment:
+      FLOODSAFE_DSN: postgresql://postgres:postgres@db:5432/floodsafe
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../..:/app
+    command: >
+      uvicorn floodsafe.api.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

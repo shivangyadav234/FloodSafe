@@ -25,3 +25,7 @@ data/routing/
 # Live, user-generated hazard reports & SOS alerts — runtime data, not source.
 data/flood/uttarakhand/data/reports.json
 data/flood/uttarakhand/data/sos_alerts.json
+
+# Local dev PostGIS cluster created by floodsafe/db/setup_local_db.py
+# (staged binaries, cluster data and downloads — all regenerable)
+.localdb/
