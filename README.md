@@ -117,6 +117,23 @@ produced a route distinct from both Fastest and Safest.
   locality (if one is within 5km), shown as "Near Muni Ki Reti,
   Rishikesh" in report cards, map popups, and the shelter list — using
   the same locality data as FFGS, not a separate lookup.
+- **Watershed and soil context in FFGS** — on top of the hazard atlas and
+  antecedent rainfall, FFGS's thresholds are adjusted using two more real
+  physical datasets: upstream contributing catchment area, from
+  [HydroSHEDS/HydroBASINS](https://www.hydrosheds.org) (a small, steep
+  headwater catchment concentrates a rain burst into runoff far faster
+  than a point already on a large river system — the flash-flood
+  mechanism this system is named for), and soil texture, from
+  [SoilGrids v2.0](https://soilgrids.org) (ISRIC), simplified into an
+  NRCS Hydrologic Soil Group as a proxy for infiltration capacity. Both
+  are sampled once per FFGS point (`extract_watershed_soil.py`) rather
+  than fetched live — SoilGrids' own point-query API alone takes
+  2-20+ seconds per call — and shown per-zone in the table, map popups,
+  and "check my location" (e.g. "Soil group: C (37% sand, 24% clay) ·
+  Catchment: 22.0k km²"). Watershed boundaries are also drawn on the
+  FFGS map as a light overlay. This is still a heuristic, not a
+  calibrated hydrological model — real datasets feeding a simplified
+  adjustment rule, same as everything else in FFGS.
 
 ## Project layout
 
@@ -128,12 +145,15 @@ produced a route distinct from both Fastest and Safest.
   (`extract_hazard.py` → `get_boundary.py` → `clip_hazard.py` →
   `create_road_hazard_geojson.py` → `road_flood_risk.py`) that turns the raw
   hazard atlas into the routing graph, `extract_shelters.py` (pulls real
-  shelter/hospital points from OSM), and `extract_localities.py` (pulls
-  real named localities from OSM for FFGS's locality-level granularity).
+  shelter/hospital points from OSM), `extract_localities.py` (pulls real
+  named localities from OSM for FFGS's locality-level granularity), and
+  `extract_watershed_soil.py` (samples SoilGrids soil texture and joins
+  HydroBASINS watershed boundaries for every FFGS point).
 - `data/flood/uttarakhand/data/` — the consolidated runtime data the app
   actually loads (geojson layers, the generated map HTML, the routing graph:
   `roads.npz`, `coordinates.npy`, `road_flood_risk.npz`, `shelters.json`,
-  and `localities.json`).
+  `localities.json`, `uttarakhand_watersheds.geojson`, and
+  `watershed_soil.json`).
 - `legacy/` — an earlier, synthetic-data prototype (`routing/` package,
   ad hoc test scripts) and abandoned diagnostic scripts, kept for reference
   but not part of the live app.

@@ -1,0 +1,1839 @@
+[
+  {
+    "name": "Dehradun",
+    "lat": 30.3165,
+    "lon": 78.0322,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764440,
+      "up_area_km2": 1049.4,
+      "sub_area_km2": 1049.4
+    }
+  },
+  {
+    "name": "Rishikesh",
+    "lat": 30.0869,
+    "lon": 78.2676,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Haridwar",
+    "lat": 29.9457,
+    "lon": 78.1642,
+    "soil": {
+      "sand_pct": 37.8,
+      "clay_pct": 24.0,
+      "silt_pct": 38.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080773550,
+      "up_area_km2": 23573.7,
+      "sub_area_km2": 518.9
+    }
+  },
+  {
+    "name": "Mussoorie",
+    "lat": 30.4598,
+    "lon": 78.0664,
+    "soil": {
+      "sand_pct": 33.7,
+      "clay_pct": 24.4,
+      "silt_pct": 41.9,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080751750,
+      "up_area_km2": 679.0,
+      "sub_area_km2": 679.0
+    }
+  },
+  {
+    "name": "Nainital",
+    "lat": 29.3803,
+    "lon": 79.4636,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808820,
+      "up_area_km2": 1120.4,
+      "sub_area_km2": 1120.4
+    }
+  },
+  {
+    "name": "Haldwani",
+    "lat": 29.2183,
+    "lon": 79.513,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Almora",
+    "lat": 29.5892,
+    "lon": 79.6467,
+    "soil": {
+      "sand_pct": 31.2,
+      "clay_pct": 22.8,
+      "silt_pct": 45.9,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080779850,
+      "up_area_km2": 393.4,
+      "sub_area_km2": 393.2
+    }
+  },
+  {
+    "name": "Pithoragarh",
+    "lat": 29.5822,
+    "lon": 80.2181,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080783520,
+      "up_area_km2": 8277.0,
+      "sub_area_km2": 493.6
+    }
+  },
+  {
+    "name": "Joshimath",
+    "lat": 30.5551,
+    "lon": 79.5643,
+    "soil": {
+      "sand_pct": 38.3,
+      "clay_pct": 22.5,
+      "silt_pct": 39.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080748120,
+      "up_area_km2": 3044.7,
+      "sub_area_km2": 1522.3
+    }
+  },
+  {
+    "name": "Laxman Jhula",
+    "lat": 30.12592,
+    "lon": 78.32853,
+    "soil": {
+      "sand_pct": 37.4,
+      "clay_pct": 23.5,
+      "silt_pct": 39.1,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Bahādrābād",
+    "lat": 29.91973,
+    "lon": 78.04367,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080782560,
+      "up_area_km2": 2009.3,
+      "sub_area_km2": 2009.3
+    }
+  },
+  {
+    "name": "Rājpur",
+    "lat": 30.38194,
+    "lon": 78.08873,
+    "soil": {
+      "sand_pct": 36.6,
+      "clay_pct": 24.0,
+      "silt_pct": 39.4,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764440,
+      "up_area_km2": 1049.4,
+      "sub_area_km2": 1049.4
+    }
+  },
+  {
+    "name": "Swargashram",
+    "lat": 30.11855,
+    "lon": 78.31382,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Panditwadi",
+    "lat": 30.33156,
+    "lon": 77.99161,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080751750,
+      "up_area_km2": 679.0,
+      "sub_area_km2": 679.0
+    }
+  },
+  {
+    "name": "Premnagar",
+    "lat": 30.33523,
+    "lon": 77.964,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080751750,
+      "up_area_km2": 679.0,
+      "sub_area_km2": 679.0
+    }
+  },
+  {
+    "name": "Ashirwad Enclave",
+    "lat": 30.33118,
+    "lon": 78.00767,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080751750,
+      "up_area_km2": 679.0,
+      "sub_area_km2": 679.0
+    }
+  },
+  {
+    "name": "Tapovan",
+    "lat": 30.12966,
+    "lon": 78.32211,
+    "soil": {
+      "sand_pct": 35.4,
+      "clay_pct": 25.4,
+      "silt_pct": 39.3,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Pandav Gufa",
+    "lat": 30.1322,
+    "lon": 78.33335,
+    "soil": {
+      "sand_pct": 35.6,
+      "clay_pct": 23.9,
+      "silt_pct": 40.4,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Maya Kund",
+    "lat": 30.10587,
+    "lon": 78.29885,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Chauda Bigha",
+    "lat": 30.11335,
+    "lon": 78.30246,
+    "soil": {
+      "sand_pct": 38.9,
+      "clay_pct": 24.9,
+      "silt_pct": 36.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Dhalwala",
+    "lat": 30.12139,
+    "lon": 78.28608,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Muni Ki Reti",
+    "lat": 30.11983,
+    "lon": 78.30629,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Ganga Vatika",
+    "lat": 30.12416,
+    "lon": 78.30537,
+    "soil": {
+      "sand_pct": 36.0,
+      "clay_pct": 25.1,
+      "silt_pct": 39.0,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Adarsh Nagar",
+    "lat": 30.10431,
+    "lon": 78.28817,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "TDHC Colony",
+    "lat": 30.10791,
+    "lon": 78.28211,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Pragati Vihar",
+    "lat": 30.11066,
+    "lon": 78.28408,
+    "soil": {
+      "sand_pct": 37.3,
+      "clay_pct": 23.7,
+      "silt_pct": 39.0,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Ashutosh Nagar",
+    "lat": 30.11429,
+    "lon": 78.28635,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Adarsh Gram",
+    "lat": 30.11047,
+    "lon": 78.29381,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "BSNL Colony",
+    "lat": 30.11512,
+    "lon": 78.28179,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Someshwar Nagar",
+    "lat": 30.0973,
+    "lon": 78.27773,
+    "soil": {
+      "sand_pct": 37.8,
+      "clay_pct": 24.9,
+      "silt_pct": 37.3,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Kolghatti",
+    "lat": 30.09573,
+    "lon": 78.28623,
+    "soil": {
+      "sand_pct": 37.9,
+      "clay_pct": 24.3,
+      "silt_pct": 37.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Lala Bazar",
+    "lat": 29.59893,
+    "lon": 79.66013,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080779850,
+      "up_area_km2": 393.4,
+      "sub_area_km2": 393.2
+    }
+  },
+  {
+    "name": "Kaulagarh",
+    "lat": 30.35011,
+    "lon": 78.00702,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080751750,
+      "up_area_km2": 679.0,
+      "sub_area_km2": 679.0
+    }
+  },
+  {
+    "name": "Sivananda Nagar",
+    "lat": 30.12347,
+    "lon": 78.31088,
+    "soil": {
+      "sand_pct": 35.4,
+      "clay_pct": 24.4,
+      "silt_pct": 40.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Shyampur",
+    "lat": 30.06334,
+    "lon": 78.23532,
+    "soil": {
+      "sand_pct": 37.5,
+      "clay_pct": 22.5,
+      "silt_pct": 39.9,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764440,
+      "up_area_km2": 1049.4,
+      "sub_area_km2": 1049.4
+    }
+  },
+  {
+    "name": "Har Ki Pauri",
+    "lat": 29.95664,
+    "lon": 78.17086,
+    "soil": {
+      "sand_pct": 37.5,
+      "clay_pct": 23.6,
+      "silt_pct": 38.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080773550,
+      "up_area_km2": 23573.7,
+      "sub_area_km2": 518.9
+    }
+  },
+  {
+    "name": "IDPL Colony",
+    "lat": 30.0783,
+    "lon": 78.26413,
+    "soil": {
+      "sand_pct": 39.2,
+      "clay_pct": 24.5,
+      "silt_pct": 36.3,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Chhoti Haldwani",
+    "lat": 29.28241,
+    "lon": 79.34928,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080812710,
+      "up_area_km2": 1475.4,
+      "sub_area_km2": 1475.1
+    }
+  },
+  {
+    "name": "Panchayat Ghar",
+    "lat": 29.17139,
+    "lon": 79.48863,
+    "soil": {
+      "sand_pct": 35.9,
+      "clay_pct": 21.5,
+      "silt_pct": 42.5,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Ganna Centre",
+    "lat": 29.15784,
+    "lon": 79.48054,
+    "soil": {
+      "sand_pct": 36.1,
+      "clay_pct": 21.2,
+      "silt_pct": 42.6,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Mukhani",
+    "lat": 29.21804,
+    "lon": 79.51853,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Panchakki",
+    "lat": 29.24098,
+    "lon": 79.52881,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Lal Danth",
+    "lat": 29.23006,
+    "lon": 79.51785,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Unchapul",
+    "lat": 29.22586,
+    "lon": 79.49736,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Roshanabad",
+    "lat": 29.9732,
+    "lon": 78.05713,
+    "soil": {
+      "sand_pct": 44.5,
+      "clay_pct": 24.0,
+      "silt_pct": 31.5,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080782560,
+      "up_area_km2": 2009.3,
+      "sub_area_km2": 2009.3
+    }
+  },
+  {
+    "name": "Integrated Industrial Estate",
+    "lat": 29.95962,
+    "lon": 78.06576,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080782560,
+      "up_area_km2": 2009.3,
+      "sub_area_km2": 2009.3
+    }
+  },
+  {
+    "name": "BHEL Township",
+    "lat": 29.93861,
+    "lon": 78.11228,
+    "soil": {
+      "sand_pct": 41.0,
+      "clay_pct": 26.0,
+      "silt_pct": 33.1,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080773550,
+      "up_area_km2": 23573.7,
+      "sub_area_km2": 518.9
+    }
+  },
+  {
+    "name": "Mallital",
+    "lat": 29.39221,
+    "lon": 79.45476,
+    "soil": {
+      "sand_pct": 33.1,
+      "clay_pct": 27.6,
+      "silt_pct": 39.3,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808820,
+      "up_area_km2": 1120.4,
+      "sub_area_km2": 1120.4
+    }
+  },
+  {
+    "name": "Talllital",
+    "lat": 29.37901,
+    "lon": 79.46275,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808820,
+      "up_area_km2": 1120.4,
+      "sub_area_km2": 1120.4
+    }
+  },
+  {
+    "name": "Halduchaur",
+    "lat": 29.11016,
+    "lon": 79.51955,
+    "soil": {
+      "sand_pct": 36.4,
+      "clay_pct": 20.8,
+      "silt_pct": 42.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808820,
+      "up_area_km2": 1120.4,
+      "sub_area_km2": 1120.4
+    }
+  },
+  {
+    "name": "Motahaldu",
+    "lat": 29.14042,
+    "lon": 79.52093,
+    "soil": {
+      "sand_pct": 35.4,
+      "clay_pct": 21.5,
+      "silt_pct": 43.0,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808820,
+      "up_area_km2": 1120.4,
+      "sub_area_km2": 1120.4
+    }
+  },
+  {
+    "name": "Judge Farm",
+    "lat": 29.21104,
+    "lon": 79.51265,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Pilikothi",
+    "lat": 29.21445,
+    "lon": 79.50795,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Heera Nagar",
+    "lat": 29.21391,
+    "lon": 79.51897,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Chharayal",
+    "lat": 29.20325,
+    "lon": 79.48998,
+    "soil": {
+      "sand_pct": 35.7,
+      "clay_pct": 23.1,
+      "silt_pct": 41.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Kusumkhera",
+    "lat": 29.219,
+    "lon": 79.50249,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Bomari Tallikham",
+    "lat": 29.22352,
+    "lon": 79.512,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Bithoria No1",
+    "lat": 29.23319,
+    "lon": 79.51182,
+    "soil": {
+      "sand_pct": 32.9,
+      "clay_pct": 24.1,
+      "silt_pct": 43.0,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Bamori Malli",
+    "lat": 29.23462,
+    "lon": 79.52711,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Bamori Talli Kham",
+    "lat": 29.23594,
+    "lon": 79.51433,
+    "soil": {
+      "sand_pct": 33.6,
+      "clay_pct": 26.3,
+      "silt_pct": 40.1,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Dewarchaur Kham",
+    "lat": 29.19662,
+    "lon": 79.52337,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Haldwani Talli",
+    "lat": 29.18682,
+    "lon": 79.5162,
+    "soil": {
+      "sand_pct": 35.5,
+      "clay_pct": 23.7,
+      "silt_pct": 40.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808820,
+      "up_area_km2": 1120.4,
+      "sub_area_km2": 1120.4
+    }
+  },
+  {
+    "name": "Bithoria No 2",
+    "lat": 29.23435,
+    "lon": 79.50513,
+    "soil": {
+      "sand_pct": 33.6,
+      "clay_pct": 24.8,
+      "silt_pct": 41.6,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Damua Dhunga Kham",
+    "lat": 29.24441,
+    "lon": 79.51762,
+    "soil": {
+      "sand_pct": 32.5,
+      "clay_pct": 26.3,
+      "silt_pct": 41.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Haripur Seel",
+    "lat": 29.24045,
+    "lon": 79.52662,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Harinagar",
+    "lat": 29.2214,
+    "lon": 79.51981,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Kamaluwa Ganja Narsingh Talla",
+    "lat": 29.21091,
+    "lon": 79.47846,
+    "soil": {
+      "sand_pct": 34.9,
+      "clay_pct": 24.3,
+      "silt_pct": 40.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Chharaval Nayabad",
+    "lat": 29.20405,
+    "lon": 79.48044,
+    "soil": {
+      "sand_pct": 34.6,
+      "clay_pct": 23.5,
+      "silt_pct": 41.9,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Chharayal Nayak",
+    "lat": 29.20158,
+    "lon": 79.48604,
+    "soil": {
+      "sand_pct": 35.1,
+      "clay_pct": 22.5,
+      "silt_pct": 42.4,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080808090,
+      "up_area_km2": 1054.2,
+      "sub_area_km2": 1054.1
+    }
+  },
+  {
+    "name": "Ganga Vihar Colony",
+    "lat": 30.09704,
+    "lon": 78.28744,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764450,
+      "up_area_km2": 22005.3,
+      "sub_area_km2": 307.6
+    }
+  },
+  {
+    "name": "Missarpur",
+    "lat": 29.88985,
+    "lon": 78.13382,
+    "soil": {
+      "sand_pct": 36.9,
+      "clay_pct": 25.5,
+      "silt_pct": 37.6,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080773550,
+      "up_area_km2": 23573.7,
+      "sub_area_km2": 518.9
+    }
+  },
+  {
+    "name": "Arhat Bazar",
+    "lat": 30.31694,
+    "lon": 78.0297,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080764440,
+      "up_area_km2": 1049.4,
+      "sub_area_km2": 1049.4
+    }
+  },
+  {
+    "name": "Kochar Colony",
+    "lat": 30.36811,
+    "lon": 78.07113,
+    "soil": {
+      "sand_pct": 34.4,
+      "clay_pct": 23.8,
+      "silt_pct": 41.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764440,
+      "up_area_km2": 1049.4,
+      "sub_area_km2": 1049.4
+    }
+  },
+  {
+    "name": "Bungalow ki Kandli",
+    "lat": 30.48102,
+    "lon": 78.03614,
+    "soil": {
+      "sand_pct": 35.1,
+      "clay_pct": 22.4,
+      "silt_pct": 42.6,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080749670,
+      "up_area_km2": 2350.9,
+      "sub_area_km2": 2350.9
+    }
+  },
+  {
+    "name": "Picture Palace",
+    "lat": 30.45572,
+    "lon": 78.0804,
+    "soil": {
+      "sand_pct": 34.5,
+      "clay_pct": 24.6,
+      "silt_pct": 40.9,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080751750,
+      "up_area_km2": 679.0,
+      "sub_area_km2": 679.0
+    }
+  },
+  {
+    "name": "Dakra Bazar",
+    "lat": 30.35402,
+    "lon": 78.0307,
+    "soil": null,
+    "watershed": {
+      "hybas_id": 4080751750,
+      "up_area_km2": 679.0,
+      "sub_area_km2": 679.0
+    }
+  },
+  {
+    "name": "Happy Valley",
+    "lat": 30.46975,
+    "lon": 78.05152,
+    "soil": {
+      "sand_pct": 32.8,
+      "clay_pct": 24.4,
+      "silt_pct": 42.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080749670,
+      "up_area_km2": 2350.9,
+      "sub_area_km2": 2350.9
+    }
+  },
+  {
+    "name": "Deckyiling",
+    "lat": 30.3696,
+    "lon": 78.09941,
+    "soil": {
+      "sand_pct": 34.1,
+      "clay_pct": 22.1,
+      "silt_pct": 43.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080764440,
+      "up_area_km2": 1049.4,
+      "sub_area_km2": 1049.4
+    }
+  },
+  {
+    "name": "Gagarigol",
+    "lat": 29.90309,
+    "lon": 79.63945,
+    "soil": {
+      "sand_pct": 33.7,
+      "clay_pct": 24.6,
+      "silt_pct": 41.7,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "Charethi",
+    "lat": 30.81802,
+    "lon": 78.61817,
+    "soil": {
+      "sand_pct": 37.4,
+      "clay_pct": 25.8,
+      "silt_pct": 36.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080750990,
+      "up_area_km2": 5412.4,
+      "sub_area_km2": 2713.0
+    }
+  },
+  {
+    "name": "Bhatwari",
+    "lat": 30.81116,
+    "lon": 78.61954,
+    "soil": {
+      "sand_pct": 38.8,
+      "clay_pct": 22.9,
+      "silt_pct": 38.3,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080750990,
+      "up_area_km2": 5412.4,
+      "sub_area_km2": 2713.0
+    }
+  },
+  {
+    "name": "Raithal",
+    "lat": 30.81672,
+    "lon": 78.60379,
+    "soil": {
+      "sand_pct": 42.5,
+      "clay_pct": 23.7,
+      "silt_pct": 33.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080750990,
+      "up_area_km2": 5412.4,
+      "sub_area_km2": 2713.0
+    }
+  },
+  {
+    "name": "Dwari",
+    "lat": 30.80485,
+    "lon": 78.61998,
+    "soil": {
+      "sand_pct": 37.6,
+      "clay_pct": 23.5,
+      "silt_pct": 39.0,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080750990,
+      "up_area_km2": 5412.4,
+      "sub_area_km2": 2713.0
+    }
+  },
+  {
+    "name": "Kadari",
+    "lat": 30.60934,
+    "lon": 78.78501,
+    "soil": {
+      "sand_pct": 41.4,
+      "clay_pct": 27.0,
+      "silt_pct": 31.7,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080753860,
+      "up_area_km2": 1481.3,
+      "sub_area_km2": 1481.0
+    }
+  },
+  {
+    "name": "Chhani",
+    "lat": 30.9478,
+    "lon": 78.24004,
+    "soil": {
+      "sand_pct": 45.2,
+      "clay_pct": 17.6,
+      "silt_pct": 37.1,
+      "hydrologic_soil_group": "B"
+    },
+    "watershed": {
+      "hybas_id": 4080749670,
+      "up_area_km2": 2350.9,
+      "sub_area_km2": 2350.9
+    }
+  },
+  {
+    "name": "Dingari",
+    "lat": 30.94652,
+    "lon": 78.21732,
+    "soil": {
+      "sand_pct": 37.9,
+      "clay_pct": 22.4,
+      "silt_pct": 39.7,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080749670,
+      "up_area_km2": 2350.9,
+      "sub_area_km2": 2350.9
+    }
+  },
+  {
+    "name": "Paunti",
+    "lat": 30.9474,
+    "lon": 78.23579,
+    "soil": {
+      "sand_pct": 39.8,
+      "clay_pct": 22.9,
+      "silt_pct": 37.3,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080749670,
+      "up_area_km2": 2350.9,
+      "sub_area_km2": 2350.9
+    }
+  },
+  {
+    "name": "Surnaul",
+    "lat": 30.92511,
+    "lon": 78.22216,
+    "soil": {
+      "sand_pct": 40.3,
+      "clay_pct": 22.6,
+      "silt_pct": 37.1,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080749670,
+      "up_area_km2": 2350.9,
+      "sub_area_km2": 2350.9
+    }
+  },
+  {
+    "name": "Banthapla",
+    "lat": 30.31934,
+    "lon": 79.10833,
+    "soil": {
+      "sand_pct": 36.7,
+      "clay_pct": 25.1,
+      "silt_pct": 38.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080756710,
+      "up_area_km2": 8638.7,
+      "sub_area_km2": 304.5
+    }
+  },
+  {
+    "name": "Baneshwar",
+    "lat": 29.8913,
+    "lon": 79.62387,
+    "soil": {
+      "sand_pct": 31.1,
+      "clay_pct": 22.8,
+      "silt_pct": 46.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "Garaser",
+    "lat": 29.90074,
+    "lon": 79.62049,
+    "soil": {
+      "sand_pct": 33.0,
+      "clay_pct": 23.9,
+      "silt_pct": 43.1,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "Kotuli",
+    "lat": 29.89382,
+    "lon": 79.63403,
+    "soil": {
+      "sand_pct": 32.0,
+      "clay_pct": 23.8,
+      "silt_pct": 44.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "Jinakhola",
+    "lat": 29.89306,
+    "lon": 79.63134,
+    "soil": {
+      "sand_pct": 30.2,
+      "clay_pct": 23.2,
+      "silt_pct": 46.6,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "Matena",
+    "lat": 29.89749,
+    "lon": 79.62612,
+    "soil": {
+      "sand_pct": 32.1,
+      "clay_pct": 23.9,
+      "silt_pct": 44.1,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "Selakhula",
+    "lat": 29.89527,
+    "lon": 79.62785,
+    "soil": {
+      "sand_pct": 30.4,
+      "clay_pct": 24.0,
+      "silt_pct": 45.5,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "Band",
+    "lat": 29.89551,
+    "lon": 79.6403,
+    "soil": {
+      "sand_pct": 31.1,
+      "clay_pct": 24.1,
+      "silt_pct": 44.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "mamooya ka Paur",
+    "lat": 30.29278,
+    "lon": 78.42586,
+    "soil": {
+      "sand_pct": 33.4,
+      "clay_pct": 24.6,
+      "silt_pct": 42.1,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080760950,
+      "up_area_km2": 7646.5,
+      "sub_area_km2": 358.2
+    }
+  },
+  {
+    "name": "Baungad",
+    "lat": 29.86739,
+    "lon": 80.04763,
+    "soil": {
+      "sand_pct": 31.9,
+      "clay_pct": 23.8,
+      "silt_pct": 44.4,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080781070,
+      "up_area_km2": 1350.0,
+      "sub_area_km2": 1349.9
+    }
+  },
+  {
+    "name": "Bhainsket",
+    "lat": 29.86435,
+    "lon": 80.06289,
+    "soil": {
+      "sand_pct": 32.9,
+      "clay_pct": 22.4,
+      "silt_pct": 44.7,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080781070,
+      "up_area_km2": 1350.0,
+      "sub_area_km2": 1349.9
+    }
+  },
+  {
+    "name": "Lohari Talli",
+    "lat": 29.88847,
+    "lon": 79.61747,
+    "soil": {
+      "sand_pct": 31.8,
+      "clay_pct": 22.4,
+      "silt_pct": 45.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "Selihat",
+    "lat": 29.89453,
+    "lon": 79.61629,
+    "soil": {
+      "sand_pct": 32.0,
+      "clay_pct": 24.0,
+      "silt_pct": 44.0,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770760,
+      "up_area_km2": 380.2,
+      "sub_area_km2": 380.2
+    }
+  },
+  {
+    "name": "gadholi",
+    "lat": 29.65916,
+    "lon": 79.6694,
+    "soil": {
+      "sand_pct": 31.6,
+      "clay_pct": 23.3,
+      "silt_pct": 45.1,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080779840,
+      "up_area_km2": 459.0,
+      "sub_area_km2": 458.9
+    }
+  },
+  {
+    "name": "pilkha",
+    "lat": 29.66577,
+    "lon": 79.66146,
+    "soil": {
+      "sand_pct": 33.0,
+      "clay_pct": 22.8,
+      "silt_pct": 44.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080779840,
+      "up_area_km2": 459.0,
+      "sub_area_km2": 458.9
+    }
+  },
+  {
+    "name": "malera",
+    "lat": 29.66533,
+    "lon": 79.65107,
+    "soil": {
+      "sand_pct": 31.7,
+      "clay_pct": 23.5,
+      "silt_pct": 44.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080779840,
+      "up_area_km2": 459.0,
+      "sub_area_km2": 458.9
+    }
+  },
+  {
+    "name": "Chaura Gutti",
+    "lat": 29.47799,
+    "lon": 79.89408,
+    "soil": {
+      "sand_pct": 34.7,
+      "clay_pct": 23.1,
+      "silt_pct": 42.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080781160,
+      "up_area_km2": 481.8,
+      "sub_area_km2": 481.7
+    }
+  },
+  {
+    "name": "Gagar",
+    "lat": 29.46129,
+    "lon": 79.89269,
+    "soil": {
+      "sand_pct": 34.4,
+      "clay_pct": 22.1,
+      "silt_pct": 43.5,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080781160,
+      "up_area_km2": 481.8,
+      "sub_area_km2": 481.7
+    }
+  },
+  {
+    "name": "Kholagad",
+    "lat": 29.47583,
+    "lon": 79.90715,
+    "soil": {
+      "sand_pct": 35.4,
+      "clay_pct": 23.2,
+      "silt_pct": 41.4,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080781160,
+      "up_area_km2": 481.8,
+      "sub_area_km2": 481.7
+    }
+  },
+  {
+    "name": "Gagrar",
+    "lat": 29.47828,
+    "lon": 79.89939,
+    "soil": {
+      "sand_pct": 34.0,
+      "clay_pct": 22.4,
+      "silt_pct": 43.5,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080781160,
+      "up_area_km2": 481.8,
+      "sub_area_km2": 481.7
+    }
+  },
+  {
+    "name": "mayun",
+    "lat": 29.79783,
+    "lon": 79.84838,
+    "soil": {
+      "sand_pct": 34.4,
+      "clay_pct": 21.9,
+      "silt_pct": 43.7,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "gadkhet",
+    "lat": 29.79481,
+    "lon": 79.84988,
+    "soil": {
+      "sand_pct": 34.4,
+      "clay_pct": 21.4,
+      "silt_pct": 44.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "shyaldoba",
+    "lat": 29.8022,
+    "lon": 79.82932,
+    "soil": {
+      "sand_pct": 33.8,
+      "clay_pct": 22.7,
+      "silt_pct": 43.5,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "chamoli",
+    "lat": 29.79043,
+    "lon": 79.82808,
+    "soil": {
+      "sand_pct": 33.1,
+      "clay_pct": 23.0,
+      "silt_pct": 43.9,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "bhiri",
+    "lat": 29.79215,
+    "lon": 79.83338,
+    "soil": {
+      "sand_pct": 34.1,
+      "clay_pct": 22.7,
+      "silt_pct": 43.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "matoli",
+    "lat": 29.78656,
+    "lon": 79.83299,
+    "soil": {
+      "sand_pct": 33.2,
+      "clay_pct": 23.9,
+      "silt_pct": 42.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "halda",
+    "lat": 29.79427,
+    "lon": 79.8564,
+    "soil": {
+      "sand_pct": 34.4,
+      "clay_pct": 21.7,
+      "silt_pct": 43.9,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "gurana",
+    "lat": 29.79701,
+    "lon": 79.85868,
+    "soil": {
+      "sand_pct": 34.5,
+      "clay_pct": 22.2,
+      "silt_pct": 43.3,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "tachhni",
+    "lat": 29.78619,
+    "lon": 79.84474,
+    "soil": {
+      "sand_pct": 31.2,
+      "clay_pct": 23.3,
+      "silt_pct": 45.5,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "dabauli",
+    "lat": 29.78025,
+    "lon": 79.84099,
+    "soil": {
+      "sand_pct": 32.1,
+      "clay_pct": 23.5,
+      "silt_pct": 44.4,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "amkhet",
+    "lat": 29.77731,
+    "lon": 79.84512,
+    "soil": {
+      "sand_pct": 34.1,
+      "clay_pct": 21.6,
+      "silt_pct": 44.3,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "kimoli",
+    "lat": 29.80295,
+    "lon": 79.84893,
+    "soil": {
+      "sand_pct": 34.4,
+      "clay_pct": 22.8,
+      "silt_pct": 42.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775470,
+      "up_area_km2": 1498.7,
+      "sub_area_km2": 340.6
+    }
+  },
+  {
+    "name": "hurali",
+    "lat": 29.8801,
+    "lon": 79.93867,
+    "soil": {
+      "sand_pct": 32.8,
+      "clay_pct": 23.4,
+      "silt_pct": 43.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770600,
+      "up_area_km2": 778.1,
+      "sub_area_km2": 778.1
+    }
+  },
+  {
+    "name": "khatigaon",
+    "lat": 29.88843,
+    "lon": 79.94304,
+    "soil": {
+      "sand_pct": 33.2,
+      "clay_pct": 24.1,
+      "silt_pct": 42.7,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770600,
+      "up_area_km2": 778.1,
+      "sub_area_km2": 778.1
+    }
+  },
+  {
+    "name": "pothan",
+    "lat": 29.88849,
+    "lon": 79.93701,
+    "soil": {
+      "sand_pct": 34.3,
+      "clay_pct": 23.9,
+      "silt_pct": 41.8,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770600,
+      "up_area_km2": 778.1,
+      "sub_area_km2": 778.1
+    }
+  },
+  {
+    "name": "binari",
+    "lat": 29.89228,
+    "lon": 79.93538,
+    "soil": {
+      "sand_pct": 33.2,
+      "clay_pct": 24.7,
+      "silt_pct": 42.1,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770600,
+      "up_area_km2": 778.1,
+      "sub_area_km2": 778.1
+    }
+  },
+  {
+    "name": "kirai",
+    "lat": 29.88862,
+    "lon": 79.95002,
+    "soil": {
+      "sand_pct": 33.3,
+      "clay_pct": 25.1,
+      "silt_pct": 41.6,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770600,
+      "up_area_km2": 778.1,
+      "sub_area_km2": 778.1
+    }
+  },
+  {
+    "name": "odyar",
+    "lat": 29.90022,
+    "lon": 79.94596,
+    "soil": {
+      "sand_pct": 32.6,
+      "clay_pct": 23.9,
+      "silt_pct": 43.6,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080770600,
+      "up_area_km2": 778.1,
+      "sub_area_km2": 778.1
+    }
+  },
+  {
+    "name": "Tripuradevi",
+    "lat": 29.76062,
+    "lon": 80.04392,
+    "soil": {
+      "sand_pct": 32.5,
+      "clay_pct": 26.3,
+      "silt_pct": 41.2,
+      "hydrologic_soil_group": "C"
+    },
+    "watershed": {
+      "hybas_id": 4080775270,
+      "up_area_km2": 177.8,
+      "sub_area_km2": 177.7
+    }
+  }
+]

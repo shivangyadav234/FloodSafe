@@ -509,11 +509,212 @@ def _antecedent_multiplier(antecedent_48h_mm):
     return 1.0
 
 
-def ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm=None):
+# ============================================================
+# WATERSHED + SOIL — real physical context feeding the same
+# thresholds above, on top of the hazard-atlas class and antecedent
+# rainfall.
+#
+# Watershed: HydroSHEDS/HydroBASINS v1c level-8 sub-basins (WWF),
+# clipped to Uttarakhand — real, freely published watershed
+# delineation, not derived in-house from a DEM. Classified live via
+# point-in-polygon (same pattern as classify_point below), so it
+# works for any point, including an arbitrary "check my location"
+# lookup.
+#
+# Soil: SoilGrids v2.0 (ISRIC) sand/clay/silt texture, sampled once
+# per known FFGS point by extract_watershed_soil.py and cached to
+# watershed_soil.json — SoilGrids' own point-query API takes
+# 2-20+ seconds per call and times out under load, so this is never
+# fetched live. That means soil context is only available within
+# WATERSHED_SOIL_MAX_KM of a point that script actually sampled (the
+# 9 towns + every FFGS locality); an arbitrary point elsewhere gets
+# None rather than a misleading nearby guess.
+#
+# Both feed a single static multiplier applied to the duration
+# thresholds, alongside (not instead of) the antecedent-rainfall
+# multiplier above. This is still a heuristic, same as every other
+# adjustment in this file — real datasets feeding a simplified rule,
+# not a calibrated hydrological model.
+# ============================================================
+
+_watershed_polygons = []
+WATERSHED_AVAILABLE = False
+
+
+def _load_watersheds():
+
+    from shapely.geometry import shape as shapely_shape
+
+    geojson_path = os.path.join(DATA_DIR, "uttarakhand_watersheds.geojson")
+
+    with open(geojson_path, "r", encoding="utf-8") as f:
+        watershed_geojson = json.load(f)
+
+    basins = []
+
+    for feature in watershed_geojson.get("features", []):
+        try:
+            geom = shapely_shape(feature["geometry"])
+            props = feature["properties"]
+            basins.append((geom, {
+                "hybas_id": int(props["HYBAS_ID"]),
+                "up_area_km2": float(props["UP_AREA"]),
+                "sub_area_km2": float(props["SUB_AREA"]),
+            }))
+        except Exception:
+            continue
+
+    return basins
+
+
+try:
+
+    _watershed_polygons = _load_watersheds()
+    WATERSHED_AVAILABLE = len(_watershed_polygons) > 0
+
+except Exception as e:
+
+    print("WARNING: watershed boundaries unavailable:", repr(e))
+
+
+def classify_watershed(lat, lon):
+    """
+    The HydroBASINS sub-basin containing this point: hybas_id,
+    upstream contributing area, and this sub-basin's own local area
+    (both km^2). None if watershed data isn't loaded or the point
+    falls outside every mapped sub-basin.
+    """
+
+    if not WATERSHED_AVAILABLE:
+        return None
+
+    from shapely.geometry import Point as ShapelyPoint
+
+    point = ShapelyPoint(lon, lat)
+
+    for geom, info in _watershed_polygons:
+        if geom.contains(point):
+            return info
+
+    return None
+
+
+WATERSHED_SOIL_FILE = os.path.join(DATA_DIR, "watershed_soil.json")
+WATERSHED_SOIL_MAX_KM = 0.5
+
+
+def _load_watershed_soil():
+
+    if not os.path.exists(WATERSHED_SOIL_FILE):
+        return []
+
+    with open(WATERSHED_SOIL_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+_WATERSHED_SOIL_POINTS = _load_watershed_soil()
+
+
+def soil_for_point(lat, lon):
+    """
+    Precomputed SoilGrids texture/Hydrologic Soil Group for this
+    point (see the module docstring above for why this is a lookup,
+    not a live fetch).
+    """
+
+    nearest, nearest_km = None, None
+
+    for p in _WATERSHED_SOIL_POINTS:
+
+        if not p.get("soil"):
+            continue
+
+        d = _haversine_km(lat, lon, p["lat"], p["lon"])
+
+        if nearest_km is None or d < nearest_km:
+            nearest_km, nearest = d, p
+
+    if nearest is None or nearest_km > WATERSHED_SOIL_MAX_KM:
+        return None
+
+    return nearest["soil"]
+
+
+# Soil infiltration adjustment: poorer-draining soil (Hydrologic Soil
+# Group C/D) needs less rain to produce the same runoff as
+# free-draining soil (A/B), so it scales thresholds down; better
+# drainage scales them up slightly. Missing soil data leaves
+# thresholds unchanged rather than guessing.
+FFGS_SOIL_GROUP_MULTIPLIER = {
+    "A": 1.15,
+    "B": 1.0,
+    "C": 0.9,
+    "D": 0.8,
+}
+
+# Catchment-size adjustment: a small, steep headwater catchment
+# concentrates a rain burst into runoff far faster than a point that
+# already sits on a large river system with a huge, slower-responding
+# upstream area — the flash-flood mechanism this system is named
+# for. Smaller upstream catchments get a lower (more cautious)
+# threshold. Sorted highest floor first, same convention as the
+# antecedent breakpoints above.
+FFGS_CATCHMENT_BREAKPOINTS_KM2 = [
+    (1000.0, 1.0),   # large river system -> no additional adjustment
+    (100.0, 0.95),   # medium catchment
+    (0.0, 0.85),      # small, steep headwater catchment -> most cautious
+]
+
+
+def _soil_group_multiplier(hydrologic_soil_group):
+
+    return FFGS_SOIL_GROUP_MULTIPLIER.get(hydrologic_soil_group, 1.0)
+
+
+def _catchment_multiplier(up_area_km2):
+
+    if up_area_km2 is None:
+        return 1.0
+
+    for floor_km2, multiplier in FFGS_CATCHMENT_BREAKPOINTS_KM2:
+        if up_area_km2 >= floor_km2:
+            return multiplier
+
+    return 1.0
+
+
+def physical_factors_for_point(lat, lon):
+    """
+    Real watershed + soil context for a point, plus the combined
+    static threshold multiplier derived from them. Independent of
+    live rainfall (unlike the antecedent multiplier), so this only
+    needs the point's coordinates, not a rainfall reading.
+    """
+
+    watershed = classify_watershed(lat, lon)
+    soil = soil_for_point(lat, lon)
+
+    multiplier = 1.0
+
+    if soil and soil.get("hydrologic_soil_group"):
+        multiplier *= _soil_group_multiplier(soil["hydrologic_soil_group"])
+
+    if watershed:
+        multiplier *= _catchment_multiplier(watershed["up_area_km2"])
+
+    return {
+        "watershed": watershed,
+        "soil": soil,
+        "static_multiplier": round(multiplier, 3),
+    }
+
+
+def ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm=None, static_multiplier=1.0):
     """
     Returns {"1h": {"watch", "critical"}, "3h": {...}, "24h": {...}}
-    for one hazard class, with the antecedent-rainfall adjustment
-    applied. None if hazard_class is unmapped/unknown.
+    for one hazard class, with the antecedent-rainfall adjustment and
+    the watershed/soil static_multiplier both applied. None if
+    hazard_class is unmapped/unknown.
     """
 
     base = FFGS_DURATION_THRESHOLDS_MM.get(hazard_class)
@@ -521,7 +722,7 @@ def ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm=None):
     if base is None:
         return None
 
-    multiplier = _antecedent_multiplier(antecedent_48h_mm)
+    multiplier = _antecedent_multiplier(antecedent_48h_mm) * static_multiplier
 
     return {
         duration: {
@@ -536,14 +737,16 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
     """
     Like guidance_for_point() above, but returns the full
     duration-bucketed threshold set instead of a single watch/critical
-    pair. Rainfall itself is still fetched by the browser directly
-    from Open-Meteo (never bulk-fetched by this server) — see the
-    Render shared-IP rate-limit note on /weather further down; the
-    same reasoning applies here, doubly so for a bulk zones endpoint.
+    pair, plus watershed and soil context. Rainfall itself is still
+    fetched by the browser directly from Open-Meteo (never bulk-fetched
+    by this server) — see the Render shared-IP rate-limit note on
+    /weather further down; the same reasoning applies here, doubly so
+    for a bulk zones endpoint.
     """
 
     hazard_class, exact, distance_km = classify_point(lat, lon)
-    thresholds = ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm)
+    physical = physical_factors_for_point(lat, lon)
+    thresholds = ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm, physical["static_multiplier"])
 
     return {
         "lat": lat,
@@ -552,6 +755,9 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
         "exact_match": exact,
         "distance_km": round(distance_km, 1) if distance_km is not None else None,
         "thresholds_mm": thresholds,
+        "watershed": physical["watershed"],
+        "soil": physical["soil"],
+        "static_multiplier": physical["static_multiplier"],
     }
 
 
@@ -1389,6 +1595,8 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
       <dt data-i18n="src3dt">Weather data</dt><dd>Open-Meteo forecast API</dd>
       <dt data-i18n="src4dt">Place search</dt><dd>Nominatim (OpenStreetMap)</dd>
       <dt data-i18n="src5dt">Routing engine</dt><dd data-i18n="src5dd">SciPy sparse-graph Dijkstra shortest-path algorithm</dd>
+      <dt data-i18n="src6dt">Watershed data</dt><dd>HydroSHEDS / HydroBASINS (WWF)</dd>
+      <dt data-i18n="src7dt">Soil data</dt><dd>SoilGrids v2.0 (ISRIC)</dd>
     </dl>
   </div>
 </section>
@@ -1492,6 +1700,8 @@ const translations = {
     src3dt: "Weather data",
     src4dt: "Place search",
     src5dt: "Routing engine", src5dd: "SciPy sparse-graph Dijkstra shortest-path algorithm",
+    src6dt: "Watershed data",
+    src7dt: "Soil data",
     finalTitle: "Access the flood-aware map tool",
     finalText: "No registration required. Available to all road users in Uttarakhand.",
     finalCta: "Open FloodSafe Map Tool →",
@@ -1599,6 +1809,8 @@ const translations = {
     src3dt: "मौसम डेटा",
     src4dt: "स्थान खोज",
     src5dt: "रूटिंग इंजन", src5dd: "SciPy स्पार्स-ग्राफ Dijkstra शॉर्टेस्ट-पाथ एल्गोरिथम",
+    src6dt: "जलग्रहण डेटा",
+    src7dt: "मिट्टी डेटा",
     finalTitle: "बाढ़-जागरूक मानचित्र टूल खोलें",
     finalText: "कोई पंजीकरण आवश्यक नहीं। उत्तराखंड के सभी सड़क उपयोगकर्ताओं के लिए उपलब्ध।",
     finalCta: "FloodSafe मानचित्र टूल खोलें →",
@@ -3330,10 +3542,13 @@ footer {
     <div class="notice" data-i18n-html="noticeHtml">
         This page pairs each mapped hazard zone's static classification with live rainfall
         over three windows (1h / 3h / 24h) to show whether it is SAFE, in WATCH, or in
-        CRITICAL status right now. Thresholds are a heuristic calibrated against this app's
-        hazard atlas — <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would
-        require a full hydrological model this project doesn't have. The hazard atlas only
-        covers specific hazard-prone corridors of Uttarakhand, not the whole state.
+        CRITICAL status right now. Thresholds are adjusted using real watershed data
+        (upstream catchment area, from HydroSHEDS/HydroBASINS) and soil data (texture-based
+        drainage class, from SoilGrids) on top of the hazard atlas and antecedent rainfall —
+        <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would require a full
+        calibrated hydrological model this project doesn't have. The hazard atlas only covers
+        specific hazard-prone corridors of Uttarakhand, not the whole state, and soil data is
+        only available at points it was actually sampled for.
     </div>
 
     <div id="ffgsAlert"></div>
@@ -3354,6 +3569,7 @@ footer {
             <span><span class="dot" style="background:#c99a2e"></span><span data-i18n="hazardModerate">MODERATE hazard</span></span>
             <span><span class="dot" style="background:#cf7a2a"></span><span data-i18n="hazardSignificant">SIGNIFICANT hazard</span></span>
             <span><span class="dot" style="background:#7a1f1f"></span><span data-i18n="hazardExtreme">EXTREME hazard</span></span>
+            <span><span style="display:inline-block; width:14px; height:0; border-top:2px dashed #0b3558; margin-right:6px; vertical-align:middle;"></span><span data-i18n="watershedLegend">Watershed boundary (HydroBASINS)</span></span>
             <span style="margin-left:auto;" data-i18n="markerNote">Marker color = current worst status across all three windows</span>
         </div>
     </div>
@@ -3366,6 +3582,8 @@ footer {
                     <tr>
                         <th data-i18n="colLocation">Location</th>
                         <th data-i18n="colHazardZone">Hazard zone</th>
+                        <th data-i18n="colSoil">Soil</th>
+                        <th class="num" data-i18n="colCatchment">Catchment</th>
                         <th class="num" data-i18n="col1h">1h rain</th>
                         <th class="num" data-i18n="col3h">3h rain</th>
                         <th class="num" data-i18n="col24h">24h rain</th>
@@ -3373,7 +3591,7 @@ footer {
                     </tr>
                 </thead>
                 <tbody id="ffgsTableBody">
-                    <tr><td colspan="6" data-i18n="loading">Loading…</td></tr>
+                    <tr><td colspan="8" data-i18n="loading">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -3411,7 +3629,7 @@ const translations = {
     pageSubtitle: "Duration-based rainfall guidance for Uttarakhand",
     navMapTool: "Map tool →",
     navBackDashboard: "← Back to dashboard",
-    noticeHtml: "This page pairs each mapped hazard zone's static classification with live rainfall over three windows (1h / 3h / 24h) to show whether it is SAFE, in WATCH, or in CRITICAL status right now. Thresholds are a heuristic calibrated against this app's hazard atlas — <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would require a full hydrological model this project doesn't have. The hazard atlas only covers specific hazard-prone corridors of Uttarakhand, not the whole state.",
+    noticeHtml: "This page pairs each mapped hazard zone's static classification with live rainfall over three windows (1h / 3h / 24h) to show whether it is SAFE, in WATCH, or in CRITICAL status right now. Thresholds are adjusted using real watershed data (upstream catchment area, from HydroSHEDS/HydroBASINS) and soil data (texture-based drainage class, from SoilGrids) on top of the hazard atlas and antecedent rainfall — <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would require a full calibrated hydrological model this project doesn't have. The hazard atlas only covers specific hazard-prone corridors of Uttarakhand, not the whole state, and soil data is only available at points it was actually sampled for.",
     myLocationHeading: "Check guidance at my location",
     myLocationBtn: "Use my current location",
     zoneMapHeading: "Zone map — live status",
@@ -3421,13 +3639,20 @@ const translations = {
     hazardExtreme: "EXTREME hazard",
     hclsLOW: "LOW", hclsMODERATE: "MODERATE", hclsSIGNIFICANT: "SIGNIFICANT", hclsEXTREME: "EXTREME",
     markerNote: "Marker color = current worst status across all three windows",
+    watershedLegend: "Watershed boundary (HydroBASINS)",
     allZonesHeading: "All monitored zones",
     colLocation: "Location",
     colHazardZone: "Hazard zone",
+    colSoil: "Soil",
+    colCatchment: "Catchment",
     col1h: "1h rain",
     col3h: "3h rain",
     col24h: "24h rain",
     colStatus: "Status",
+    soilLabel: "Soil group:",
+    soilSand: "sand",
+    soilClay: "clay",
+    catchmentLabel: "Catchment:",
     loading: "Loading…",
     updatedLabel: "Updated ",
     noZones: "No mapped zones with live data right now.",
@@ -3458,7 +3683,7 @@ const translations = {
     pageSubtitle: "उत्तराखंड के लिए अवधि-आधारित वर्षा मार्गदर्शन",
     navMapTool: "मानचित्र टूल →",
     navBackDashboard: "← डैशबोर्ड पर वापस जाएं",
-    noticeHtml: "यह पृष्ठ प्रत्येक मैप किए गए खतरा क्षेत्र के स्थिर वर्गीकरण को तीन अवधियों (1 घंटा / 3 घंटा / 24 घंटा) की लाइव वर्षा के साथ जोड़ता है, ताकि यह दिखाया जा सके कि वह अभी सुरक्षित (SAFE), सतर्क (WATCH) या गंभीर (CRITICAL) स्थिति में है। सीमाएँ इस ऐप के खतरा एटलस पर आधारित एक अनुमानित गणना हैं — <b>न कि</b> कोई आधिकारिक CWC/IMD फ्लैश फ्लड गाइडेंस मान, जिसके लिए एक पूर्ण जल-विज्ञान मॉडल चाहिए जो इस प्रोजेक्ट के पास नहीं है। खतरा एटलस केवल उत्तराखंड के विशिष्ट खतरा-प्रवण क्षेत्रों को कवर करता है, पूरे राज्य को नहीं।",
+    noticeHtml: "यह पृष्ठ प्रत्येक मैप किए गए खतरा क्षेत्र के स्थिर वर्गीकरण को तीन अवधियों (1 घंटा / 3 घंटा / 24 घंटा) की लाइव वर्षा के साथ जोड़ता है, ताकि यह दिखाया जा सके कि वह अभी सुरक्षित (SAFE), सतर्क (WATCH) या गंभीर (CRITICAL) स्थिति में है। सीमाएँ वास्तविक जलग्रहण डेटा (अपस्ट्रीम कैचमेंट क्षेत्र, HydroSHEDS/HydroBASINS से) और मिट्टी डेटा (बनावट-आधारित जल निकासी वर्ग, SoilGrids से) का उपयोग करके, खतरा एटलस और पूर्ववर्ती वर्षा के साथ, समायोजित की जाती हैं — <b>न कि</b> कोई आधिकारिक CWC/IMD फ्लैश फ्लड गाइडेंस मान, जिसके लिए एक पूर्ण जल-विज्ञान मॉडल चाहिए जो इस प्रोजेक्ट के पास नहीं है। खतरा एटलस केवल उत्तराखंड के विशिष्ट खतरा-प्रवण क्षेत्रों को कवर करता है, पूरे राज्य को नहीं, और मिट्टी डेटा केवल उन्हीं बिंदुओं पर उपलब्ध है जहाँ इसे वास्तव में मापा गया था।",
     myLocationHeading: "मेरे स्थान पर मार्गदर्शन जांचें",
     myLocationBtn: "मेरा वर्तमान स्थान उपयोग करें",
     zoneMapHeading: "क्षेत्र मानचित्र — लाइव स्थिति",
@@ -3468,13 +3693,20 @@ const translations = {
     hazardExtreme: "अत्यधिक खतरा",
     hclsLOW: "कम", hclsMODERATE: "मध्यम", hclsSIGNIFICANT: "उच्च", hclsEXTREME: "अत्यधिक",
     markerNote: "मार्कर का रंग = तीनों अवधियों में सबसे खराब वर्तमान स्थिति",
+    watershedLegend: "जलग्रहण सीमा (HydroBASINS)",
     allZonesHeading: "सभी निगरानी क्षेत्र",
     colLocation: "स्थान",
     colHazardZone: "खतरा क्षेत्र",
+    colSoil: "मिट्टी",
+    colCatchment: "जलग्रहण क्षेत्र",
     col1h: "1 घंटे की वर्षा",
     col3h: "3 घंटे की वर्षा",
     col24h: "24 घंटे की वर्षा",
     colStatus: "स्थिति",
+    soilLabel: "मिट्टी समूह:",
+    soilSand: "रेत",
+    soilClay: "चिकनी मिट्टी",
+    catchmentLabel: "जलग्रहण क्षेत्र:",
     loading: "लोड हो रहा है…",
     updatedLabel: "अद्यतन ",
     noZones: "अभी कोई मैप किया गया क्षेत्र लाइव डेटा के साथ उपलब्ध नहीं है।",
@@ -3621,6 +3853,18 @@ fetch("/ffgs/hazard-atlas.geojson")
     })
     .catch(function() {});
 
+// Watershed sub-basin boundaries (HydroSHEDS/HydroBASINS) -- outline
+// only, no fill, so it reads as terrain context under the hazard
+// shading and zone markers rather than competing with them.
+fetch("/ffgs/watersheds.geojson")
+    .then(function(r) { return r.json(); })
+    .then(function(geojson) {
+        L.geoJSON(geojson, {
+            style: { color: "#0b3558", weight: 1, fillOpacity: 0, dashArray: "3,3", opacity: 0.5 }
+        }).addTo(map);
+    })
+    .catch(function() {});
+
 function worseStatus(a, b) {
     if (!a) return b;
     if (!b) return a;
@@ -3639,6 +3883,37 @@ function statusColor(status) {
     if (status === "WATCH") return "#b5860f";
     if (status === "SAFE") return "#14532d";
     return "#6b7680";
+}
+
+function formatCatchmentKm2(km2) {
+    if (km2 == null) return null;
+    return (km2 >= 1000 ? (km2 / 1000).toFixed(1) + "k" : km2.toFixed(0)) + " km²";
+}
+
+function soilCellText(z) {
+    return (z.soil && z.soil.hydrologic_soil_group) ? z.soil.hydrologic_soil_group : "—";
+}
+
+function catchmentCellText(z) {
+    const text = z.watershed ? formatCatchmentKm2(z.watershed.up_area_km2) : null;
+    return text || "—";
+}
+
+function physicalContextLine(zoneOrPoint) {
+    const parts = [];
+
+    if (zoneOrPoint.soil && zoneOrPoint.soil.hydrologic_soil_group) {
+        parts.push(t("soilLabel") + " " + zoneOrPoint.soil.hydrologic_soil_group +
+            " (" + zoneOrPoint.soil.sand_pct + "% " + t("soilSand") + ", " +
+            zoneOrPoint.soil.clay_pct + "% " + t("soilClay") + ")");
+    }
+
+    const catchmentText = zoneOrPoint.watershed ? formatCatchmentKm2(zoneOrPoint.watershed.up_area_km2) : null;
+    if (catchmentText) {
+        parts.push(t("catchmentLabel") + " " + catchmentText);
+    }
+
+    return parts.join(" · ");
 }
 
 // Fetched directly from the browser (own IP), never proxied through
@@ -3749,12 +4024,12 @@ function renderFfgsTable() {
     const tbody = document.getElementById("ffgsTableBody");
 
     if (ffgsLoadFailed) {
-        tbody.innerHTML = '<tr><td colspan="6">' + t("guidanceUnavailable") + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="8">' + t("guidanceUnavailable") + "</td></tr>";
         return;
     }
 
     if (ffgsZones.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6">' + t("noZones") + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="8">' + t("noZones") + "</td></tr>";
         return;
     }
 
@@ -3773,6 +4048,8 @@ function renderFfgsTable() {
             ? z.name + '<span class="parent-town"> — ' + ffgsTownName(z.parent_town) + "</span>"
             : ffgsTownName(z.name);
         return "<tr><td>" + locationCell + "</td><td>" + hazardClassLabel(z.hazard_class) + "</td>" +
+            "<td>" + soilCellText(z) + "</td>" +
+            '<td class="num">' + catchmentCellText(z) + "</td>" +
             '<td class="num">' + cell("1h") + "</td>" +
             '<td class="num">' + cell("3h") + "</td>" +
             '<td class="num">' + cell("24h") + "</td>" +
@@ -3810,8 +4087,11 @@ function renderMarkers() {
             ? "<b>" + z.name + "</b> (" + ffgsTownName(z.parent_town) + ")"
             : "<b>" + ffgsTownName(z.name) + "</b>";
 
+        const contextLine = physicalContextLine(z);
+
         marker.bindPopup(
             popupTitle + " — " + hazardClassLabel(z.hazard_class) + t("hazardZoneSuffix") + "<br>" +
+            (contextLine ? "<span style='color:#6b7680; font-size:12px;'>" + contextLine + "</span><br>" : "") +
             '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
             rows + "</tbody></table>"
         );
@@ -3832,7 +4112,7 @@ async function loadFfgsZones() {
 
     if (!data.available) {
         ffgsLoadFailed = true;
-        tbody.innerHTML = '<tr><td colspan="6">' + (data.error || t("guidanceUnavailable")) + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="8">' + (data.error || t("guidanceUnavailable")) + "</td></tr>";
         return;
     }
 
@@ -3868,6 +4148,8 @@ async function loadFfgsZones() {
             hazard_class: zone.hazard_class,
             thresholds_mm: zone.thresholds_mm,
             parent_town: zone.parent_town || null,
+            soil: zone.soil || null,
+            watershed: zone.watershed || null,
             perDuration: perDuration,
             overall: overall
         };
@@ -3932,7 +4214,10 @@ document.getElementById("ffgsMyLocationBtn").addEventListener("click", function(
                 ? t("nearestZoneNote").replace("{km}", point.distance_km)
                 : "";
 
+            const contextLine = physicalContextLine(point);
+
             resultEl.innerHTML = "<b>" + hazardClassLabel(point.hazard_class) + t("hazardZoneSuffix") + "</b>" + approxNote +
+                (contextLine ? "<br><span style='color:#6b7680; font-size:12px;'>" + contextLine + "</span>" : "") +
                 '<table class="popup-table" style="margin-top:8px;"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
                 rows + "</tbody></table>";
         } catch (error) {
@@ -3960,6 +4245,17 @@ def ffgs_page():
 def ffgs_hazard_atlas():
 
     geojson_path = os.path.join(DATA_DIR, "uttarakhand_flash_flood_hazard_clean.geojson")
+
+    if not os.path.exists(geojson_path):
+        return jsonify({"type": "FeatureCollection", "features": []})
+
+    return send_file(geojson_path, mimetype="application/geo+json")
+
+
+@app.route("/ffgs/watersheds.geojson")
+def ffgs_watersheds():
+
+    geojson_path = os.path.join(DATA_DIR, "uttarakhand_watersheds.geojson")
 
     if not os.path.exists(geojson_path):
         return jsonify({"type": "FeatureCollection", "features": []})
