@@ -4505,6 +4505,25 @@ def ffgs_watersheds():
 FFGS_RAINFALL_CACHE_TTL_SECONDS = 10 * 60
 _ffgs_rainfall_cache = {"timestamp": 0.0, "data": {}}
 
+# Zones are collapsed onto a grid this coarse before fetching, and every
+# zone in a cell shares that cell's reading.
+#
+# Open-Meteo counts each *location* in a multi-location request as its
+# own API call against a 10,000/day free-tier limit. At a 10-minute
+# refresh that is 144 refreshes a day, so 127 zones cost 18,288
+# calls/day -- 83% over budget, which is exactly what silently emptied
+# the live site's rainfall column after the FFPI work grew the zone list
+# from 74 to 127.
+#
+# Raising the TTL would work but costs freshness on a flash-flood
+# product. Deduplicating costs nothing real instead: Open-Meteo's
+# underlying models are ~11 km, so the twenty Rishikesh localities all
+# sit inside one model cell and were being asked the same question
+# twenty times. 0.1 degrees is ~11 km here, matching that resolution and
+# taking 127 zones down to 34 fetches -- 4,896 calls/day, comfortably
+# inside the limit with the 10-minute refresh kept intact.
+FFGS_RAINFALL_GRID_DEG = 0.1
+
 
 def _parse_open_meteo_durations(payload):
 
@@ -4558,14 +4577,29 @@ def _fetch_ffgs_live_rainfall():
     if not mapped_zones:
         return cache["data"]
 
+    # Collapse the zone list onto the weather model's own resolution —
+    # see FFGS_RAINFALL_GRID_DEG. Each cell is fetched once, at the
+    # first zone that falls in it, and every zone in that cell reads the
+    # same result.
+    cells = {}
+
+    for zone in mapped_zones:
+        key = (
+            round(zone["lat"] / FFGS_RAINFALL_GRID_DEG),
+            round(zone["lon"] / FFGS_RAINFALL_GRID_DEG),
+        )
+        cells.setdefault(key, []).append(zone)
+
+    representatives = [zones[0] for zones in cells.values()]
+
     try:
 
         response = requests.get(
             "https://api.open-meteo.com/v1/forecast",
 
             params={
-                "latitude": ",".join(str(z["lat"]) for z in mapped_zones),
-                "longitude": ",".join(str(z["lon"]) for z in mapped_zones),
+                "latitude": ",".join(str(z["lat"]) for z in representatives),
+                "longitude": ",".join(str(z["lon"]) for z in representatives),
                 "current": "precipitation",
                 "hourly": "precipitation",
                 "past_days": 2,
@@ -4573,7 +4607,7 @@ def _fetch_ffgs_live_rainfall():
                 "timezone": "auto",
             },
 
-            timeout=20
+            timeout=30
         )
 
         response.raise_for_status()
@@ -4583,13 +4617,23 @@ def _fetch_ffgs_live_rainfall():
         # location, and a list of one object per location otherwise.
         per_location = payload if isinstance(payload, list) else [payload]
 
-        fresh = {
-            (zone["lat"], zone["lon"]): _parse_open_meteo_durations(loc)
-            for zone, loc in zip(mapped_zones, per_location)
-        }
+        fresh = {}
+
+        for (cell_zones, loc) in zip(cells.values(), per_location):
+
+            reading = _parse_open_meteo_durations(loc)
+
+            for zone in cell_zones:
+                fresh[(zone["lat"], zone["lon"])] = reading
 
         _ffgs_rainfall_cache["timestamp"] = now
         _ffgs_rainfall_cache["data"] = fresh
+
+        print(
+            f"FFGS rainfall refreshed: {len(mapped_zones)} zones "
+            f"served by {len(representatives)} fetches",
+            flush=True
+        )
 
         return fresh
 
