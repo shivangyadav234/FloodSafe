@@ -4065,6 +4065,48 @@ table.ffgs-table thead th {
 .ffgs-critical { background: var(--risk-bg); color: var(--risk); }
 .ffgs-unmapped { background: #eceff1; color: var(--faint); }
 
+.zone-cards-note { margin: 0; padding: 12px 18px 0; font-size: 12.5px; color: var(--muted); }
+
+.zone-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 12px;
+    padding: 14px 18px 18px;
+}
+
+.zone-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: 8px;
+    padding: 12px 14px;
+    cursor: pointer;
+}
+.zone-card:hover, .zone-card:focus-visible { border-color: var(--muted); }
+.zone-card.ffgs-card-critical { border-left-color: var(--risk); }
+.zone-card.ffgs-card-watch { border-left-color: var(--watch); }
+.zone-card.ffgs-card-safe { border-left-color: var(--safe); }
+.zone-card.ffgs-card-unmapped { border-left-color: var(--faint); }
+.zone-card-name { font-weight: 700; font-size: 14.5px; line-height: 1.3; }
+.zone-card-meta { font-size: 12.5px; color: var(--muted); }
+.zone-card-rain { font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.other-zones { border-top: 1px solid var(--border); }
+.other-zones > summary {
+    cursor: pointer;
+    padding: 12px 18px;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--muted);
+}
+.other-zones[open] > summary { border-bottom: 1px solid var(--border); }
+
 .legend {
     display: flex;
     flex-wrap: wrap;
@@ -4180,7 +4222,11 @@ footer {
     </div>
 
     <div class="panel">
-        <h2><span data-i18n="allZonesHeading">All monitored zones</span> <span id="ffgsUpdated" style="font-weight:normal; color:var(--faint); font-size:12px;"></span></h2>
+        <h2><span data-i18n="allZonesHeading">Monitored zones</span> <span id="ffgsUpdated" style="font-weight:normal; color:var(--faint); font-size:12px;"></span></h2>
+        <p id="zoneCardsNote" class="zone-cards-note" hidden></p>
+        <div id="zoneCards" class="zone-cards"></div>
+        <details id="ffgsOtherZones" class="other-zones">
+        <summary id="ffgsOtherZonesSummary"></summary>
         <div class="table-scroll">
             <table class="ffgs-table">
                 <thead>
@@ -4202,6 +4248,7 @@ footer {
                 </tbody>
             </table>
         </div>
+        </details>
     </div>
 
 </div>
@@ -4255,7 +4302,10 @@ const translations = {
     hclsLOW: "LOW", hclsMODERATE: "MODERATE", hclsSIGNIFICANT: "SIGNIFICANT", hclsEXTREME: "EXTREME",
     markerNote: "Marker color = current worst status across all three windows",
     watershedLegend: "Watershed boundary (HydroBASINS)",
-    allZonesHeading: "All monitored zones",
+    allZonesHeading: "Monitored zones",
+    otherZonesSummary: "Show the other {n} zones",
+    zoneCardsFallbackNote: "Fewer zones are at Critical or Watch than there are cards, so the remaining cards show the zones closest to their thresholds, with their real status.",
+    zoneCardTitle: "Show on the map",
     colLocation: "Location",
     colHazardZone: "Hazard zone",
     colFfpi: "FFPI",
@@ -4323,7 +4373,10 @@ const translations = {
     hclsLOW: "कम", hclsMODERATE: "मध्यम", hclsSIGNIFICANT: "उच्च", hclsEXTREME: "अत्यधिक",
     markerNote: "मार्कर का रंग = तीनों अवधियों में सबसे खराब वर्तमान स्थिति",
     watershedLegend: "जलग्रहण सीमा (HydroBASINS)",
-    allZonesHeading: "सभी निगरानी क्षेत्र",
+    allZonesHeading: "निगरानी क्षेत्र",
+    otherZonesSummary: "अन्य {n} क्षेत्र दिखाएँ",
+    zoneCardsFallbackNote: "कार्डों की तुलना में कम क्षेत्र गंभीर या सतर्क स्थिति में हैं, इसलिए शेष कार्ड अपनी सीमा के सबसे निकट के क्षेत्र उनकी वास्तविक स्थिति के साथ दिखाते हैं।",
+    zoneCardTitle: "मानचित्र पर दिखाएँ",
     colLocation: "स्थान",
     colHazardZone: "खतरा क्षेत्र",
     colFfpi: "FFPI",
@@ -4639,22 +4692,152 @@ function eventRiskCellText(z) {
         Math.round(z.event_prob * 100) + "%</span>";
 }
 
+// ============================================================
+// ZONE CARDS
+//
+// Listing all 127 zones made the page scroll forever. Five cards give
+// the overview -- two Critical, two Watch, one Safe -- and everything
+// else sits in a collapsed table below.
+//
+// The cards never misreport a status. When fewer zones are Critical
+// or Watch than there are slots (in dry weather, none are), those
+// slots go to the zones closest to their thresholds, each showing its
+// real badge, and a note above the cards says so.
+// ============================================================
+
+const ZONE_CARD_SLOTS = [
+    { status: "CRITICAL", count: 2 },
+    { status: "WATCH", count: 2 },
+    { status: "SAFE", count: 1 }
+];
+const HAZARD_CLASS_RANK = { LOW: 0, MODERATE: 1, SIGNIFICANT: 2, EXTREME: 3 };
+
+// How far rain has gone toward the critical threshold, in the worst of
+// the three windows -- 1.0 means at critical.
+function criticalFraction(z) {
+    let worst = 0;
+    ffgsDurations.forEach(function(d) {
+        const info = z.perDuration[d];
+        const th = z.thresholds_mm && z.thresholds_mm[d];
+        if (info && info.rainMm != null && th && th.critical) {
+            worst = Math.max(worst, info.rainMm / th.critical);
+        }
+    });
+    return worst;
+}
+
+// Most at-risk first: status, then closeness to critical, then the
+// zone's hazard class, then the recorded-disaster model's probability.
+function compareRisk(a, b) {
+    return ((FFGS_STATUS_ORDER[b.overall] || 0) - (FFGS_STATUS_ORDER[a.overall] || 0)) ||
+        (criticalFraction(b) - criticalFraction(a)) ||
+        ((HAZARD_CLASS_RANK[b.effective_class] || 0) - (HAZARD_CLASS_RANK[a.effective_class] || 0)) ||
+        ((b.event_prob || 0) - (a.event_prob || 0));
+}
+
+// Neighbouring localities share one rainfall cell and usually one
+// hazard polygon, so without this the cards were four villages of the
+// same district with identical numbers. At most one card per town or
+// district, unless there aren't enough distinct ones to fill the slots.
+function zoneArea(z) {
+    return z.parent_town || z.name;
+}
+
+function takeSpread(candidates, count, picked) {
+    const taken = [];
+    const areaUsed = function(z) {
+        return picked.concat(taken).some(function(p) { return zoneArea(p) === zoneArea(z); });
+    };
+    candidates.forEach(function(z) {
+        if (taken.length < count && picked.indexOf(z) === -1 && !areaUsed(z)) taken.push(z);
+    });
+    candidates.forEach(function(z) {
+        if (taken.length < count && picked.indexOf(z) === -1 && taken.indexOf(z) === -1) taken.push(z);
+    });
+    return taken;
+}
+
+function pickZoneCards() {
+    const byRisk = ffgsZones.slice().sort(compareRisk);
+    const picked = [];
+    let shortfall = 0;
+
+    ZONE_CARD_SLOTS.forEach(function(slot) {
+        let matches = byRisk.filter(function(z) { return z.overall === slot.status; });
+        // The Safe card shows the safest zone, as the contrast to the rest.
+        if (slot.status === "SAFE") matches = matches.reverse();
+        const taken = takeSpread(matches, slot.count, picked);
+        picked.push.apply(picked, taken);
+        shortfall += slot.count - taken.length;
+    });
+
+    const fillers = takeSpread(byRisk, shortfall, picked);
+    const cards = picked.concat(fillers).sort(compareRisk);
+
+    return { cards: cards, usedFallback: fillers.length > 0 };
+}
+
+function zoneCardHtml(z, index) {
+    const status = (z.overall || "unmapped").toLowerCase();
+    const name = z.parent_town
+        ? escapeAttr(z.name) + '<span class="parent-town"> — ' + escapeAttr(ffgsTownName(z.parent_town)) + "</span>"
+        : escapeAttr(ffgsTownName(z.name));
+
+    const rain = ffgsDurations.map(function(d) {
+        const info = z.perDuration[d];
+        const th = z.thresholds_mm && z.thresholds_mm[d];
+        const mm = (info && info.rainMm != null) ? info.rainMm.toFixed(1) : "—";
+        return d + " " + mm + (th ? " / " + th.critical.toFixed(0) : "") + " mm";
+    }).join(" · ");
+
+    return '<button type="button" class="zone-card ffgs-card-' + status + '" data-card="' + index +
+        '" title="' + t("zoneCardTitle") + '">' +
+        '<span class="zone-card-name">' + name + "</span>" +
+        '<span><span class="ffgs-badge ffgs-' + status + '">' + statusLabel(z.overall) + "</span></span>" +
+        '<span class="zone-card-meta">' + hazardCellText(z) + t("hazardZoneSuffix") + "</span>" +
+        '<span class="zone-card-rain">' + t("popupRain") + " / " + t("popupCriticalAt") + ": " + rain + "</span>" +
+        "</button>";
+}
+
+function renderZoneCards(cards, usedFallback) {
+    const container = document.getElementById("zoneCards");
+    container.innerHTML = cards.map(zoneCardHtml).join("");
+    document.getElementById("zoneCardsNote").hidden = !usedFallback;
+    document.getElementById("zoneCardsNote").textContent = usedFallback ? t("zoneCardsFallbackNote") : "";
+
+    container.querySelectorAll(".zone-card").forEach(function(button) {
+        button.addEventListener("click", function() {
+            const z = cards[Number(button.getAttribute("data-card"))];
+            if (!zoneIndex.length) buildZoneIndex();
+            const entry = zoneIndex.filter(function(e) { return zoneKey(e.zone) === zoneKey(z); })[0];
+            selectZone(entry);
+            document.getElementById("zoneSearch").scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    });
+}
+
 function renderFfgsTable() {
     const tbody = document.getElementById("ffgsTableBody");
+    const cardsEl = document.getElementById("zoneCards");
+    const summaryEl = document.getElementById("ffgsOtherZonesSummary");
 
-    if (ffgsLoadFailed) {
-        tbody.innerHTML = '<tr><td colspan="10">' + t("guidanceUnavailable") + "</td></tr>";
+    if (ffgsLoadFailed || ffgsZones.length === 0) {
+        const message = ffgsLoadFailed ? t("guidanceUnavailable") : t("noZones");
+        tbody.innerHTML = '<tr><td colspan="10">' + message + "</td></tr>";
+        cardsEl.textContent = message;
+        document.getElementById("zoneCardsNote").hidden = true;
+        summaryEl.textContent = "";
         return;
     }
 
-    if (ffgsZones.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10">' + t("noZones") + "</td></tr>";
-        return;
-    }
+    const picked = pickZoneCards();
+    renderZoneCards(picked.cards, picked.usedFallback);
 
-    const sorted = ffgsZones.slice().sort(function(a, b) {
-        return (FFGS_STATUS_ORDER[b.overall] || 0) - (FFGS_STATUS_ORDER[a.overall] || 0);
-    });
+    const sorted = ffgsZones
+        .filter(function(z) { return picked.cards.indexOf(z) === -1; })
+        .sort(compareRisk);
+
+    summaryEl.textContent = t("otherZonesSummary").replace("{n}", sorted.length);
 
     tbody.innerHTML = sorted.map(function(z) {
         function cell(d) {

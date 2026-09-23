@@ -58,6 +58,22 @@ class TestFfgsZones:
         zones = client.get("/ffgs/zones").get_json()["zones"]
         assert {z["kind"] for z in zones} == {"town", "locality"}
 
+    def test_full_zone_table_is_collapsed_behind_the_cards(self, client):
+        """All 127 rows used to render open, making the page scroll forever.
+
+        Five summary cards come first; the full table sits in a <details>
+        that starts closed.
+        """
+        import re
+
+        page = client.get("/ffgs").get_data(as_text=True)
+        details = re.search(r'<details id="ffgsOtherZones"[^>]*>', page)
+
+        assert 'id="zoneCards"' in page
+        assert details and "open" not in details.group(0)
+        assert page.index('id="zoneCards"') < details.start()
+        assert page.index('id="ffgsTableBody"') > details.start()
+
 
 class TestFfgsPoint:
 
