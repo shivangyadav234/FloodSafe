@@ -4509,6 +4509,7 @@ const translations = {
     pushDenied: "Notifications are blocked for this site. Allow them in your browser settings.",
     pushTestSent: "Test sent. It should appear in a few seconds.",
     pushError: "Couldn't update alerts: ",
+    pushServiceError: "Your browser couldn't register with its push service. In Brave, turn on 'Use Google services for push messaging' (Settings > Privacy and security), then reload. Otherwise, a VPN, firewall or blocker may be stopping it; Chrome, Edge and Firefox work by default.",
     colLocation: "Location",
     colHazardZone: "Hazard zone",
     colFfpi: "FFPI",
@@ -4589,6 +4590,7 @@ const translations = {
     pushDenied: "इस साइट के लिए सूचनाएँ अवरुद्ध हैं। ब्राउज़र सेटिंग्स में इन्हें अनुमति दें।",
     pushTestSent: "परीक्षण भेजा गया। कुछ सेकंड में दिखना चाहिए।",
     pushError: "सूचनाएँ अपडेट नहीं हो सकीं: ",
+    pushServiceError: "आपका ब्राउज़र अपनी पुश सेवा से पंजीकरण नहीं कर सका। Brave में 'Use Google services for push messaging' (Settings > Privacy and security) चालू करें और पेज फिर से लोड करें। अन्यथा कोई VPN, फ़ायरवॉल या ब्लॉकर इसे रोक रहा हो सकता है; Chrome, Edge और Firefox डिफ़ॉल्ट रूप से काम करते हैं।",
     colLocation: "स्थान",
     colHazardZone: "खतरा क्षेत्र",
     colFfpi: "FFPI",
@@ -5338,7 +5340,12 @@ async function pushAction(action) {
             pushMessage = t("pushTestSent");
         }
     } catch (error) {
-        pushMessage = t("pushError") + error.message;
+        // AbortError is the browser failing to reach its own push
+        // service (Brave's default, or a blocked connection) -- its
+        // message, "push service error", says nothing actionable.
+        pushMessage = error.name === "AbortError"
+            ? t("pushServiceError")
+            : t("pushError") + error.message;
     }
     renderZoneAlerts();
 }

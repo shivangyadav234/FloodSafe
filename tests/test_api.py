@@ -831,3 +831,41 @@ class TestPushAlerts:
         response = client.get("/sw.js")
         assert response.mimetype == "application/javascript"
         assert "showNotification" in response.get_data(as_text=True)
+
+
+class TestPageScriptsParse:
+    """Every page's JavaScript must at least parse.
+
+    The page HTML lives in ordinary Python strings, so an escape like \\"
+    in the source reaches the browser as a bare quote. That once ended a
+    translation string early and threw a SyntaxError that stopped the
+    whole /ffgs script -- no zones, no picker -- while every Python test
+    still passed.
+    """
+
+    @pytest.mark.parametrize("path", ["/", "/ffgs", "/app", "/reports-view",
+                                      "/rainfall-fallback.js", "/sw.js"])
+    def test_scripts_parse(self, client, path, tmp_path):
+        import re
+        import shutil
+        import subprocess
+
+        node = shutil.which("node")
+        if not node:
+            pytest.skip("node is not installed")
+
+        body = client.get(path).get_data(as_text=True)
+
+        if path.endswith(".js"):
+            scripts = [body]
+        else:
+            scripts = [m.group(1) for m in re.finditer(
+                r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", body, re.S)]
+            assert scripts, f"no inline scripts found on {path}"
+
+        for i, script in enumerate(scripts):
+            target = tmp_path / f"script_{i}.js"
+            target.write_text(script, encoding="utf-8")
+            result = subprocess.run([node, "--check", str(target)],
+                                    capture_output=True, text=True)
+            assert result.returncode == 0, f"{path} script {i}: {result.stderr[:500]}"
