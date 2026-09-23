@@ -449,6 +449,104 @@ class TestNearestTargetSearchReuse:
         assert reused["route"]["risk_counts"] == separate["route"]["risk_counts"]
 
 
+TEST_DB_ADMIN_URL = os.environ.get(
+    "FLOODSAFE_TEST_DB_ADMIN_URL", "postgresql://postgres@127.0.0.1:5433/postgres")
+
+
+@pytest.fixture()
+def report_db(server, monkeypatch):
+    """A real Postgres (the local cluster from floodsafe/db/setup_local_db.py)
+    in its own floodsafe_test database, with an empty reports table.
+    Skipped when no server is reachable."""
+    psycopg = pytest.importorskip("psycopg")
+
+    try:
+        with psycopg.connect(TEST_DB_ADMIN_URL, connect_timeout=3, autocommit=True) as admin:
+            exists = admin.execute(
+                "SELECT 1 FROM pg_database WHERE datname = 'floodsafe_test'").fetchone()
+            if not exists:
+                admin.execute("CREATE DATABASE floodsafe_test")
+    except psycopg.OperationalError:
+        pytest.skip("no local Postgres for report storage tests")
+
+    url = TEST_DB_ADMIN_URL.rsplit("/", 1)[0] + "/floodsafe_test"
+    with psycopg.connect(url, autocommit=True) as conn:
+        conn.execute("DROP TABLE IF EXISTS flask_hazard_reports")
+
+    monkeypatch.setattr(server, "DATABASE_URL", url)
+    monkeypatch.setattr(server, "_reports", [])
+    monkeypatch.setattr(server, "_report_storage_state",
+                        {"last_error": None, "loaded": False, "last_load_attempt": 0.0})
+    server._reports.extend(server._load_reports())
+    return url
+
+
+def _restart(server):
+    """What a redeploy does to the in-memory state: start again from storage."""
+    server._reports[:] = server._load_reports()
+    return {r["id"]: r for r in server._reports}
+
+
+class TestReportDatabase:
+    """Reports survive restarts when DATABASE_URL is set.
+
+    Render's free disk is wiped on every deploy and wake-up, so the JSON
+    file alone lost every live hazard report each time.
+    """
+
+    BODY = {"lat": 30.3165, "lon": 78.0322, "description": "Road washed out"}
+
+    def test_report_survives_a_restart(self, client, server, report_db):
+        report = client.post("/report", json=self.BODY).get_json()
+        stored = _restart(server)
+        assert stored[report["id"]]["description"] == "Road washed out"
+
+    def test_confirmation_is_stored(self, client, server, report_db):
+        report = client.post("/report", json=self.BODY).get_json()
+        client.post(f"/report/{report['id']}/confirm")
+        assert _restart(server)[report["id"]]["confirmations"] == 1
+
+    def test_resolved_report_stays_gone(self, client, server, report_db):
+        report = client.post("/report", json=self.BODY).get_json()
+        client.post(f"/report/{report['id']}/resolve")
+        assert report["id"] not in _restart(server)
+
+    def test_expired_report_is_deleted(self, client, server, report_db):
+        report = client.post("/report", json=self.BODY).get_json()
+        server._reports[0]["timestamp"] -= server.REPORT_EXPIRY_SECONDS + 1
+        client.get("/reports")
+        assert report["id"] not in _restart(server)
+
+    def test_outage_at_startup_never_erases_stored_reports(self, client, server, report_db, monkeypatch):
+        """The trap in mirroring memory to the database wholesale.
+
+        If the database is down at startup the app begins with nothing
+        in memory; a later "save everything" would then delete every
+        stored report. Writes are per report, and the load is retried.
+        """
+        kept = client.post("/report", json=self.BODY).get_json()
+
+        # Restart while the database is unreachable.
+        monkeypatch.setattr(server, "DATABASE_URL", "postgresql://postgres@127.0.0.1:1/none")
+        monkeypatch.setattr(server, "_report_storage_state",
+                            {"last_error": None, "loaded": False, "last_load_attempt": 0.0})
+        server._reports[:] = server._load_reports()
+        assert server._reports == []
+        assert client.get("/status").get_json()["report_storage_error"]
+
+        during_outage = client.post("/report", json=self.BODY).get_json()
+
+        # Database back; the next read retries the load and merges.
+        monkeypatch.setattr(server, "DATABASE_URL", report_db)
+        server._report_storage_state["last_load_attempt"] = 0.0
+        ids = {r["id"] for r in client.get("/reports").get_json()}
+        assert {kept["id"], during_outage["id"]} <= ids
+
+        stored = _restart(server)
+        assert kept["id"] in stored, "a report stored before the outage was erased"
+        assert during_outage["id"] in stored, "the report made during the outage was never saved"
+
+
 class TestReportPersistence:
 
     def test_save_is_atomic(self, server, tmp_path, monkeypatch):

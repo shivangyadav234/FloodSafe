@@ -137,10 +137,17 @@ MAP_FILE = os.path.join(DATA_DIR, "uttarakhand_flood_map.html")
 # ============================================================
 # CROWDSOURCED HAZARD REPORTS
 #
-# Stored as a flat JSON file next to the other data files so
-# reports survive a server restart without needing a database.
 # Each report expires on its own after REPORT_EXPIRY_SECONDS so
 # stale reports don't silently keep rerouting traffic forever.
+#
+# Storage: Postgres when DATABASE_URL is set, else a JSON file next to
+# the other data files. The file alone does not survive a deploy on
+# Render, whose free-tier disk is wiped on every restart -- so every
+# live hazard report vanished whenever the app redeployed or woke from
+# sleep. The in-memory list stays the working copy either way; the
+# database is written one change at a time (upsert one report, delete
+# given ids), never replaced wholesale, so a failed load at startup can
+# never turn into a later write that erases stored reports.
 # ============================================================
 
 REPORTS_FILE = os.path.join(DATA_DIR, "reports.json")
@@ -148,8 +155,123 @@ REPORT_EXPIRY_SECONDS = 6 * 60 * 60
 REPORT_DESCRIPTION_MAX_LENGTH = 300
 REPORT_NAME_MAX_LENGTH = 80
 
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+
+REPORTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS flask_hazard_reports (
+    id         text PRIMARY KEY,
+    report     jsonb NOT NULL,
+    created_at double precision NOT NULL
+)
+"""
+
+# Surfaced on /status, so a storage failure is visible from outside
+# instead of only in the host's logs.
+_report_storage_state = {"last_error": None, "loaded": False, "last_load_attempt": 0.0}
+REPORT_DB_RETRY_SECONDS = 60
+
+
+def _db_connect():
+    # Imported here so the file-backed mode (and the test suite) never
+    # needs the driver.
+    import psycopg
+    return psycopg.connect(DATABASE_URL, connect_timeout=10, autocommit=True)
+
+
+def _db_run(action, fn):
+    """Run fn(conn); on failure record the error and return None."""
+
+    try:
+        with _db_connect() as conn:
+            result = fn(conn)
+        _report_storage_state["last_error"] = None
+        return result
+    except Exception as e:
+        _report_storage_state["last_error"] = f"{action} failed: {type(e).__name__}"
+        print(f"WARNING: report database {action} failed:", repr(e), flush=True)
+        return None
+
+
+def _db_load_reports():
+
+    def load(conn):
+        conn.execute(REPORTS_TABLE_SQL)
+        rows = conn.execute("SELECT report FROM flask_hazard_reports").fetchall()
+        return [row[0] for row in rows]
+
+    _report_storage_state["last_load_attempt"] = time.time()
+    loaded = _db_run("load", load)
+
+    if loaded is not None:
+        _report_storage_state["loaded"] = True
+
+    return loaded
+
+
+def _persist_report(report):
+    """Store a new or changed report."""
+
+    if not DATABASE_URL:
+        _save_reports(_reports)
+        return
+
+    from psycopg.types.json import Jsonb
+
+    _db_run("save", lambda conn: conn.execute(
+        "INSERT INTO flask_hazard_reports (id, report, created_at) "
+        "VALUES (%s, %s, %s) "
+        "ON CONFLICT (id) DO UPDATE SET report = EXCLUDED.report",
+        (report["id"], Jsonb(report), float(report.get("timestamp", 0))),
+    ))
+
+
+def _persist_removals(report_ids):
+    """Remove resolved or expired reports from storage."""
+
+    if not DATABASE_URL:
+        _save_reports(_reports)
+        return
+
+    ids = [i for i in report_ids if i]
+    if ids:
+        _db_run("delete", lambda conn: conn.execute(
+            "DELETE FROM flask_hazard_reports WHERE id = ANY(%s)", (ids,)))
+
+
+def _retry_report_load_if_needed():
+    """
+    If the database was unreachable at startup, keep trying (at most once
+    a minute) and merge in whatever it holds. Until then the app serves
+    only reports made since it started, rather than none at all.
+    """
+
+    if not DATABASE_URL or _report_storage_state["loaded"]:
+        return
+
+    if time.time() - _report_storage_state["last_load_attempt"] < REPORT_DB_RETRY_SECONDS:
+        return
+
+    stored = _db_load_reports()
+
+    if stored is None:
+        return
+
+    stored_ids = {r.get("id") for r in stored}
+    memory_only = [r for r in _reports if r.get("id") not in stored_ids]
+
+    known = {r.get("id") for r in _reports}
+    _reports.extend(r for r in stored if r.get("id") not in known)
+
+    # Reports made while the database was down only exist in memory.
+    for report in memory_only:
+        _persist_report(report)
+
 
 def _load_reports():
+
+    if DATABASE_URL:
+        stored = _db_load_reports()
+        return stored if stored is not None else []
 
     if not os.path.exists(REPORTS_FILE):
         return []
@@ -328,6 +450,8 @@ _confirmed_ips_by_report = {}
 
 def _active_reports():
 
+    _retry_report_load_if_needed()
+
     now = time.time()
 
     fresh = [
@@ -346,7 +470,7 @@ def _active_reports():
             _confirmed_ips_by_report.pop(report_id, None)
 
         _reports[:] = fresh
-        _save_reports(_reports)
+        _persist_removals(expired_ids)
 
     return fresh
 
@@ -2796,6 +2920,9 @@ def status():
         # can be checked for trusting the right one. The address itself
         # is not echoed.
         "client_ip_source": _client_ip_and_source()[1],
+        # "file" on Render means reports are lost on every restart.
+        "report_storage": "postgres" if DATABASE_URL else "file",
+        "report_storage_error": _report_storage_state["last_error"],
     })
 
 
@@ -3398,7 +3525,7 @@ def post_report():
     print("Description:", description)
 
     _reports.append(report)
-    _save_reports(_reports)
+    _persist_report(report)
 
     return jsonify(report), 201
 
@@ -3435,7 +3562,7 @@ def resolve_report(report_id):
                 "or expired."
         }), 404
 
-    _save_reports(_reports)
+    _persist_removals([report_id])
 
     print()
     print("Report resolved:", report_id)
@@ -3484,7 +3611,7 @@ def confirm_report(report_id):
 
         already_confirmed_ips.add(client_ip)
         report["confirmations"] = int(report.get("confirmations", 0)) + 1
-        _save_reports(_reports)
+        _persist_report(report)
 
     return jsonify({
         "status": "ok",

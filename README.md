@@ -248,3 +248,23 @@ history). Road network from OpenStreetMap.
 See `Procfile` / `render.yaml` for a one-click Render deployment (free tier).
 Push this repo to GitHub, then create a new Render Blueprint pointing at it —
 Render will pick up `render.yaml` automatically.
+
+### Keeping hazard reports across restarts
+
+Render's free-tier disk is wiped on every deploy and every wake-up, so
+reports stored in `reports.json` vanish. Set a `DATABASE_URL` environment
+variable on the Render service to any Postgres connection string (a free
+Neon or Supabase database works; plain Postgres, no PostGIS needed) and
+reports are stored there instead, in a `flask_hazard_reports` table the app
+creates itself. Without it the app falls back to the JSON file.
+
+`/status` shows which is in use (`report_storage`) and the last storage
+error, if any (`report_storage_error`).
+
+### Keeping the service awake
+
+Render stops a free service after 15 minutes without traffic, and waking
+reloads the road graph. `.github/workflows/keep-awake.yml` pings `/status`
+every five minutes to prevent that. An always-on service uses about 744 of
+Render's 750 free instance-hours a month, so this only fits if it is the
+account's only free service.

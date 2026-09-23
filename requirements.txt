@@ -8,3 +8,4 @@ geopandas==1.1.4
 folium==0.20.0
 shapely==2.1.2
 gunicorn==23.0.0
+psycopg[binary]==3.3.6
