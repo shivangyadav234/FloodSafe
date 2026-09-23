@@ -892,3 +892,147 @@ class TestOfflineCache:
         assert 'navigator.serviceWorker.register("/sw.js")' in page
         for kind in ("route", "evacuate", "hospital"):
             assert f'saveRouteForOffline("{kind}"' in page
+
+
+# ============================================================
+# Official warnings (NDMA SACHET)
+# ============================================================
+
+def _cap(identifier, area, *, sender="Uttarakhand-SDMA", event="Thunder shower", severity="Moderate",
+         expires="2099-01-01T00:00:00+05:30", status="Actual", msg_type="Alert", references="",
+         headline_hi="अगले 3 घंटो के दौरान वर्षा"):
+    """A CAP 1.2 document in SACHET's shape. Test fixture only."""
+    def info(lang, headline):
+        return f"""<cap:info><cap:language>{lang}</cap:language><cap:category>Met</cap:category>
+<cap:event>{event}</cap:event><cap:urgency>Expected</cap:urgency><cap:severity>{severity}</cap:severity>
+<cap:certainty>Likely</cap:certainty><cap:effective>2026-09-23T21:17:00+05:30</cap:effective>
+<cap:expires>{expires}</cap:expires><cap:headline>{headline}</cap:headline><cap:description/>
+<cap:instruction>Please follow SDMA guidelines.</cap:instruction>
+<cap:area><cap:areaDesc>{area}</cap:areaDesc></cap:area></cap:info>"""
+    return f"""<cap:alert xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">
+<cap:identifier>{identifier}</cap:identifier><cap:sender>{sender}</cap:sender>
+<cap:sent>2026-09-23T21:22:04+05:30</cap:sent><cap:status>{status}</cap:status>
+<cap:msgType>{msg_type}</cap:msgType><cap:scope>Public</cap:scope><cap:references>{references}</cap:references>
+{info("en-IN", "Rain likely over " + area)}{info("HI", headline_hi)}</cap:alert>""".encode("utf-8")
+
+
+def _feed(items):
+    rows = "".join(
+        f"<item><title>{title}</title><link>https://sachet.ndma.gov.in/cap_public_website/FetchXMLFile?identifier={guid}</link>"
+        f"<author>controlroom@ndma.gov.in ({office})</author><guid>{guid}</guid></item>"
+        for guid, office, title in items)
+    return f'<?xml version="1.0"?><rss version="2.0"><channel>{rows}</channel></rss>'.encode("utf-8")
+
+
+@pytest.fixture()
+def sachet(server, monkeypatch):
+    """Serves a fixed feed and CAP documents in place of SACHET."""
+    documents = {
+        "1": _cap("IN-1", "Bageshwar, Almora and Pithoragarh"),
+        "2": _cap("IN-2", "Jalaka, Mathani Road Bridge, Balasore, Odisha", sender="CWC", event="Flood"),
+        "3": _cap("IN-3", "Alaknanda, Rudraprayag, Rudraprayag, Uttarakhand", sender="CWC", event="Flood",
+                  severity="Severe"),
+        "4": _cap("IN-4", "Dehradun", expires="2020-01-01T00:00:00+05:30"),
+        "5": _cap("IN-5", "Nainital"),
+        "6": _cap("IN-6", "Nainital", msg_type="Update", references="Uttarakhand-SDMA,IN-5,2026-09-23T20:00:00+05:30"),
+        "7": _cap("IN-7", "Haridwar", status="Exercise"),
+        "8": _cap("IN-8", "Some tehsil name"),
+    }
+    feed = _feed([
+        ("1", "IMD Dehradun", "Thunder shower"), ("2", "CWC", "River Jalaka"), ("3", "CWC", "River Alaknanda"),
+        ("4", "IMD Dehradun", "Old"), ("5", "IMD Dehradun", "First"), ("6", "IMD Dehradun", "Update"),
+        ("7", "IMD Dehradun", "Drill"), ("8", "Uttarakhand SDMA", "Local"), ("9", "IMD Mumbai", "Mumbai rain"),
+    ])
+    calls = []
+
+    class Reply:
+        def __init__(self, body):
+            self.content = body
+
+        def raise_for_status(self):
+            pass
+
+    def fake_get(url, **kwargs):
+        calls.append(url)
+        if url == server.NDMA_FEED_URL:
+            return Reply(feed)
+        return Reply(documents[url.rsplit("=", 1)[1]])
+
+    monkeypatch.setattr(server.requests, "get", fake_get)
+    monkeypatch.setattr(server, "_ndma_state",
+                        {"alerts": [], "checked_at": None, "last_error": None, "last_attempt": 0.0})
+    monkeypatch.setattr(server, "_ndma_cap_cache", {})
+    return calls
+
+
+class TestOfficialWarnings:
+
+    def alerts(self, client):
+        return {a["identifier"]: a for a in client.get("/official-warnings").get_json()["alerts"]}
+
+    def test_keeps_only_current_uttarakhand_alerts(self, client, server, sachet):
+        alerts = self.alerts(client)
+        # Odisha river, expired, superseded (5 by 6) and an exercise are all dropped.
+        assert set(alerts) == {"IN-1", "IN-3", "IN-6", "IN-8"}
+
+    def test_districts_come_from_the_area_text(self, client, server, sachet):
+        alerts = self.alerts(client)
+        assert alerts["IN-1"]["districts"] == ["Almora", "Bageshwar", "Pithoragarh"]
+        assert alerts["IN-3"]["districts"] == ["Rudraprayag"]
+        assert not alerts["IN-1"]["statewide"]
+
+    def test_unrecognised_area_from_the_state_is_shown_statewide(self, client, server, sachet):
+        """Dropping an official warning is worse than showing it too broadly."""
+        alert = self.alerts(client)["IN-8"]
+        assert alert["statewide"] and len(alert["districts"]) == 13
+
+    def test_text_is_passed_through_in_both_languages(self, client, server, sachet):
+        alert = self.alerts(client)["IN-1"]
+        assert alert["headline"] == "Rain likely over Bageshwar, Almora and Pithoragarh"
+        assert alert["headline_hi"] == "अगले 3 घंटो के दौरान वर्षा"
+        assert alert["office"] == "IMD Dehradun"
+
+    def test_severe_alerts_come_first(self, client, server, sachet):
+        alerts = client.get("/official-warnings").get_json()["alerts"]
+        assert alerts[0]["identifier"] == "IN-3"
+
+    def test_only_plausible_items_are_opened_and_documents_are_reused(self, client, server, sachet):
+        client.get("/official-warnings")
+        opened = {url.rsplit("=", 1)[1] for url in sachet if url != server.NDMA_FEED_URL}
+        assert "9" not in opened, "an IMD Mumbai alert should not be fetched"
+
+        server._ndma_state["last_attempt"] = 0.0
+        before = len(sachet)
+        client.get("/official-warnings")
+        assert len(sachet) == before + 1, "a refresh should re-read only the feed"
+
+    def test_an_outage_is_reported_and_retried_once_per_ttl(self, client, server, monkeypatch):
+        attempts = []
+
+        def down(url, **kwargs):
+            attempts.append(url)
+            raise server.requests.ConnectionError("unreachable")
+
+        monkeypatch.setattr(server.requests, "get", down)
+        monkeypatch.setattr(server, "_ndma_state",
+                            {"alerts": [], "checked_at": None, "last_error": None, "last_attempt": 0.0})
+
+        for _ in range(3):
+            body = client.get("/official-warnings").get_json()
+        assert body["last_error"] and body["alerts"] == []
+        assert len(attempts) == 1
+
+
+class TestZoneDistricts:
+
+    def test_every_zone_has_a_district_by_location(self, client, server):
+        zones = client.get("/ffgs/zones").get_json()["zones"]
+        names = {name for name, _ in server.UTTARAKHAND_DISTRICTS}
+        assert len(names) == 13
+        assert all(z["district"] in names for z in zones)
+
+    def test_a_town_can_span_districts(self, client):
+        """Why the district comes from location, not the parent town."""
+        zones = client.get("/ffgs/zones").get_json()["zones"]
+        rishikesh = {z["district"] for z in zones if z.get("parent_town") == "Rishikesh"}
+        assert {"Dehradun", "Tehri Garhwal"} <= rishikesh

@@ -1321,6 +1321,64 @@ for _loc in ALL_LOCALITIES:
 FFGS_ZONES = FFGS_TOWN_ZONES + FFGS_LOCALITY_ZONES
 
 
+# ============================================================
+# DISTRICTS
+#
+# Official warnings name districts, so every zone needs one. Taken by
+# location from the OpenStreetMap district polygons (admin_level 5)
+# already in uttarakhand_boundary.geojson (see get_boundary.py), not
+# from the zone's parent town: Rishikesh's localities, for one, fall in
+# three districts -- Dehradun, Tehri Garhwal and Pauri Garhwal.
+# ============================================================
+
+def _load_districts():
+
+    from shapely.geometry import shape as shapely_shape
+
+    path = os.path.join(DATA_DIR, "uttarakhand_boundary.geojson")
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            features = json.load(f)["features"]
+    except (OSError, ValueError, KeyError) as e:
+        print("WARNING: district boundaries unavailable:", repr(e), flush=True)
+        return []
+
+    districts = []
+
+    for feature in features:
+        props = feature.get("properties") or {}
+        geometry = feature.get("geometry") or {}
+        if str(props.get("admin_level")) != "5" or not props.get("name"):
+            continue
+        if geometry.get("type") not in ("Polygon", "MultiPolygon"):
+            continue
+        # OSM tags one of them "Pithoragarh district"; the rest are bare.
+        name = props["name"].replace(" district", "").strip()
+        districts.append((name, shapely_shape(geometry)))
+
+    return districts
+
+
+UTTARAKHAND_DISTRICTS = _load_districts()
+
+
+def district_for_point(lat, lon):
+    from shapely.geometry import Point as ShapelyPoint
+
+    point = ShapelyPoint(lon, lat)
+
+    for name, geometry in UTTARAKHAND_DISTRICTS:
+        if geometry.contains(point):
+            return name
+
+    return None
+
+
+for _zone in FFGS_ZONES:
+    _zone["district"] = district_for_point(_zone["lat"], _zone["lon"])
+
+
 # Deferred from its definition above so it can use ffpi_for_point.
 # Computed once at startup: the atlas and the town list are both static,
 # so there is no reason to redo ~191-polygon point checks per request.
@@ -4274,6 +4332,25 @@ table.ffgs-table thead th {
 .zone-card-meta { font-size: 12.5px; color: var(--muted); }
 .zone-card-rain { font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
 
+.official-source { float: right; font-weight: normal; font-size: 12px; color: var(--faint); }
+.official-note { margin: 0; padding: 10px 18px 0; font-size: 12.5px; color: var(--muted); }
+.official-list { padding: 10px 18px 16px; }
+.official-empty { font-size: 13px; color: var(--muted); }
+.official-alert {
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--watch);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 8px;
+}
+.official-alert.sev-extreme, .official-alert.sev-severe { border-left-color: var(--risk); }
+.official-alert.sev-minor { border-left-color: var(--faint); }
+.official-alert-top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; font-size: 12.5px; color: var(--muted); }
+.official-alert-top b { color: var(--ink); font-size: 14px; }
+.official-alert p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; }
+.official-alert a { font-size: 12.5px; }
+.zone-official { margin-top: 12px; }
+
 .zone-alerts { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .za-btn {
     font: inherit;
@@ -4379,6 +4456,13 @@ footer {
     <div id="ffgsAlert"></div>
 
     <div class="panel">
+        <h2><span data-i18n="officialHeading">Official warnings for Uttarakhand</span>
+            <span class="official-source" data-i18n="officialSource">NDMA SACHET</span></h2>
+        <p class="official-note" data-i18n="officialNote">Issued by IMD, CWC and the Uttarakhand State Disaster Management Authority, shown as published. Separate from FloodSafe's own estimates below.</p>
+        <div id="officialWarnings" class="official-list"></div>
+    </div>
+
+    <div class="panel">
         <h2 data-i18n="myLocationHeading">Check guidance at my location</h2>
         <div class="mylocation-body">
             <button id="ffgsMyLocationBtn" data-i18n="myLocationBtn">Use my current location</button>
@@ -4462,6 +4546,11 @@ const HAZARD_COLORS = { LOW: "#4c8c4a", MODERATE: "#c99a2e", SIGNIFICANT: "#cf7a
 // temporal-dead-zone ReferenceError from a `let` that hasn't executed
 // yet — same reasoning as guidanceRows in the landing page's script.
 let ffgsZones = [];
+// Declared up here, not beside the official-warnings code: applyLanguage
+// runs during startup and re-renders that panel, and reading a `let`
+// before its line has executed throws and stops the whole script.
+let officialData = null;
+let officialFailed = false;
 let ffgsDurations = ["1h", "3h", "24h"];
 let ffgsLoadFailed = false;
 let zoneMarkerLayer = null;
@@ -4500,6 +4589,21 @@ const translations = {
     otherZonesSummary: "Show the other {n} zones",
     zoneCardsFallbackNote: "Fewer zones are at Critical or Watch than there are cards, so the remaining cards show the zones closest to their thresholds, with their real status.",
     zoneCardTitle: "Show on the map",
+    officialHeading: "Official warnings for Uttarakhand",
+    officialSource: "NDMA SACHET",
+    officialNote: "Issued by IMD, CWC and the Uttarakhand State Disaster Management Authority, shown as published. Separate from FloodSafe's own estimates below.",
+    officialNone: "No current official warnings for Uttarakhand.",
+    officialChecked: "Checked",
+    officialError: "Couldn't load official warnings right now.",
+    officialUntil: "Valid until",
+    officialArea: "Area",
+    officialStatewide: "All of Uttarakhand",
+    officialLink: "Original alert (CAP)",
+    officialForDistrict: "Official warning for {district} district",
+    officialSeverity_Extreme: "Extreme",
+    officialSeverity_Severe: "Severe",
+    officialSeverity_Moderate: "Moderate",
+    officialSeverity_Minor: "Minor",
     pushOn: "Alert me when this zone turns Critical",
     pushOff: "Stop alerts for this zone",
     pushTest: "Send a test notification",
@@ -4581,6 +4685,21 @@ const translations = {
     otherZonesSummary: "अन्य {n} क्षेत्र दिखाएँ",
     zoneCardsFallbackNote: "कार्डों की तुलना में कम क्षेत्र गंभीर या सतर्क स्थिति में हैं, इसलिए शेष कार्ड अपनी सीमा के सबसे निकट के क्षेत्र उनकी वास्तविक स्थिति के साथ दिखाते हैं।",
     zoneCardTitle: "मानचित्र पर दिखाएँ",
+    officialHeading: "उत्तराखंड के लिए आधिकारिक चेतावनियाँ",
+    officialSource: "NDMA SACHET",
+    officialNote: "IMD, CWC और उत्तराखंड राज्य आपदा प्रबंधन प्राधिकरण द्वारा जारी, जैसी प्रकाशित हुईं। नीचे दिए FloodSafe के अपने अनुमानों से अलग।",
+    officialNone: "उत्तराखंड के लिए अभी कोई आधिकारिक चेतावनी नहीं है।",
+    officialChecked: "जाँचा गया",
+    officialError: "आधिकारिक चेतावनियाँ अभी लोड नहीं हो सकीं।",
+    officialUntil: "मान्य",
+    officialArea: "क्षेत्र",
+    officialStatewide: "पूरा उत्तराखंड",
+    officialLink: "मूल चेतावनी (CAP)",
+    officialForDistrict: "{district} ज़िले के लिए आधिकारिक चेतावनी",
+    officialSeverity_Extreme: "अत्यधिक",
+    officialSeverity_Severe: "गंभीर",
+    officialSeverity_Moderate: "मध्यम",
+    officialSeverity_Minor: "मामूली",
     pushOn: "यह क्षेत्र गंभीर होने पर मुझे सूचित करें",
     pushOff: "इस क्षेत्र की सूचनाएँ बंद करें",
     pushTest: "परीक्षण सूचना भेजें",
@@ -4709,6 +4828,7 @@ function applyLanguage(lang) {
         renderFfgsTable();
         renderAlertBanner();
     }
+    if (typeof renderOfficialWarnings === "function") renderOfficialWarnings();
 }
 
 document.querySelectorAll(".lang-toggle button").forEach(function(btn) {
@@ -5246,9 +5366,101 @@ function renderZoneDetail(z) {
         '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" +
         t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" +
         t("popupStatus") + "</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+        '<div id="zoneOfficial" class="zone-official"></div>' +
         '<div id="zoneAlerts" class="zone-alerts"></div>';
     el.hidden = false;
+    renderZoneOfficial(z);
     renderZoneAlerts();
+}
+
+// ============================================================
+// OFFICIAL WARNINGS (NDMA SACHET)
+//
+// Shown exactly as issued, in their own panel and labelled with the
+// issuing office -- never mixed into FloodSafe's heuristic status.
+// ============================================================
+
+function officialText(alert, field) {
+    // Hindi text when the page is in Hindi and the alert has it.
+    return (currentLang === "hi" && alert[field + "_hi"]) ? alert[field + "_hi"] : alert[field];
+}
+
+function formatIst(iso) {
+    const date = new Date(iso);
+    if (isNaN(date)) return iso || "";
+    return date.toLocaleString(currentLang === "hi" ? "hi-IN" : "en-IN", {
+        timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+    }) + " IST";
+}
+
+function officialAlertHtml(alert) {
+    const severityKey = "officialSeverity_" + alert.severity;
+    const severity = t(severityKey) !== severityKey ? t(severityKey) : alert.severity;
+    const area = alert.statewide ? t("officialStatewide") : alert.area;
+    const description = officialText(alert, "description");
+
+    return '<div class="official-alert sev-' + escapeAttr((alert.severity || "").toLowerCase()) + '">' +
+        '<div class="official-alert-top"><b>' + escapeAttr(alert.event) + "</b>" +
+        '<span class="ffgs-badge ffgs-' + (alert.severity === "Extreme" || alert.severity === "Severe" ? "critical" : "watch") + '">' +
+        escapeAttr(severity) + "</span>" +
+        "<span>" + escapeAttr(alert.office || alert.sender) + "</span></div>" +
+        "<p>" + escapeAttr(officialText(alert, "headline")) + "</p>" +
+        (description ? "<p>" + escapeAttr(description) + "</p>" : "") +
+        '<div class="official-alert-top" style="margin-top:6px">' +
+        "<span>" + t("officialArea") + ": " + escapeAttr(area) + "</span>" +
+        "<span>" + t("officialUntil") + ": " + escapeAttr(formatIst(alert.expires)) + "</span>" +
+        '<a href="' + escapeAttr(alert.link) + '" target="_blank" rel="noopener">' + t("officialLink") + "</a>" +
+        "</div></div>";
+}
+
+function renderOfficialWarnings() {
+    const el = document.getElementById("officialWarnings");
+    if (!el) return;
+
+    if (!officialData) {
+        el.innerHTML = '<p class="official-empty">' + (officialFailed ? t("officialError") : t("loading")) + "</p>";
+        return;
+    }
+
+    const checked = officialData.checked_at
+        ? " " + t("officialChecked") + " " + formatIst(new Date(officialData.checked_at * 1000).toISOString())
+        : "";
+
+    if (officialData.last_error && !officialData.alerts.length) {
+        el.innerHTML = '<p class="official-empty">' + t("officialError") + checked + "</p>";
+        return;
+    }
+
+    el.innerHTML = officialData.alerts.length
+        ? officialData.alerts.map(officialAlertHtml).join("") +
+          '<p class="official-empty" style="margin-top:8px">' + checked.trim() + "</p>"
+        : '<p class="official-empty">' + t("officialNone") + checked + "</p>";
+}
+
+function renderZoneOfficial(z) {
+    const el = document.getElementById("zoneOfficial");
+    if (!el) return;
+
+    const alerts = (officialData && z && z.district)
+        ? officialData.alerts.filter(function(a) { return a.districts.indexOf(z.district) !== -1; })
+        : [];
+
+    el.innerHTML = alerts.length
+        ? "<b>⚠ " + escapeAttr(t("officialForDistrict").replace("{district}", z.district)) + "</b>" +
+          alerts.map(officialAlertHtml).join("")
+        : "";
+}
+
+async function loadOfficialWarnings() {
+    try {
+        officialData = await (await fetch("/official-warnings")).json();
+        officialFailed = false;
+    } catch (error) {
+        officialFailed = true;
+    }
+    renderOfficialWarnings();
+    const selected = ffgsZones.filter(function(z) { return zoneKey(z) === selectedZoneKey; })[0];
+    if (selected) renderZoneOfficial(selected);
 }
 
 // ============================================================
@@ -5606,6 +5818,7 @@ async function loadFfgsZones() {
             parent_town: zone.parent_town || null,
             soil: zone.soil || null,
             watershed: zone.watershed || null,
+            district: zone.district || null,
             perDuration: perDuration,
             overall: overall
         };
@@ -5623,6 +5836,10 @@ async function loadFfgsZones() {
 initZonePicker();
 loadFfgsZones();
 initPush();
+loadOfficialWarnings();
+// The server re-reads SACHET every ten minutes; polling faster only
+// re-fetches the same cached list.
+setInterval(loadOfficialWarnings, 10 * 60 * 1000);
 
 // Rainfall itself comes from /ffgs/zones (server-cached, see
 // _fetch_ffgs_live_rainfall in server.py), so this 60s poll is
@@ -6758,6 +6975,277 @@ def service_worker():
     response = Response(SERVICE_WORKER_JS, mimetype="application/javascript")
     response.headers["Cache-Control"] = "no-cache"
     return response
+
+
+# ============================================================
+# OFFICIAL WARNINGS (NDMA SACHET)
+#
+# FloodSafe's own CRITICAL/WATCH status is a heuristic on live
+# rainfall. The official warnings for the same places come from NDMA's
+# SACHET system -- the Common Alerting Protocol (CAP) feed through which
+# IMD, CWC and the state disaster authorities publish their alerts. The
+# feed is marked public domain.
+#
+# The all-India RSS feed lists recent alerts; each links to a CAP
+# document with the event, severity, validity window, affected area
+# and English and Hindi text. Only items plausibly about Uttarakhand
+# (by issuing office, or a district or the state named in the title)
+# are opened, and an alert is kept when its sender or area names
+# Uttarakhand or one of its districts. Area polygons are published too,
+# but SACHET refuses automated requests for them (HTTP 403), so areas
+# are matched by the district names in the area description instead.
+#
+# Alerts are shown as issued, clearly apart from FloodSafe's estimates;
+# nothing here is combined with or reinterpreted by the app's model.
+# ============================================================
+
+NDMA_FEED_URL = "https://sachet.ndma.gov.in/cap_public_website/rss/rss_india.xml"
+NDMA_CACHE_TTL_SECONDS = 10 * 60
+NDMA_MAX_DOCUMENT_BYTES = 1_000_000
+NDMA_MAX_CAP_FETCHES = 30
+NDMA_HEADERS = {"User-Agent": "FloodSafe/1.0 (+https://floodsafe-u207.onrender.com)"}
+
+# District names as they appear in alert text, English and Hindi. Bare
+# "Garhwal" is left out: it names a seven-district division, not Pauri.
+DISTRICT_ALIASES = {
+    "Almora": ["almora", "अल्मोड़ा"],
+    "Bageshwar": ["bageshwar", "बागेश्वर"],
+    "Chamoli": ["chamoli", "चमोली"],
+    "Champawat": ["champawat", "चंपावत", "चम्पावत"],
+    "Dehradun": ["dehradun", "dehra dun", "देहरादून"],
+    "Haridwar": ["haridwar", "hardwar", "हरिद्वार"],
+    "Nainital": ["nainital", "नैनीताल"],
+    "Pauri Garhwal": ["pauri", "पौड़ी"],
+    "Pithoragarh": ["pithoragarh", "पिथौरागढ़"],
+    "Rudraprayag": ["rudraprayag", "रुद्रप्रयाग"],
+    "Tehri Garhwal": ["tehri", "टिहरी"],
+    "Udham Singh Nagar": ["udham singh nagar", "udhamsingh nagar", "u.s. nagar", "ऊधम सिंह नगर", "उधम सिंह नगर"],
+    "Uttarkashi": ["uttarkashi", "उत्तरकाशी"],
+}
+STATE_ALIASES = ["uttarakhand", "uttaranchal", "उत्तराखंड", "उत्तराखण्ड"]
+UTTARAKHAND_OFFICES = ["dehradun", "uttarakhand"]
+
+CAP_NS = {"cap": "urn:oasis:names:tc:emergency:cap:1.2"}
+
+_ndma_state = {
+    "alerts": [],
+    "checked_at": None,
+    "last_error": None,
+    "last_attempt": 0.0,
+}
+_ndma_cap_cache = {}   # guid -> parsed CAP (documents never change)
+
+
+def _districts_named_in(text):
+    lowered = (text or "").lower()
+    return sorted(district for district, aliases in DISTRICT_ALIASES.items()
+                  if any(alias in lowered for alias in aliases))
+
+
+def _names_uttarakhand(text):
+    lowered = (text or "").lower()
+    return any(alias in lowered for alias in STATE_ALIASES)
+
+
+def _ndma_get(url):
+    response = requests.get(url, headers=NDMA_HEADERS, timeout=20)
+    response.raise_for_status()
+    if len(response.content) > NDMA_MAX_DOCUMENT_BYTES:
+        raise ValueError("document too large")
+    return response.content
+
+
+def _parse_cap(xml_bytes, link):
+    """The fields FloodSafe shows, from one CAP 1.2 document, or None."""
+
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(xml_bytes)
+
+    def text(node, tag):
+        found = node.find(f"cap:{tag}", CAP_NS)
+        return (found.text or "").strip() if found is not None and found.text else ""
+
+    infos = root.findall("cap:info", CAP_NS)
+    if not infos:
+        return None
+
+    def pick(prefix):
+        for info in infos:
+            if text(info, "language").lower().startswith(prefix):
+                return info
+        return None
+
+    english = pick("en") or infos[0]
+    hindi = pick("hi")
+    area_desc = "; ".join(
+        text(area, "areaDesc") for area in english.findall("cap:area", CAP_NS) if text(area, "areaDesc"))
+
+    return {
+        "identifier": text(root, "identifier"),
+        "sender": text(root, "sender"),
+        "sent": text(root, "sent"),
+        "status": text(root, "status"),
+        "msg_type": text(root, "msgType"),
+        "references": text(root, "references"),
+        "event": text(english, "event"),
+        "severity": text(english, "severity"),
+        "urgency": text(english, "urgency"),
+        "certainty": text(english, "certainty"),
+        "effective": text(english, "effective"),
+        "expires": text(english, "expires"),
+        "headline": text(english, "headline"),
+        "description": text(english, "description"),
+        "instruction": text(english, "instruction"),
+        "headline_hi": text(hindi, "headline") if hindi is not None else "",
+        "description_hi": text(hindi, "description") if hindi is not None else "",
+        "area": area_desc,
+        "link": link,
+    }
+
+
+def _still_valid(expires, now):
+    from datetime import datetime
+
+    if not expires:
+        return True
+    try:
+        return datetime.fromisoformat(expires).timestamp() > now
+    except ValueError:
+        return True
+
+
+def _refresh_ndma_alerts():
+    """Re-read the feed and rebuild the current Uttarakhand alert list."""
+
+    import xml.etree.ElementTree as ET
+
+    now = time.time()
+    _ndma_state["last_attempt"] = now
+
+    try:
+        feed = ET.fromstring(_ndma_get(NDMA_FEED_URL))
+    except Exception as e:
+        _ndma_state["last_error"] = f"Could not read the NDMA SACHET feed: {type(e).__name__}"
+        print("WARNING: NDMA feed fetch failed:", repr(e), flush=True)
+        return
+
+    candidates = []
+
+    for item in feed.findall("./channel/item"):
+        author_raw = item.findtext("author") or ""
+        author = author_raw.lower()
+        title = item.findtext("title") or ""
+        guid = (item.findtext("guid") or "").strip()
+        link = (item.findtext("link") or "").strip()
+
+        if not guid or not link.startswith("https://sachet.ndma.gov.in/"):
+            continue
+
+        # CWC's river alerts come from one national office, so their
+        # state only shows up in the CAP area; open all of them.
+        if (any(office in author for office in UTTARAKHAND_OFFICES) or "(cwc)" in author
+                or _names_uttarakhand(title) or _districts_named_in(title)):
+            candidates.append((guid, link, author_raw))
+
+    alerts = []
+    fetches = 0
+
+    for guid, link, author in candidates:
+
+        cap = _ndma_cap_cache.get(guid)
+
+        if cap is None:
+            if fetches >= NDMA_MAX_CAP_FETCHES:
+                continue
+            fetches += 1
+            try:
+                cap = _parse_cap(_ndma_get(link), link)
+            except Exception as e:
+                print("WARNING: NDMA CAP document skipped:", link, repr(e), flush=True)
+                continue
+            if cap is None:
+                continue
+            # "controlroom@ndma.gov.in (IMD Dehradun)" -> "IMD Dehradun"
+            cap["office"] = author.split("(")[-1].rstrip(")").strip() if "(" in author else ""
+            _ndma_cap_cache[guid] = cap
+
+        districts = _districts_named_in(cap["area"] + " " + cap["headline"])
+        statewide = _names_uttarakhand(cap["area"]) and not districts
+        from_uttarakhand = "uttarakhand" in cap["sender"].lower() or "dehradun" in cap["office"].lower()
+
+        # An alert from Uttarakhand's own offices whose area names no
+        # district we recognise (a tehsil, say) is kept as statewide:
+        # showing an official warning too broadly beats dropping it.
+        if not (districts or statewide or from_uttarakhand):
+            continue
+
+        alerts.append(dict(cap, districts=districts or sorted(DISTRICT_ALIASES), statewide=not districts))
+
+    # Drop cancelled alerts, the ones they cancel, and anything a newer
+    # update in the feed supersedes (CAP "references" lists them as
+    # "sender,identifier,sent" triples).
+    superseded = set()
+    for alert in alerts:
+        for triple in alert["references"].split():
+            parts = triple.split(",")
+            if len(parts) >= 2:
+                superseded.add(parts[1])
+
+    current = [
+        alert for alert in alerts
+        if alert["status"] == "Actual"
+        and alert["msg_type"] != "Cancel"
+        and alert["identifier"] not in superseded
+        and _still_valid(alert["expires"], now)
+    ]
+
+    severity_rank = {"Extreme": 0, "Severe": 1, "Moderate": 2, "Minor": 3}
+    current.sort(key=lambda a: (severity_rank.get(a["severity"], 4), a["expires"]))
+
+    # Keep the document cache bounded to what the feed still lists.
+    live_guids = {guid for guid, _, _ in candidates}
+    for guid in list(_ndma_cap_cache):
+        if guid not in live_guids:
+            del _ndma_cap_cache[guid]
+
+    _ndma_state["alerts"] = current
+    _ndma_state["checked_at"] = now
+    _ndma_state["last_error"] = None
+
+    print(f"NDMA: {len(current)} current Uttarakhand alert(s) "
+          f"from {len(candidates)} candidate item(s)", flush=True)
+
+
+def _official_alerts():
+    now = time.time()
+    # One attempt per TTL whether it succeeds or fails, so a SACHET
+    # outage can't turn every page view into a request to it.
+    if now - _ndma_state["last_attempt"] >= NDMA_CACHE_TTL_SECONDS:
+        _refresh_ndma_alerts()
+
+    alerts = [a for a in _ndma_state["alerts"] if _still_valid(a["expires"], now)]
+    return alerts
+
+
+@app.route("/official-warnings")
+def official_warnings():
+
+    alerts = _official_alerts()
+
+    return jsonify({
+        "source": "NDMA SACHET (Common Alerting Protocol feed)",
+        "source_url": "https://sachet.ndma.gov.in/",
+        "checked_at": _ndma_state["checked_at"],
+        "last_error": _ndma_state["last_error"],
+        "alerts": [
+            {key: alert[key] for key in (
+                "identifier", "office", "sender", "event", "severity", "urgency", "certainty",
+                "effective", "expires", "headline", "headline_hi", "description",
+                "description_hi", "instruction", "area", "districts", "statewide", "link")}
+            for alert in alerts
+        ],
+    })
 
 
 # ============================================================

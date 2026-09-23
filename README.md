@@ -292,3 +292,21 @@ zone every six hours. They need `DATABASE_URL` (subscriptions and the
 signing key are stored there; the key is generated on first use). The
 thresholds are FloodSafe's heuristic, and every alert says it is not an
 official IMD/CWC warning.
+
+### Official warnings (NDMA SACHET)
+
+`/ffgs` shows the current official warnings for Uttarakhand from NDMA's
+SACHET system, the Common Alerting Protocol feed through which IMD, CWC and
+the state disaster management authorities publish alerts
+(<https://sachet.ndma.gov.in/>, marked public domain). They are shown as
+issued, in English or Hindi, in their own panel, never mixed into
+FloodSafe's heuristic status. The server re-reads the feed every ten
+minutes (`/official-warnings`), keeps alerts whose sender or area names
+Uttarakhand or one of its districts, and drops expired, cancelled,
+superseded and non-actual ones.
+
+Each zone's district comes from the OpenStreetMap district polygons in
+`uttarakhand_boundary.geojson` (ODbL), by location rather than by town:
+Rishikesh's localities fall in three districts. SACHET also publishes
+alert polygons but refuses automated requests for them, so alerts are
+matched to districts by the names in their area description.
