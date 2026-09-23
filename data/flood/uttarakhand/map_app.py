@@ -474,6 +474,10 @@ Locality Hazard Status (live)
 </div>
 """
 
+m.get_root().header.add_child(
+    folium.Element('<script src="/rainfall-fallback.js"></script>')
+)
+
 m.get_root().html.add_child(
     folium.Element(
         legend_html
@@ -3919,6 +3923,13 @@ async function loadLocalityZones() {
         // effective_class, not hazard_class: localities outside the
         // hazard atlas now get a class from FFPI, and filtering on the
         // atlas class would keep dropping them from this layer.
+        // No-op unless the server had no rainfall for any zone; then
+        // this browser fetches the same cells itself (see
+        // /rainfall-fallback.js in server.py).
+        if (window.FloodSafeRainfall) {
+            await window.FloodSafeRainfall.fillZones(data);
+        }
+
         const localities = data.zones.filter(function(z) { return z.kind === "locality" && z.effective_class; });
         const durations = data.durations || ["1h", "3h", "24h"];
 

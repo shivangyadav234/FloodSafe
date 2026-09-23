@@ -36,7 +36,7 @@ if PROJ_DATA and os.path.isdir(PROJ_DATA):
 # FLASK
 # ============================================================
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, Response
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 
@@ -1736,6 +1736,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
 .guidance-my-result { font-size: 0.84375rem; color: var(--ink); }
 
 </style>
+<script src="/rainfall-fallback.js"></script>
 </head>
 <body>
 
@@ -2360,6 +2361,27 @@ const RAINFALL_STATIONS = [
     { name: 'Joshimath', lat: 30.5551, lon: 79.5643 }
 ];
 
+// Current rainfall for RAINFALL_STATIONS as {name: mm}. The server's
+// cached /town-rainfall comes first; only when it has nothing at all
+// (Open-Meteo refusing Render's shared IP) does this browser fetch the
+// towns itself -- see /rainfall-fallback.js. The live strip and the
+// guidance panel both call this, and the fallback's own cache makes
+// that one upstream call between them, not two.
+async function loadTownRainfall() {
+    let towns = {};
+    try {
+        const payload = await (await fetch('/town-rainfall')).json();
+        towns = (payload && payload.towns) || {};
+    } catch (error) {
+        towns = {};
+    }
+
+    if (Object.keys(towns).length === 0 && window.FloodSafeRainfall) {
+        towns = await window.FloodSafeRainfall.currentByName(RAINFALL_STATIONS);
+    }
+    return towns;
+}
+
 function animateCount(el, target, suffix, duration) {
     suffix = suffix || '';
     duration = duration || 700;
@@ -2425,8 +2447,7 @@ async function loadLiveStrip() {
         // side by side still makes it obvious this is a live reading,
         // not a hard-coded number — if it isn't raining anywhere right
         // now, both genuinely show 0.0mm rather than looking stuck.
-        const payload = await (await fetch('/town-rainfall')).json();
-        const towns = (payload && payload.towns) || {};
+        const towns = await loadTownRainfall();
 
         // Current conditions only — not blended with the next few
         // hours' forecast. This figure exists specifically to
@@ -2542,13 +2563,7 @@ async function loadGuidancePanel() {
     // Same cached server-side reading the live-stations strip uses.
     // These are the same nine towns, so fetching them again here was
     // doubling the page's Open-Meteo cost for no new information.
-    let townRain = {};
-    try {
-        const payload = await (await fetch('/town-rainfall')).json();
-        townRain = (payload && payload.towns) || {};
-    } catch (error) {
-        townRain = {};
-    }
+    const townRain = await loadTownRainfall();
 
     const rainResults = zones.map(function(zone) {
         const mm = townRain[zone.name];
@@ -3607,6 +3622,142 @@ def town_rainfall():
 
 
 # ============================================================
+# RAINFALL BROWSER FALLBACK
+#
+# Open-Meteo's free tier counts calls per IP, and Render's free tier
+# shares its outbound IP between customers. Other apps on that IP can
+# spend the whole daily quota before this server makes a single call --
+# confirmed live, when a freshly deployed process was refused with
+# "Daily API request limit exceeded" on its very first request. No
+# server-side code can make a shared IP's quota ours.
+#
+# So when the server has no reading at all, each visitor's browser
+# fetches the same points itself, under its own IP and quota. The
+# server stays the first choice: the fallback only runs when the
+# server returned nothing, and it caches its own result (success or
+# failure) for ten minutes, so a page polling every 60s costs one
+# batched call per ten minutes, not one per poll.
+#
+# The browser's reading is used on that page only. It is never sent
+# back to the server, which would let any client inject rainfall
+# figures into what everyone else sees.
+# ============================================================
+
+RAINFALL_FALLBACK_JS = r"""
+(function () {
+    "use strict";
+
+    var TTL_MS = 10 * 60 * 1000;
+    var cache = {};
+
+    // One request per key per TTL, shared by every caller on the page.
+    // A failure is cached as null for the same TTL -- the browser-side
+    // copy of the server's failure backoff.
+    function once(key, load) {
+        var hit = cache[key];
+        if (hit && Date.now() - hit.at < TTL_MS) return hit.promise;
+
+        var entry = {
+            at: Date.now(),
+            promise: load().catch(function (error) {
+                console.warn("Browser rainfall fallback failed:", error);
+                return null;
+            })
+        };
+        cache[key] = entry;
+        return entry.promise;
+    }
+
+    function forecast(points, query) {
+        var url = "https://api.open-meteo.com/v1/forecast" +
+            "?latitude=" + points.map(function (p) { return p[0]; }).join(",") +
+            "&longitude=" + points.map(function (p) { return p[1]; }).join(",") +
+            query + "&timezone=auto";
+
+        return fetch(url).then(function (response) {
+            if (!response.ok) throw new Error("Open-Meteo HTTP " + response.status);
+            return response.json();
+        }).then(function (payload) {
+            // A bare object for one location, a list for several.
+            return Array.isArray(payload) ? payload : [payload];
+        });
+    }
+
+    // Mirrors _parse_open_meteo_durations in server.py.
+    function parseDurations(payload) {
+        var hourly = (payload && payload.hourly) || {};
+        var times = hourly.time || [];
+        var precip = hourly.precipitation || [];
+        var currentTime = payload && payload.current && payload.current.time;
+
+        var idx = currentTime ? times.indexOf(currentTime) : -1;
+        if (idx === -1) idx = times.length - 1;
+
+        function sumLast(n) {
+            if (idx < 0) return null;
+            var total = 0;
+            for (var i = Math.max(0, idx - n + 1); i <= idx; i++) total += Number(precip[i]) || 0;
+            return Math.round(total * 100) / 100;
+        }
+
+        return { "1h": sumLast(1), "3h": sumLast(3), "24h": sumLast(24), antecedent_48h: sumLast(48) };
+    }
+
+    window.FloodSafeRainfall = {
+
+        parseDurations: parseDurations,
+
+        // Fills live_rainfall on a /ffgs/zones payload in place, but only
+        // when the server had no reading for any zone. Resolves to true
+        // if the browser supplied the rainfall.
+        fillZones: function (data) {
+            var rainfall = data && data.rainfall;
+            if (!rainfall || rainfall.zones_with_data > 0 || !rainfall.cells || !rainfall.cells.length) {
+                return Promise.resolve(false);
+            }
+
+            return once("zones:" + JSON.stringify(rainfall.cells), function () {
+                return forecast(rainfall.cells,
+                    "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=1"
+                ).then(function (locations) { return locations.map(parseDurations); });
+            }).then(function (readings) {
+                if (!readings) return false;
+                data.zones.forEach(function (zone) {
+                    if (zone.rain_cell != null && readings[zone.rain_cell]) {
+                        zone.live_rainfall = readings[zone.rain_cell];
+                    }
+                });
+                return true;
+            });
+        },
+
+        // Current precipitation (mm) for named points, as {name: mm}.
+        currentByName: function (stations) {
+            return once("current:" + JSON.stringify(stations), function () {
+                return forecast(stations.map(function (s) { return [s.lat, s.lon]; }),
+                    "&current=precipitation"
+                ).then(function (locations) {
+                    var byName = {};
+                    stations.forEach(function (station, i) {
+                        var current = locations[i] && locations[i].current;
+                        if (current) byName[station.name] = Math.round(Number(current.precipitation || 0) * 100) / 100;
+                    });
+                    return byName;
+                });
+            }).then(function (byName) { return byName || {}; });
+        }
+    };
+})();
+"""
+
+
+@app.route("/rainfall-fallback.js")
+def rainfall_fallback_js():
+
+    return Response(RAINFALL_FALLBACK_JS, mimetype="application/javascript")
+
+
+# ============================================================
 # FLOOD GUIDANCE — endpoints
 # ============================================================
 
@@ -3660,6 +3811,7 @@ FFGS_PAGE_HTML = """<!DOCTYPE html>
 <title>FloodSafe — Flash Flood Guidance System</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+<script src="/rainfall-fallback.js"></script>
 <style>
 
 :root {
@@ -4435,25 +4587,7 @@ async function fetchDurationRainfall(lat, lon) {
 
     const payload = await (await fetch(url)).json();
 
-    const hourlyTimes = (payload.hourly && payload.hourly.time) || [];
-    const hourlyPrecip = (payload.hourly && payload.hourly.precipitation) || [];
-    const currentTime = payload.current && payload.current.time;
-
-    let idx = currentTime ? hourlyTimes.indexOf(currentTime) : -1;
-    if (idx === -1) idx = hourlyTimes.length - 1;
-
-    function sumLast(n) {
-        if (idx < 0) return null;
-        const start = Math.max(0, idx - n + 1);
-        return hourlyPrecip.slice(start, idx + 1).reduce(function(s, v) { return s + (Number(v) || 0); }, 0);
-    }
-
-    return {
-        "1h": sumLast(1),
-        "3h": sumLast(3),
-        "24h": sumLast(24),
-        antecedent_48h: sumLast(48)
-    };
+    return window.FloodSafeRainfall.parseDurations(payload);
 }
 
 function alertZoneLabel(z) {
@@ -4880,6 +5014,12 @@ async function loadFfgsZones() {
     ffgsLoadFailed = false;
     ffgsDurations = data.durations || ffgsDurations;
 
+    // No-op unless the server had no rainfall for any zone; then this
+    // browser fetches the same cells itself (see /rainfall-fallback.js).
+    if (window.FloodSafeRainfall) {
+        await window.FloodSafeRainfall.fillZones(data);
+    }
+
     // effective_class, not hazard_class: FFPI now supplies a class for
     // zones the hazard atlas never covered, and those are exactly the
     // ones that used to be dropped here.
@@ -4932,10 +5072,11 @@ async function loadFfgsZones() {
 initZonePicker();
 loadFfgsZones();
 
-// Rainfall itself now comes from /ffgs/zones (server-cached, see
-// _fetch_ffgs_live_rainfall in server.py) rather than a client-side
-// Open-Meteo call, so this 60s poll is just a same-origin request —
-// no external rate-limit exposure at all, regardless of visitor count.
+// Rainfall itself comes from /ffgs/zones (server-cached, see
+// _fetch_ffgs_live_rainfall in server.py), so this 60s poll is
+// normally just a same-origin request. When the server has no reading,
+// the browser fallback fetches at most once per ten minutes, however
+// often this polls.
 setInterval(loadFfgsZones, 60000);
 
 document.getElementById("ffgsMyLocationBtn").addEventListener("click", function() {
@@ -5091,6 +5232,33 @@ _ffgs_rainfall_cache = {
 FFGS_RAINFALL_GRID_DEG = 0.1
 
 
+def _group_ffgs_zones_by_rainfall_cell():
+    cells = {}
+
+    for zone in FFGS_ZONES:
+        if not zone.get("effective_class"):
+            continue
+        key = (
+            round(zone["lat"] / FFGS_RAINFALL_GRID_DEG),
+            round(zone["lon"] / FFGS_RAINFALL_GRID_DEG),
+        )
+        cells.setdefault(key, []).append(zone)
+
+    return list(cells.values())
+
+
+# The zone list is fixed at import, so the cells are too. Each cell is
+# fetched at its first zone's coordinates. /ffgs/zones publishes the
+# same list (and each zone's index into it) so the browser fallback
+# asks Open-Meteo for exactly the points the server would have.
+FFGS_RAINFALL_CELLS = _group_ffgs_zones_by_rainfall_cell()
+FFGS_RAIN_CELL_BY_POINT = {
+    (zone["lat"], zone["lon"]): i
+    for i, zones in enumerate(FFGS_RAINFALL_CELLS)
+    for zone in zones
+}
+
+
 def _parse_open_meteo_durations(payload):
 
     hourly = payload.get("hourly") or {}
@@ -5141,25 +5309,13 @@ def _fetch_ffgs_live_rainfall():
     if _rainfall_backoff_active(cache, now):
         return cache["data"]
 
-    mapped_zones = [z for z in FFGS_ZONES if z.get("effective_class")]
-
-    if not mapped_zones:
+    if not FFGS_RAINFALL_CELLS:
         return cache["data"]
 
-    # Collapse the zone list onto the weather model's own resolution —
-    # see FFGS_RAINFALL_GRID_DEG. Each cell is fetched once, at the
-    # first zone that falls in it, and every zone in that cell reads the
-    # same result.
-    cells = {}
-
-    for zone in mapped_zones:
-        key = (
-            round(zone["lat"] / FFGS_RAINFALL_GRID_DEG),
-            round(zone["lon"] / FFGS_RAINFALL_GRID_DEG),
-        )
-        cells.setdefault(key, []).append(zone)
-
-    representatives = [zones[0] for zones in cells.values()]
+    # Collapsed onto the weather model's own resolution — see
+    # FFGS_RAINFALL_GRID_DEG. Every zone in a cell reads that cell's
+    # result.
+    representatives = [zones[0] for zones in FFGS_RAINFALL_CELLS]
     response = None
 
     try:
@@ -5189,7 +5345,7 @@ def _fetch_ffgs_live_rainfall():
 
         fresh = {}
 
-        for (cell_zones, loc) in zip(cells.values(), per_location):
+        for (cell_zones, loc) in zip(FFGS_RAINFALL_CELLS, per_location):
 
             reading = _parse_open_meteo_durations(loc)
 
@@ -5202,7 +5358,7 @@ def _fetch_ffgs_live_rainfall():
         _ffgs_rainfall_cache["last_attempt"] = now
 
         print(
-            f"FFGS rainfall refreshed: {len(mapped_zones)} zones "
+            f"FFGS rainfall refreshed: {len(FFGS_RAIN_CELL_BY_POINT)} zones "
             f"served by {len(representatives)} fetches",
             flush=True
         )
@@ -5231,7 +5387,11 @@ def ffgs_zones():
     rainfall_by_point = _fetch_ffgs_live_rainfall()
 
     zones_with_rainfall = [
-        dict(zone, live_rainfall=rainfall_by_point.get((zone["lat"], zone["lon"])))
+        dict(
+            zone,
+            live_rainfall=rainfall_by_point.get((zone["lat"], zone["lon"])),
+            rain_cell=FFGS_RAIN_CELL_BY_POINT.get((zone["lat"], zone["lon"])),
+        )
         for zone in FFGS_ZONES
     ]
 
@@ -5246,6 +5406,9 @@ def ffgs_zones():
             "age_seconds": (round(time.time() - cache["timestamp"], 1)
                             if cache["timestamp"] else None),
             "last_error": cache["last_error"],
+            # For the browser fallback (/rainfall-fallback.js): the
+            # points to fetch when this server has no reading at all.
+            "cells": [[zones[0]["lat"], zones[0]["lon"]] for zones in FFGS_RAINFALL_CELLS],
         },
         "zones": zones_with_rainfall,
     })

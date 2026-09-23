@@ -199,6 +199,61 @@ class TestRainfallFailureBackoff:
         assert "Hourly API request limit exceeded" in payload["rainfall"]["last_error"]
 
 
+class TestBrowserRainfallFallback:
+    """When Open-Meteo refuses the server, browsers fetch the same points.
+
+    Render's outbound IP is shared with other customers, whose calls can
+    exhaust Open-Meteo's per-IP daily quota before this server makes
+    one. The pages then fetch under the visitor's own IP, using the grid
+    cells /ffgs/zones publishes. If those drift from what the server
+    fetches, the fallback reads rainfall for the wrong places.
+    """
+
+    def test_published_cells_are_what_the_server_fetches(self, client, server, monkeypatch):
+        sent = {}
+
+        def fake_get(url, params=None, **kwargs):
+            sent.update(params or {})
+            raise server.requests.ConnectionError("offline")
+
+        monkeypatch.setattr(server.requests, "get", fake_get)
+        monkeypatch.setattr(server, "_ffgs_rainfall_cache", {
+            "timestamp": 0.0, "data": {}, "last_error": None, "last_attempt": 0.0,
+        })
+
+        cells = client.get("/ffgs/zones").get_json()["rainfall"]["cells"]
+
+        assert sent["latitude"] == ",".join(str(c[0]) for c in cells)
+        assert sent["longitude"] == ",".join(str(c[1]) for c in cells)
+
+    def test_every_classified_zone_points_at_its_own_cell(self, client, server):
+        payload = client.get("/ffgs/zones").get_json()
+        cells = payload["rainfall"]["cells"]
+        grid = server.FFGS_RAINFALL_GRID_DEG
+
+        def key(lat, lon):
+            return (round(lat / grid), round(lon / grid))
+
+        for zone in payload["zones"]:
+            if not zone["effective_class"]:
+                assert zone["rain_cell"] is None
+                continue
+            assert 0 <= zone["rain_cell"] < len(cells)
+            cell = cells[zone["rain_cell"]]
+            assert key(zone["lat"], zone["lon"]) == key(cell[0], cell[1])
+
+    def test_script_is_served(self, client):
+        response = client.get("/rainfall-fallback.js")
+        assert response.status_code == 200
+        assert response.mimetype == "application/javascript"
+        assert "window.FloodSafeRainfall" in response.get_data(as_text=True)
+
+    @pytest.mark.parametrize("path", ["/", "/ffgs", "/app"])
+    def test_every_rainfall_page_loads_it(self, client, path):
+        page = client.get(path).get_data(as_text=True)
+        assert '<script src="/rainfall-fallback.js"></script>' in page
+
+
 class TestReportValidation:
 
     def test_rejects_non_json(self, client):
