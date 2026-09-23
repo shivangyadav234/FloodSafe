@@ -6595,6 +6595,140 @@ def push_test():
 
 
 SERVICE_WORKER_JS = r"""
+// ---- Offline copies ------------------------------------------------
+//
+// Mountain connectivity drops out exactly when a flood is on, so the
+// map page, its libraries, the shelter list and the map tiles someone
+// has already looked at are kept for use without a connection.
+//
+// Pages and /shelters are network-first: online visitors always get
+// the live version, and the copy is only a fallback. Nothing that
+// changes minute to minute (rainfall, reports, zone status) is cached,
+// because showing it stale offline would read as current. Routes are
+// POSTs and never pass through here; the map page keeps its own last
+// results instead.
+
+var CACHE = "floodsafe-offline-v1";
+var TILE_CACHE = "floodsafe-tiles-v1";
+var MAX_TILES = 400;
+var NETWORK_TIMEOUT_MS = 8000;
+var CDN_HOSTS = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "code.jquery.com", "netdna.bootstrapcdn.com"];
+var OFFLINE_PATHS = ["/app", "/ffgs", "/", "/shelters"];
+
+self.addEventListener("install", function (event) {
+    // Small and shared by every page; the map page itself is cached on
+    // request (see "cache-urls") so /ffgs visitors never download it.
+    event.waitUntil(caches.open(CACHE).then(function (cache) {
+        return cache.add("/shelters");
+    }).catch(function () {}));
+    self.skipWaiting();
+});
+
+self.addEventListener("activate", function (event) {
+    event.waitUntil(caches.keys().then(function (keys) {
+        return Promise.all(keys.filter(function (key) {
+            return key.indexOf("floodsafe-") === 0 && key !== CACHE && key !== TILE_CACHE;
+        }).map(function (key) { return caches.delete(key); }));
+    }).then(function () { return self.clients.claim(); }));
+});
+
+// Cross-origin files are refetched with CORS (the CDNs and OSM allow
+// it): an opaque no-cors copy would be charged ~7 MB of storage quota
+// each in Chrome.
+function corsRequest(url) {
+    return new Request(url, { mode: "cors", credentials: "omit" });
+}
+
+function store(cacheName, request, response) {
+    if (response && response.ok) {
+        var copy = response.clone();
+        caches.open(cacheName).then(function (cache) { cache.put(request, copy); });
+    }
+    return response;
+}
+
+function networkFirst(request) {
+    var network = fetch(request).then(function (response) {
+        return store(CACHE, request, response);
+    });
+    var timeout = new Promise(function (resolve, reject) {
+        setTimeout(function () { reject(new Error("timeout")); }, NETWORK_TIMEOUT_MS);
+    });
+    return Promise.race([network, timeout]).catch(function () {
+        return caches.match(request, { ignoreSearch: request.mode === "navigate" }).then(function (cached) {
+            return cached || network;
+        });
+    });
+}
+
+function cacheFirst(cacheName, url, original) {
+    return caches.match(url).then(function (cached) {
+        if (cached) return cached;
+        return fetch(corsRequest(url)).catch(function () {
+            return fetch(original);
+        }).then(function (response) {
+            store(cacheName, url, response);
+            if (cacheName === TILE_CACHE) trimTiles();
+            return response;
+        });
+    });
+}
+
+function trimTiles() {
+    caches.open(TILE_CACHE).then(function (cache) {
+        return cache.keys().then(function (keys) {
+            // keys() is in insertion order, so the oldest go first.
+            return Promise.all(keys.slice(0, Math.max(0, keys.length - MAX_TILES)).map(function (key) {
+                return cache.delete(key);
+            }));
+        });
+    });
+}
+
+self.addEventListener("fetch", function (event) {
+    var request = event.request;
+    if (request.method !== "GET") return;
+
+    var url = new URL(request.url);
+
+    if (url.origin === self.location.origin) {
+        if (request.mode === "navigate" || OFFLINE_PATHS.indexOf(url.pathname) !== -1) {
+            event.respondWith(networkFirst(request));
+        }
+        return;
+    }
+
+    if (CDN_HOSTS.indexOf(url.hostname) !== -1) {
+        event.respondWith(cacheFirst(CACHE, url.href, request));
+    } else if (/(^|\.)tile\.openstreetmap\.org$/.test(url.hostname)) {
+        event.respondWith(cacheFirst(TILE_CACHE, url.href, request));
+    }
+});
+
+// The first visit loads before this worker controls the page, so the
+// page lists what it loaded and asks for those to be kept.
+self.addEventListener("message", function (event) {
+    var data = event.data || {};
+    if (data.type !== "cache-urls" || !Array.isArray(data.urls)) return;
+
+    event.waitUntil(caches.open(CACHE).then(function (cache) {
+        return Promise.all(data.urls.map(function (href) {
+            var url;
+            try { url = new URL(href, self.location.origin); } catch (e) { return null; }
+            var sameOrigin = url.origin === self.location.origin;
+            if (!sameOrigin && CDN_HOSTS.indexOf(url.hostname) === -1) return null;
+            return cache.match(url.href).then(function (hit) {
+                if (hit) return null;
+                return fetch(sameOrigin ? url.href : corsRequest(url.href)).then(function (response) {
+                    if (response.ok) return cache.put(url.href, response);
+                }).catch(function () {});
+            });
+        }));
+    }));
+});
+
+// ---- Push alerts ---------------------------------------------------
+
 self.addEventListener("push", function (event) {
     var message = {};
     try { message = event.data ? event.data.json() : {}; } catch (e) {}

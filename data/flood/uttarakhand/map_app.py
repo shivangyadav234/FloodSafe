@@ -519,6 +519,11 @@ panel_html = """
     <div id="floodsafePanelBody">
 
 
+    <!-- OFFLINE (filled by renderOfflineBanner) -->
+
+    <div id="fsOfflineBanner" class="fs-offline-banner" hidden></div>
+
+
     <!-- CURRENT LOCATION -->
 
     <div class="fs-label">
@@ -1593,6 +1598,34 @@ css = """
     }
 
 }
+
+.fs-offline-banner {
+    background: #fff8e1;
+    border: 1px solid #b5860f;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+.fs-offline-banner b { display: block; margin-bottom: 4px; }
+.fs-offline-btn {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 7px 10px;
+    font: inherit;
+    font-size: 12.5px;
+    text-align: left;
+    background: #ffffff;
+    border: 1px solid #b5860f;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.fs-offline-note { color: #5a4a1a; font-size: 12px; margin-top: 6px; }
+.fs-offline-list { margin: 6px 0 0; padding-left: 18px; }
+.fs-offline-list li { margin: 3px 0; }
+.fs-offline-list a { cursor: pointer; text-decoration: underline; }
 
 </style>
 """
@@ -3212,6 +3245,7 @@ async function calculateRoute() {
         }
 
         lastRouteAction = "route";
+        saveRouteForOffline("route", data, "Route (" + mode + ")");
 
         resultBox.innerHTML =
             '<div class="fs-result-title">Route calculated</div>' +
@@ -3828,12 +3862,17 @@ async function loadShelters() {
 
     try {
 
-        const response = await fetchWithTimeout("/shelters", {}, 15000);
+        // Plain fetch, not fetchWithTimeout: that refuses up front when
+        // the browser reports offline, before the service worker can
+        // answer from its saved copy of the shelter list.
+        const response = await fetch("/shelters");
         const data = await response.json();
 
         if (!Array.isArray(data)) {
             return;
         }
+
+        cachedShelters = data;
 
         shelterMarkers.forEach(function(marker) {
             FLOODSAFE_MAP.removeLayer(marker);
@@ -4077,6 +4116,7 @@ async function evacuateToShelter() {
         const extreme = Number(risk["8.0"] || 0);
 
         lastRouteAction = "evacuate";
+        saveRouteForOffline("evacuate", data, "Evacuation route");
 
         resultBox.innerHTML =
             '<div class="fs-result-title">🚨 Evacuation route</div>' +
@@ -4091,6 +4131,11 @@ async function evacuateToShelter() {
     } catch (error) {
 
         console.error(error);
+
+        if (isConnectionError(error)) {
+            showOfflineFallback("evacuate", error);
+            return;
+        }
 
         resultBox.innerHTML =
             "Evacuation error: " +
@@ -4204,6 +4249,7 @@ async function routeToNearestHospital() {
         const extreme = Number(risk["8.0"] || 0);
 
         lastRouteAction = "hospital";
+        saveRouteForOffline("hospital", data, "Hospital route");
 
         resultBox.innerHTML =
             '<div class="fs-result-title">🏥 Hospital route</div>' +
@@ -4218,6 +4264,11 @@ async function routeToNearestHospital() {
     } catch (error) {
 
         console.error(error);
+
+        if (isConnectionError(error)) {
+            showOfflineFallback("hospital", error);
+            return;
+        }
 
         resultBox.innerHTML =
             "Hospital routing error: " +
@@ -4362,7 +4413,238 @@ async function submitReport(lat, lon) {
     }
 }
 
+// =======================================================
+// OFFLINE: SAVED ROUTES AND NEAREST SHELTERS
+//
+// Connectivity in the hills fails exactly when a flood is on. The
+// service worker (/sw.js) keeps this page, its libraries, the shelter
+// list and viewed map tiles. Routes can't be computed without the
+// server, so each successful result is saved here, and when the server
+// can't be reached Evacuate / Hospital fall back to:
+//   - the last saved route of that kind, labelled with its age and
+//     whether it started somewhere else, and
+//   - the nearest shelters or hospitals by straight-line distance and
+//     compass direction -- explicitly not a road route, and never
+//     drawn as a line, since a straight line could read as a safe path.
+// =======================================================
+
+const SAVED_ROUTES_KEY = "floodsafeSavedRoutes";
+let cachedShelters = [];
+
+function readSavedRoutes() {
+    try {
+        return JSON.parse(localStorage.getItem(SAVED_ROUTES_KEY)) || {};
+    } catch (error) {
+        return {};
+    }
+}
+
+function saveRouteForOffline(kind, data, title) {
+    const destination = data.shelter || data.hospital || selectedDestination || null;
+    const saved = readSavedRoutes();
+
+    saved[kind] = {
+        title: title,
+        savedAt: Date.now(),
+        start: currentLocation ? { lat: currentLocation.lat, lon: currentLocation.lon } : null,
+        destination: destination ? { name: destination.name || null, lat: destination.lat, lon: destination.lon } : null,
+        coordinates: data.coordinates,
+        segment_risks: data.segment_risks,
+        distance_km: data.distance_km,
+        risk_counts: data.risk_counts
+    };
+
+    try {
+        localStorage.setItem(SAVED_ROUTES_KEY, JSON.stringify(saved));
+    } catch (error) {
+        // Storage full or disabled: this result just isn't kept offline.
+    }
+    renderOfflineBanner();
+}
+
+function isConnectionError(error) {
+    return !!error && ["OfflineError", "NetworkError", "TimeoutError"].indexOf(error.name) !== -1;
+}
+
+function distanceKm(a, b) {
+    const rad = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * rad;
+    const dLon = (b.lon - a.lon) * rad;
+    const h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function compassDirection(a, b) {
+    const rad = Math.PI / 180;
+    const y = Math.sin((b.lon - a.lon) * rad) * Math.cos(b.lat * rad);
+    const x = Math.cos(a.lat * rad) * Math.sin(b.lat * rad) -
+        Math.sin(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((b.lon - a.lon) * rad);
+    const bearing = (Math.atan2(y, x) / rad + 360) % 360;
+    return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(bearing / 45) % 8];
+}
+
+function timeAgoText(ms) {
+    const minutes = Math.round((Date.now() - ms) / 60000);
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return minutes + " min ago";
+    const hours = Math.round(minutes / 60);
+    if (hours < 48) return hours + " h ago";
+    return Math.round(hours / 24) + " days ago";
+}
+
+function nearestByStraightLine(kind, count) {
+    if (!currentLocation) return [];
+    return cachedShelters
+        .filter(function(s) { return s.kind === kind; })
+        .map(function(s) {
+            return { place: s, km: distanceKm(currentLocation, s), dir: compassDirection(currentLocation, s) };
+        })
+        .sort(function(a, b) { return a.km - b.km; })
+        .slice(0, count);
+}
+
+function focusPlace(lat, lon) {
+    FLOODSAFE_MAP.setView([lat, lon], 15);
+    shelterMarkers.forEach(function(marker) {
+        const at = marker.getLatLng();
+        if (Math.abs(at.lat - lat) < 1e-6 && Math.abs(at.lng - lon) < 1e-6) marker.openPopup();
+    });
+}
+
+function showSavedRoute(kind) {
+    const saved = readSavedRoutes()[kind];
+    const resultBox = document.getElementById("routeResult");
+    if (!saved || !Array.isArray(saved.coordinates) || !saved.coordinates.length) return;
+
+    if (routeLine) FLOODSAFE_MAP.removeLayer(routeLine);
+    if (compareGroup) {
+        FLOODSAFE_MAP.removeLayer(compareGroup);
+        compareGroup = null;
+    }
+
+    const points = saved.coordinates.map(function(p) { return [p[1], p[0]]; });
+    if (points.length === 1) points.push(points[0]);
+    const risks = Array.isArray(saved.segment_risks) ? saved.segment_risks : [];
+
+    routeLine = L.featureGroup();
+    for (let i = 0; i < points.length - 1; i++) {
+        L.polyline([points[i], points[i + 1]], {
+            color: segmentColor(Number(risks[i]) || 1), weight: 6, opacity: 0.9, dashArray: "10 6"
+        }).addTo(routeLine);
+    }
+    routeLine.addTo(FLOODSAFE_MAP);
+    FLOODSAFE_MAP.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+    let startNote = "";
+    if (saved.start && currentLocation) {
+        const away = distanceKm(saved.start, currentLocation);
+        if (away > 1) {
+            startNote = '<div class="fs-warning-message">⚠ Saved from a different starting point, ' +
+                away.toFixed(1) + ' km from your current location.</div>';
+        }
+    }
+
+    const extreme = Number((saved.risk_counts || {})["8.0"] || 0);
+
+    resultBox.innerHTML =
+        '<div class="fs-result-title">📦 Saved ' + escapeHtml(saved.title.toLowerCase()) + ' (offline copy)</div>' +
+        (saved.destination && saved.destination.name ?
+            '<div class="fs-route-mode">To: ' + escapeHtml(saved.destination.name) + '</div>' : '') +
+        '<div class="fs-distance">' + Number(saved.distance_km).toFixed(2) + ' km</div>' +
+        '<div class="fs-warning-message">Saved ' + timeAgoText(saved.savedAt) +
+        '. Roads, hazard reports and rainfall may have changed since. It was the recommended route then, not necessarily now.</div>' +
+        startNote +
+        (extreme > 0 ?
+            '<div class="fs-warning-message">⚠ Crossed ' + extreme + ' Extreme-risk road segment(s) when saved</div>' : '');
+}
+
+function showOfflineFallback(kind, error) {
+    const resultBox = document.getElementById("routeResult");
+    const placeKind = kind === "hospital" ? "hospital" : "shelter";
+    const label = kind === "hospital" ? "hospitals" : "shelters";
+    const saved = readSavedRoutes()[kind];
+
+    let html = '<div class="fs-result-title">Can’t reach the FloodSafe server</div>' +
+        '<div class="fs-warning-message">' + escapeHtml(error.message || "") +
+        ' A road route needs the server, so here is what works offline.</div>';
+
+    if (saved) {
+        html += '<button type="button" class="fs-offline-btn" onclick="showSavedRoute(&quot;' + kind + '&quot;)">' +
+            'Show saved ' + escapeHtml(saved.title.toLowerCase()) + ' (' + timeAgoText(saved.savedAt) + ')</button>';
+    }
+
+    const nearest = nearestByStraightLine(placeKind, 3);
+
+    if (nearest.length) {
+        html += '<div class="fs-risk-title">Nearest ' + label + ' in a straight line</div>' +
+            '<ol class="fs-offline-list">' + nearest.map(function(n) {
+                return '<li><a onclick="focusPlace(' + n.place.lat + ',' + n.place.lon + ')">' +
+                    escapeHtml(n.place.name) + '</a> — ' + n.km.toFixed(1) + ' km ' + n.dir + '</li>';
+            }).join("") + '</ol>' +
+            '<div class="fs-offline-note">Straight-line distance, not a road route: the way there by road is longer, and roads may be flooded or blocked.</div>';
+    } else if (!currentLocation) {
+        html += '<div class="fs-offline-note">Set your current location to list the nearest ' + label + '.</div>';
+    } else {
+        html += '<div class="fs-offline-note">The saved shelter list isn’t available on this device yet.</div>';
+    }
+
+    resultBox.innerHTML = html;
+}
+
+function renderOfflineBanner() {
+    const banner = document.getElementById("fsOfflineBanner");
+    if (!banner) return;
+
+    if (navigator.onLine) {
+        banner.hidden = true;
+        return;
+    }
+
+    const saved = readSavedRoutes();
+    const buttons = ["evacuate", "hospital", "route"].filter(function(kind) { return saved[kind]; })
+        .map(function(kind) {
+            return '<button type="button" class="fs-offline-btn" onclick="showSavedRoute(&quot;' + kind + '&quot;)">' +
+                'Show saved ' + escapeHtml(saved[kind].title.toLowerCase()) + ' (' + timeAgoText(saved[kind].savedAt) + ')</button>';
+        }).join("");
+
+    banner.innerHTML = '<b>You’re offline</b>' +
+        'Shelters and hospitals shown are from your last connection. Evacuate and Hospital will list the nearest ones by straight-line distance.' +
+        buttons;
+    banner.hidden = false;
+}
+
+function registerOfflineSupport() {
+    window.addEventListener("online", renderOfflineBanner);
+    window.addEventListener("offline", renderOfflineBanner);
+    renderOfflineBanner();
+
+    if (!("serviceWorker" in navigator)) return;
+
+    navigator.serviceWorker.register("/sw.js").then(function() {
+        return navigator.serviceWorker.ready;
+    }).then(function(registration) {
+        // This first load happened before the worker was in control, so
+        // tell it what the page needed: the page itself, the shelter
+        // list and the CDN files it loaded.
+        const urls = [location.pathname, "/shelters"].concat(
+            performance.getEntriesByType("resource")
+                .map(function(entry) { return entry.name; })
+                .filter(function(name) {
+                    const path = name.split("?")[0];
+                    return path.endsWith(".js") || path.endsWith(".css");
+                }));
+        if (registration.active) {
+            registration.active.postMessage({ type: "cache-urls", urls: urls });
+        }
+    }).catch(function(error) {
+        console.warn("Offline support unavailable:", error);
+    });
+}
+
 document.addEventListener("DOMContentLoaded", function() {
+
+    registerOfflineSupport();
 
     FLOODSAFE_MAP.on("click", function(e) {
         openReportPopup(e.latlng);

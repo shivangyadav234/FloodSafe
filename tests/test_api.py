@@ -869,3 +869,26 @@ class TestPageScriptsParse:
             result = subprocess.run([node, "--check", str(target)],
                                     capture_output=True, text=True)
             assert result.returncode == 0, f"{path} script {i}: {result.stderr[:500]}"
+
+
+class TestOfflineCache:
+    """The service worker keeps pages and shelters for offline use -- and
+    nothing that changes minute to minute, which offline would read as
+    current."""
+
+    def test_only_stable_paths_are_kept_offline(self, client):
+        import re
+
+        worker = client.get("/sw.js").get_data(as_text=True)
+        listed = re.search(r"var OFFLINE_PATHS = \[(.*?)\];", worker).group(1)
+        paths = set(re.findall(r'"([^"]+)"', listed))
+
+        assert "/shelters" in paths and "/app" in paths
+        for live in ("/ffgs/zones", "/town-rainfall", "/reports", "/status", "/push/config"):
+            assert live not in paths, f"{live} is live data and must not be served stale offline"
+
+    def test_map_page_registers_the_worker_and_saves_routes(self, client):
+        page = client.get("/app").get_data(as_text=True)
+        assert 'navigator.serviceWorker.register("/sw.js")' in page
+        for kind in ("route", "evacuate", "hospital"):
+            assert f'saveRouteForOffline("{kind}"' in page
