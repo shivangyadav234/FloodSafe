@@ -268,3 +268,27 @@ reloads the road graph. `.github/workflows/keep-awake.yml` pings `/status`
 every five minutes to prevent that. An always-on service uses about 744 of
 Render's 750 free instance-hours a month, so this only fits if it is the
 account's only free service.
+
+### Rainfall relay and push alerts
+
+Open-Meteo's free quota is per IP, and Render's outbound IP is shared with
+other customers who usually use it up, so the server often can't fetch
+rainfall itself. `.github/workflows/rainfall-relay.yml` fetches the same
+Open-Meteo readings every ten minutes from GitHub's runners and posts them
+to `/rainfall/relay`. It needs one shared secret, set in both places:
+
+- Render: environment variable `RAINFALL_RELAY_SECRET`
+- GitHub: repository secret `RAINFALL_RELAY_SECRET`
+  (Settings -> Secrets and variables -> Actions)
+
+Any long random string works, e.g. the output of
+`python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+`/ffgs/zones` shows `"source": "relay"` when relayed data is in use.
+
+With rainfall on the server, `/ffgs` offers "Alert me when this zone turns
+Critical" for the selected zone. Alerts are Web Push notifications, sent
+when fresh rainfall puts a subscribed zone at Critical, at most once per
+zone every six hours. They need `DATABASE_URL` (subscriptions and the
+signing key are stored there; the key is generated on first use). The
+thresholds are FloodSafe's heuristic, and every alert says it is not an
+official IMD/CWC warning.

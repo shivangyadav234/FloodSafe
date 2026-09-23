@@ -1,0 +1,29 @@
+# Fetches Open-Meteo rainfall from GitHub's IPs and hands it to the
+# server, whose own Render IP is usually over Open-Meteo's shared
+# per-IP quota. Without server-side rainfall, push alerts could never
+# fire. See .github/scripts/rainfall_relay.py and RAINFALL RELAY in
+# server.py.
+#
+# Needs a repository secret RAINFALL_RELAY_SECRET matching the Render
+# environment variable of the same name.
+#
+# Every ten minutes to match the server's rainfall cache; offset from
+# the top of the hour, when GitHub's scheduler is most congested.
+
+name: Rainfall relay
+
+on:
+  schedule:
+    - cron: "3-59/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Relay rainfall to FloodSafe
+        env:
+          RAINFALL_RELAY_SECRET: ${{ secrets.RAINFALL_RELAY_SECRET }}
+        run: python .github/scripts/rainfall_relay.py

@@ -578,3 +578,256 @@ class TestReportPersistence:
         assert not (tmp_path / "reports.json.tmp").exists(), (
             "the temporary file must be cleaned up"
         )
+
+
+# ============================================================
+# Rainfall relay and push alerts
+# ============================================================
+
+def _open_meteo_location(lat, lon, hourly_mm=None, current_mm=0.0):
+    """One location in Open-Meteo's response shape. Test fixture only."""
+    loc = {"latitude": lat, "longitude": lon,
+           "current": {"time": "2026-09-23T12:00", "precipitation": current_mm}}
+    if hourly_mm is not None:
+        times = [f"2026-09-{21 + (h // 24):02d}T{h % 24:02d}:00" for h in range(len(hourly_mm))]
+        loc["hourly"] = {"time": times, "precipitation": hourly_mm}
+        loc["current"]["time"] = times[-1]
+    return loc
+
+
+def _relay_body(server, hourly_mm=0.0):
+    return {
+        "ffgs": [_open_meteo_location(z[0]["lat"], z[0]["lon"], [hourly_mm] * 49)
+                 for z in server.FFGS_RAINFALL_CELLS],
+        "towns": [_open_meteo_location(t["lat"], t["lon"]) for t in server.GUIDANCE_TOWNS],
+    }
+
+
+@pytest.fixture()
+def relay(server, monkeypatch):
+    monkeypatch.setattr(server, "RAINFALL_RELAY_SECRET", "test-secret")
+    for name in ("_ffgs_rainfall_cache", "_town_rainfall_cache"):
+        monkeypatch.setattr(server, name, {
+            "timestamp": 0.0, "data": {}, "last_error": None, "last_attempt": 0.0, "source": None})
+    return {"Authorization": "Bearer test-secret"}
+
+
+class TestRainfallRelay:
+    """GitHub Actions relays Open-Meteo readings the server can't fetch itself."""
+
+    def test_points_are_the_servers_own(self, client, server):
+        plan = client.get("/rainfall/relay-points").get_json()
+        cells = client.get("/ffgs/zones").get_json()["rainfall"]["cells"]
+        assert plan["ffgs"]["points"] == cells
+        assert plan["towns"]["points"] == [[t["lat"], t["lon"]] for t in server.GUIDANCE_TOWNS]
+        assert plan["ffgs"]["query"] == server.FFGS_RAINFALL_QUERY
+
+    def test_disabled_without_a_secret(self, client, server, monkeypatch):
+        monkeypatch.setattr(server, "RAINFALL_RELAY_SECRET", "")
+        assert client.post("/rainfall/relay", json={}).status_code == 503
+
+    @pytest.mark.parametrize("auth", [None, "Bearer wrong", "test-secret"])
+    def test_rejects_a_bad_secret(self, client, server, relay, auth):
+        headers = {"Authorization": auth} if auth else {}
+        response = client.post("/rainfall/relay", json=_relay_body(server), headers=headers)
+        assert response.status_code == 401
+        assert not server._ffgs_rainfall_cache["data"]
+
+    def test_accepted_readings_fill_every_zone(self, client, server, relay):
+        response = client.post("/rainfall/relay", json=_relay_body(server, 0.5), headers=relay)
+        assert response.get_json()["accepted"] == ["ffgs", "towns"]
+
+        status = client.get("/ffgs/zones").get_json()["rainfall"]
+        assert status["zones_with_data"] == len(server.FFGS_RAIN_CELL_BY_POINT)
+        assert status["source"] == "relay"
+        assert client.get("/town-rainfall").get_json()["source"] == "relay"
+
+    @pytest.mark.parametrize("corrupt", ["reversed", "short", "negative", "absurd"])
+    def test_rejects_malformed_data_without_storing_any(self, client, server, relay, corrupt):
+        body = _relay_body(server, 0.5)
+        if corrupt == "reversed":
+            body["ffgs"].reverse()
+        elif corrupt == "short":
+            body["ffgs"].pop()
+        elif corrupt == "negative":
+            body["ffgs"][0]["hourly"]["precipitation"][-1] = -1.0
+        elif corrupt == "absurd":
+            body["towns"][0]["current"]["precipitation"] = 1e9
+
+        assert client.post("/rainfall/relay", json=body, headers=relay).status_code == 400
+        assert not server._ffgs_rainfall_cache["data"]
+        assert not server._town_rainfall_cache["data"]
+
+
+def _browser_subscription(endpoint="https://fcm.googleapis.com/fcm/send/test-endpoint"):
+    """A subscription with a real P-256 key pair, like a browser creates,
+    so the server's encryption can be checked by decrypting it."""
+    import base64
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    auth = os.urandom(16)
+    public = key.public_key().public_bytes(
+        serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+
+    def b64(raw):
+        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    return key, auth, {"endpoint": endpoint, "keys": {"p256dh": b64(public), "auth": b64(auth)}}
+
+
+@pytest.fixture()
+def push(server, report_db, monkeypatch):
+    """Push against the real test database, with delivery captured instead
+    of sent and alert threads run inline."""
+    monkeypatch.setattr(server, "_push_state", {
+        "vapid": None, "public_key": None, "last_error": None, "last_check": None, "alerts_sent": 0})
+
+    sent = []
+    reply = {"status": 201}
+
+    class FakeResponse:
+        def __init__(self, status):
+            self.status_code = status
+
+    def fake_post(url, data=None, headers=None, timeout=None):
+        sent.append({"url": url, "body": data, "headers": headers})
+        return FakeResponse(reply["status"])
+
+    class InlineThread:
+        def __init__(self, target, args=(), daemon=None):
+            self.target, self.args = target, args
+
+        def start(self):
+            self.target(*self.args)
+
+    monkeypatch.setattr(server.requests, "post", fake_post)
+    monkeypatch.setattr(server.threading, "Thread", InlineThread)
+
+    import psycopg
+    with psycopg.connect(report_db, autocommit=True) as conn:
+        conn.execute("DROP TABLE IF EXISTS push_subscriptions")
+
+    return {"sent": sent, "reply": reply}
+
+
+def _critical_readings(server, zone):
+    """Readings with this zone's cell at 1.5x its 1h critical level."""
+    critical = zone["thresholds_mm"]["1h"]["critical"] * 1.5
+    return {(z["lat"], z["lon"]): {"1h": critical if z is zone else 0.0, "3h": 0.0, "24h": 0.0,
+                                   "antecedent_48h": 0.0}
+            for z in server.FFGS_ZONE_BY_KEY.values()}
+
+
+class TestPushAlerts:
+
+    ZONE_NAME = "Dehradun"
+
+    def zone_key(self, server):
+        zone = next(z for z in server.FFGS_ZONE_BY_KEY.values() if z["name"] == self.ZONE_NAME)
+        return server._zone_key(zone), zone
+
+    def test_unavailable_without_the_database(self, client, server, monkeypatch):
+        monkeypatch.setattr(server, "DATABASE_URL", "")
+        assert client.get("/push/config").get_json()["available"] is False
+
+    @pytest.mark.parametrize("endpoint", [
+        "https://evil.example.com/steal",
+        "http://fcm.googleapis.com/fcm/send/x",
+        "https://fcm.googleapis.com.evil.example/x",
+        "https://169.254.169.254/latest/meta-data",
+    ])
+    def test_only_browser_push_services_are_accepted(self, client, server, push, endpoint):
+        """The server posts to the endpoint it is given, so anything else
+        would let a caller aim this server's requests anywhere."""
+        key, zone = self.zone_key(server)
+        _, _, sub = _browser_subscription(endpoint)
+        response = client.post("/push/subscribe", json={"zone": key, "subscription": sub})
+        assert response.status_code == 400
+
+    def test_unknown_zone_is_rejected(self, client, server, push):
+        _, _, sub = _browser_subscription()
+        response = client.post("/push/subscribe", json={"zone": "0.00000,0.00000", "subscription": sub})
+        assert response.status_code == 400
+
+    def test_subscribe_list_unsubscribe(self, client, server, push):
+        key, zone = self.zone_key(server)
+        _, _, sub = _browser_subscription()
+
+        assert client.post("/push/subscribe", json={"zone": key, "subscription": sub}).status_code == 201
+        listed = client.post("/push/subscriptions", json={"endpoint": sub["endpoint"]}).get_json()
+        assert listed["zones"] == [key]
+
+        client.post("/push/unsubscribe", json={"zone": key, "endpoint": sub["endpoint"]})
+        listed = client.post("/push/subscriptions", json={"endpoint": sub["endpoint"]}).get_json()
+        assert listed["zones"] == []
+
+    def test_critical_zone_alert_is_delivered_encrypted_and_signed(self, client, server, push):
+        import http_ece
+
+        key, zone = self.zone_key(server)
+        browser_key, auth, sub = _browser_subscription()
+        client.post("/push/subscribe", json={"zone": key, "subscription": sub})
+        public_key = client.get("/push/config").get_json()["public_key"]
+
+        server._store_ffgs_readings(_critical_readings(server, zone), time.time(), "relay")
+
+        assert len(push["sent"]) == 1
+        delivery = push["sent"][0]
+        assert delivery["url"] == sub["endpoint"]
+        assert delivery["headers"]["Content-Encoding"] == "aes128gcm"
+        assert delivery["headers"]["Authorization"].startswith("vapid t=")
+        assert f"k={public_key}" in delivery["headers"]["Authorization"]
+
+        # Only the subscriber's own private key can read it.
+        message = json.loads(http_ece.decrypt(
+            delivery["body"], private_key=browser_key, auth_secret=auth, version="aes128gcm"))
+        assert message["title"] == f"Flash-flood CRITICAL: {zone['name']}"
+        assert "not an official IMD/CWC warning" in message["body"]
+        assert message["url"] == f"/ffgs?zone={key}"
+
+    def test_one_alert_per_cooldown_while_it_stays_critical(self, client, server, push):
+        key, zone = self.zone_key(server)
+        _, _, sub = _browser_subscription()
+        client.post("/push/subscribe", json={"zone": key, "subscription": sub})
+
+        readings = _critical_readings(server, zone)
+        server._store_ffgs_readings(readings, time.time(), "relay")
+        server._store_ffgs_readings(readings, time.time(), "relay")
+        assert len(push["sent"]) == 1
+
+    def test_no_alert_when_nothing_is_critical(self, client, server, push):
+        key, zone = self.zone_key(server)
+        _, _, sub = _browser_subscription()
+        client.post("/push/subscribe", json={"zone": key, "subscription": sub})
+
+        dry = {k: {"1h": 0.0, "3h": 0.0, "24h": 0.0, "antecedent_48h": 0.0}
+               for k in _critical_readings(server, zone)}
+        server._store_ffgs_readings(dry, time.time(), "relay")
+        assert push["sent"] == []
+
+    def test_expired_subscription_is_removed(self, client, server, push):
+        key, zone = self.zone_key(server)
+        _, _, sub = _browser_subscription()
+        client.post("/push/subscribe", json={"zone": key, "subscription": sub})
+
+        push["reply"]["status"] = 410
+        server._store_ffgs_readings(_critical_readings(server, zone), time.time(), "relay")
+
+        listed = client.post("/push/subscriptions", json={"endpoint": sub["endpoint"]}).get_json()
+        assert listed["zones"] == []
+
+    def test_test_notification_needs_a_subscription(self, client, server, push):
+        key, zone = self.zone_key(server)
+        _, _, sub = _browser_subscription()
+        assert client.post("/push/test", json={"zone": key, "endpoint": sub["endpoint"]}).status_code == 404
+
+        client.post("/push/subscribe", json={"zone": key, "subscription": sub})
+        assert client.post("/push/test", json={"zone": key, "endpoint": sub["endpoint"]}).status_code == 200
+        assert len(push["sent"]) == 1
+
+    def test_service_worker_is_served_from_the_root(self, client):
+        response = client.get("/sw.js")
+        assert response.mimetype == "application/javascript"
+        assert "showNotification" in response.get_data(as_text=True)

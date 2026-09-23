@@ -9,3 +9,5 @@ folium==0.20.0
 shapely==2.1.2
 gunicorn==23.0.0
 psycopg[binary]==3.3.6
+py-vapid==1.9.4
+http-ece==1.2.1

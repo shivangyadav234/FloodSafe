@@ -3,6 +3,11 @@ import json
 import math
 import time
 import uuid
+import hmac
+import base64
+import threading
+from urllib.parse import urlparse
+
 import requests
 
 # ============================================================
@@ -358,6 +363,8 @@ RATE_LIMITS = {
     # unmetered loop could stall the app for everyone. Generous because
     # a room of people behind one venue NAT shares an address.
     "routing": (30, 60),
+    # subscribe / unsubscribe / test notification
+    "push": (10, 300),
 }
 
 _rate_buckets = {}
@@ -3660,6 +3667,8 @@ _town_rainfall_cache = {
     "data": {},
     "last_error": None,
     "last_attempt": 0.0,
+    # "server" (fetched here) or "relay" (see /rainfall/relay).
+    "source": None,
 }
 
 # After a failed refresh, wait this long before asking Open-Meteo again.
@@ -3697,6 +3706,30 @@ def _describe_open_meteo_failure(response, error):
     return str(error)[:200]
 
 
+# Query parameters for the town reading. Shared with the rainfall relay
+# (see /rainfall/relay-points) so both ask Open-Meteo the same question.
+TOWN_RAINFALL_QUERY = {"current": "precipitation", "timezone": "auto"}
+
+
+def _town_readings_from_locations(per_location):
+    fresh = {}
+
+    for town, loc in zip(GUIDANCE_TOWNS, per_location):
+        current = (loc or {}).get("current") or {}
+        fresh[town["name"]] = round(float(current.get("precipitation") or 0.0), 2)
+
+    return fresh
+
+
+def _store_town_readings(fresh, now, source):
+    cache = _town_rainfall_cache
+    cache["timestamp"] = now
+    cache["data"] = fresh
+    cache["last_error"] = None
+    cache["source"] = source
+    print(f"Town rainfall refreshed from {source}: {len(fresh)} towns", flush=True)
+
+
 def _fetch_town_rainfall():
     """
     Current precipitation in mm for each guidance town, keyed by name,
@@ -3726,8 +3759,7 @@ def _fetch_town_rainfall():
             params={
                 "latitude": ",".join(str(t["lat"]) for t in towns),
                 "longitude": ",".join(str(t["lon"]) for t in towns),
-                "current": "precipitation",
-                "timezone": "auto",
+                **TOWN_RAINFALL_QUERY,
             },
 
             timeout=20
@@ -3738,17 +3770,8 @@ def _fetch_town_rainfall():
 
         per_location = payload if isinstance(payload, list) else [payload]
 
-        fresh = {}
-
-        for town, loc in zip(towns, per_location):
-            current = (loc or {}).get("current") or {}
-            fresh[town["name"]] = round(float(current.get("precipitation") or 0.0), 2)
-
-        cache["timestamp"] = now
-        cache["data"] = fresh
-        cache["last_error"] = None
-
-        print(f"Town rainfall refreshed: {len(fresh)} towns", flush=True)
+        fresh = _town_readings_from_locations(per_location)
+        _store_town_readings(fresh, now, "server")
 
         return fresh
 
@@ -3771,6 +3794,7 @@ def town_rainfall():
         "age_seconds": (round(time.time() - cache["timestamp"], 1)
                         if cache["timestamp"] else None),
         "last_error": cache["last_error"],
+        "source": cache.get("source"),
     })
 
 
@@ -4250,6 +4274,23 @@ table.ffgs-table thead th {
 .zone-card-meta { font-size: 12.5px; color: var(--muted); }
 .zone-card-rain { font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
 
+.zone-alerts { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.za-btn {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--navy);
+    background: var(--navy);
+    color: #fff;
+    cursor: pointer;
+}
+.za-btn.za-secondary { background: transparent; color: var(--navy); }
+.za-btn:disabled { opacity: 0.6; cursor: wait; }
+.za-note { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--muted); }
+.za-message { color: var(--ink); }
+
 .other-zones { border-top: 1px solid var(--border); }
 .other-zones > summary {
     cursor: pointer;
@@ -4459,6 +4500,15 @@ const translations = {
     otherZonesSummary: "Show the other {n} zones",
     zoneCardsFallbackNote: "Fewer zones are at Critical or Watch than there are cards, so the remaining cards show the zones closest to their thresholds, with their real status.",
     zoneCardTitle: "Show on the map",
+    pushOn: "Alert me when this zone turns Critical",
+    pushOff: "Stop alerts for this zone",
+    pushTest: "Send a test notification",
+    pushOnNote: "You'll get a notification if this zone reaches Critical, even with this page closed.",
+    pushNoRainNote: "The server has no live rainfall right now, so alerts can't fire until it does.",
+    pushUnsupported: "This browser doesn't support push notifications.",
+    pushDenied: "Notifications are blocked for this site. Allow them in your browser settings.",
+    pushTestSent: "Test sent. It should appear in a few seconds.",
+    pushError: "Couldn't update alerts: ",
     colLocation: "Location",
     colHazardZone: "Hazard zone",
     colFfpi: "FFPI",
@@ -4530,6 +4580,15 @@ const translations = {
     otherZonesSummary: "अन्य {n} क्षेत्र दिखाएँ",
     zoneCardsFallbackNote: "कार्डों की तुलना में कम क्षेत्र गंभीर या सतर्क स्थिति में हैं, इसलिए शेष कार्ड अपनी सीमा के सबसे निकट के क्षेत्र उनकी वास्तविक स्थिति के साथ दिखाते हैं।",
     zoneCardTitle: "मानचित्र पर दिखाएँ",
+    pushOn: "यह क्षेत्र गंभीर होने पर मुझे सूचित करें",
+    pushOff: "इस क्षेत्र की सूचनाएँ बंद करें",
+    pushTest: "परीक्षण सूचना भेजें",
+    pushOnNote: "यह क्षेत्र गंभीर स्तर पर पहुँचने पर आपको सूचना मिलेगी, भले ही यह पेज बंद हो।",
+    pushNoRainNote: "सर्वर के पास अभी लाइव वर्षा डेटा नहीं है, इसलिए डेटा मिलने तक सूचनाएँ नहीं भेजी जा सकतीं।",
+    pushUnsupported: "यह ब्राउज़र पुश सूचनाओं का समर्थन नहीं करता।",
+    pushDenied: "इस साइट के लिए सूचनाएँ अवरुद्ध हैं। ब्राउज़र सेटिंग्स में इन्हें अनुमति दें।",
+    pushTestSent: "परीक्षण भेजा गया। कुछ सेकंड में दिखना चाहिए।",
+    pushError: "सूचनाएँ अपडेट नहीं हो सकीं: ",
     colLocation: "स्थान",
     colHazardZone: "खतरा क्षेत्र",
     colFfpi: "FFPI",
@@ -5184,8 +5243,156 @@ function renderZoneDetail(z) {
         (z.event_prob != null ? Math.round(z.event_prob * 100) + "%" : "—") + "</div>" +
         '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" +
         t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" +
-        t("popupStatus") + "</th></tr></thead><tbody>" + rows + "</tbody></table>";
+        t("popupStatus") + "</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+        '<div id="zoneAlerts" class="zone-alerts"></div>';
     el.hidden = false;
+    renderZoneAlerts();
+}
+
+// ============================================================
+// PUSH ALERTS
+//
+// "Alert me" subscribes this browser (via /sw.js) to Web Push for the
+// selected zone; the server sends the notification when fresh rainfall
+// puts the zone at Critical -- see PUSH ALERTS in server.py.
+// ============================================================
+
+let pushConfig = null;
+let pushSubscription = null;
+let pushZones = [];
+let pushMessage = "";
+
+function pushSupported() {
+    return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function urlBase64ToUint8Array(base64) {
+    const padded = (base64 + "===".slice((base64.length + 3) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = atob(padded);
+    return Uint8Array.from(raw, function(c) { return c.charCodeAt(0); });
+}
+
+async function postJson(url, body) {
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(function() { return {}; });
+    if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
+    return data;
+}
+
+async function initPush() {
+    if (!pushSupported()) return renderZoneAlerts();
+    try {
+        pushConfig = await (await fetch("/push/config")).json();
+    } catch (error) {
+        pushConfig = null;
+        return;
+    }
+    if (!pushConfig.available) return renderZoneAlerts();
+
+    try {
+        const registration = await navigator.serviceWorker.register("/sw.js");
+        pushSubscription = await registration.pushManager.getSubscription();
+        if (pushSubscription) {
+            const data = await postJson("/push/subscriptions", { endpoint: pushSubscription.endpoint });
+            pushZones = data.zones || [];
+        }
+    } catch (error) {
+        console.warn("Push setup failed:", error);
+    }
+    renderZoneAlerts();
+}
+
+async function ensurePushSubscription() {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") throw new Error(t("pushDenied"));
+
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(pushConfig.public_key)
+        });
+    }
+    pushSubscription = subscription;
+    return subscription;
+}
+
+async function pushAction(action) {
+    const zone = selectedZoneKey;
+    pushMessage = "";
+    try {
+        if (action === "on") {
+            const subscription = await ensurePushSubscription();
+            await postJson("/push/subscribe", { zone: zone, subscription: subscription.toJSON() });
+            if (pushZones.indexOf(zone) === -1) pushZones.push(zone);
+        } else if (action === "off") {
+            await postJson("/push/unsubscribe", { zone: zone, endpoint: pushSubscription.endpoint });
+            pushZones = pushZones.filter(function(k) { return k !== zone; });
+        } else if (action === "test") {
+            await postJson("/push/test", { zone: zone, endpoint: pushSubscription.endpoint });
+            pushMessage = t("pushTestSent");
+        }
+    } catch (error) {
+        pushMessage = t("pushError") + error.message;
+    }
+    renderZoneAlerts();
+}
+
+function renderZoneAlerts() {
+    const el = document.getElementById("zoneAlerts");
+    if (!el || !selectedZoneKey) return;
+
+    if (!pushSupported()) {
+        el.innerHTML = '<p class="za-note">' + t("pushUnsupported") + "</p>";
+        return;
+    }
+    if (!pushConfig) {
+        el.innerHTML = "";
+        return;
+    }
+    if (!pushConfig.available) {
+        el.innerHTML = '<p class="za-note">' + escapeAttr(pushConfig.reason || "") + "</p>";
+        return;
+    }
+
+    const on = pushZones.indexOf(selectedZoneKey) !== -1;
+    let html = on
+        ? '<button type="button" class="za-btn" data-push="off">🔕 ' + t("pushOff") + "</button>" +
+          '<button type="button" class="za-btn za-secondary" data-push="test">' + t("pushTest") + "</button>" +
+          '<p class="za-note">' + t("pushOnNote") + "</p>"
+        : '<button type="button" class="za-btn" data-push="on">🔔 ' + t("pushOn") + "</button>";
+
+    if (!pushConfig.rainfall_live) html += '<p class="za-note">' + t("pushNoRainNote") + "</p>";
+    if (pushMessage) html += '<p class="za-note za-message">' + escapeAttr(pushMessage) + "</p>";
+
+    el.innerHTML = html;
+    el.querySelectorAll("[data-push]").forEach(function(button) {
+        button.addEventListener("click", function() {
+            button.disabled = true;
+            pushAction(button.getAttribute("data-push"));
+        });
+    });
+}
+
+// A notification opens /ffgs?zone=<key>; select that zone once the
+// zone list has loaded.
+let zoneFromUrlHandled = false;
+
+function openZoneFromUrl() {
+    if (zoneFromUrlHandled) return;
+    zoneFromUrlHandled = true;
+
+    const key = new URLSearchParams(location.search).get("zone");
+    if (!key) return;
+
+    if (!zoneIndex.length) buildZoneIndex();
+    const entry = zoneIndex.filter(function(e) { return zoneKey(e.zone) === key; })[0];
+    if (entry) selectZone(entry);
 }
 
 function selectZone(entry) {
@@ -5403,10 +5610,12 @@ async function loadFfgsZones() {
     // After renderMarkers, so markerByKey is populated before a
     // selection can try to open a popup.
     refreshZoneUi();
+    openZoneFromUrl();
 }
 
 initZonePicker();
 loadFfgsZones();
+initPush();
 
 // Rainfall itself comes from /ffgs/zones (server-cached, see
 // _fetch_ffgs_live_rainfall in server.py), so this 60s poll is
@@ -5546,6 +5755,8 @@ _ffgs_rainfall_cache = {
     "data": {},
     "last_error": None,
     "last_attempt": 0.0,
+    # "server" (fetched here) or "relay" (see /rainfall/relay).
+    "source": None,
 }
 
 # Zones are collapsed onto a grid this coarse before fetching, and every
@@ -5621,6 +5832,48 @@ def _parse_open_meteo_durations(payload):
     }
 
 
+# Query parameters for the zone reading, shared with the rainfall relay.
+FFGS_RAINFALL_QUERY = {
+    "current": "precipitation",
+    "hourly": "precipitation",
+    "past_days": 2,
+    "forecast_days": 1,
+    "timezone": "auto",
+}
+
+
+def _ffgs_readings_from_locations(per_location):
+    fresh = {}
+
+    for (cell_zones, loc) in zip(FFGS_RAINFALL_CELLS, per_location):
+
+        reading = _parse_open_meteo_durations(loc)
+
+        for zone in cell_zones:
+            fresh[(zone["lat"], zone["lon"])] = reading
+
+    return fresh
+
+
+def _store_ffgs_readings(fresh, now, source):
+    cache = _ffgs_rainfall_cache
+    cache["timestamp"] = now
+    cache["data"] = fresh
+    cache["last_error"] = None
+    cache["last_attempt"] = now
+    cache["source"] = source
+
+    print(
+        f"FFGS rainfall refreshed from {source}: {len(FFGS_RAIN_CELL_BY_POINT)} zones "
+        f"served by {len(FFGS_RAINFALL_CELLS)} fetches",
+        flush=True
+    )
+
+    # Fresh readings are the only moment a zone can newly turn
+    # Critical, so this is where push alerts are checked.
+    _schedule_push_alert_check(fresh)
+
+
 def _fetch_ffgs_live_rainfall():
     """
     One batched Open-Meteo call covering every FFGS zone that has a
@@ -5662,11 +5915,7 @@ def _fetch_ffgs_live_rainfall():
             params={
                 "latitude": ",".join(str(z["lat"]) for z in representatives),
                 "longitude": ",".join(str(z["lon"]) for z in representatives),
-                "current": "precipitation",
-                "hourly": "precipitation",
-                "past_days": 2,
-                "forecast_days": 1,
-                "timezone": "auto",
+                **FFGS_RAINFALL_QUERY,
             },
 
             timeout=30
@@ -5679,25 +5928,8 @@ def _fetch_ffgs_live_rainfall():
         # location, and a list of one object per location otherwise.
         per_location = payload if isinstance(payload, list) else [payload]
 
-        fresh = {}
-
-        for (cell_zones, loc) in zip(FFGS_RAINFALL_CELLS, per_location):
-
-            reading = _parse_open_meteo_durations(loc)
-
-            for zone in cell_zones:
-                fresh[(zone["lat"], zone["lon"])] = reading
-
-        _ffgs_rainfall_cache["timestamp"] = now
-        _ffgs_rainfall_cache["data"] = fresh
-        _ffgs_rainfall_cache["last_error"] = None
-        _ffgs_rainfall_cache["last_attempt"] = now
-
-        print(
-            f"FFGS rainfall refreshed: {len(FFGS_RAIN_CELL_BY_POINT)} zones "
-            f"served by {len(representatives)} fetches",
-            flush=True
-        )
+        fresh = _ffgs_readings_from_locations(per_location)
+        _store_ffgs_readings(fresh, now, "server")
 
         return fresh
 
@@ -5742,6 +5974,7 @@ def ffgs_zones():
             "age_seconds": (round(time.time() - cache["timestamp"], 1)
                             if cache["timestamp"] else None),
             "last_error": cache["last_error"],
+            "source": cache.get("source"),
             # For the browser fallback (/rainfall-fallback.js): the
             # points to fetch when this server has no reading at all.
             "cells": [[zones[0]["lat"], zones[0]["lon"]] for zones in FFGS_RAINFALL_CELLS],
@@ -5769,6 +6002,621 @@ def ffgs_point():
     antecedent_48h_mm = request.args.get("antecedent_48h_mm", type=float)
 
     return jsonify(ffgs_guidance_for_point(lat, lon, antecedent_48h_mm))
+
+
+# ============================================================
+# RAINFALL RELAY
+#
+# Open-Meteo refuses this server most days: its free quota is per IP,
+# and Render's outbound IP is shared with other customers who spend it
+# first. The browser fallback fills the pages, but only while someone
+# has one open -- and push alerts have to be decided here, with nobody
+# watching.
+#
+# So a scheduled GitHub Actions job (.github/workflows/rainfall-relay.yml)
+# asks Open-Meteo for exactly the points and parameters listed at
+# /rainfall/relay-points, from GitHub's IPs, and posts the raw responses
+# to /rainfall/relay. The data is the same Open-Meteo reading the server
+# would have fetched; only the network path differs. The server parses
+# it with the same functions it uses for its own fetches, and the post
+# is authenticated with a shared secret so nobody else can feed the
+# app rainfall figures.
+# ============================================================
+
+RAINFALL_RELAY_SECRET = os.environ.get("RAINFALL_RELAY_SECRET", "").strip()
+
+# Above the wettest 48 hours ever recorded anywhere (~2,500 mm), so it
+# only rejects malformed values, never real extremes.
+RAINFALL_MAX_PLAUSIBLE_MM = 3000.0
+
+
+@app.route("/rainfall/relay-points")
+def rainfall_relay_points():
+
+    now = time.time()
+
+    def needed(cache, ttl):
+        return not cache["data"] or (now - cache["timestamp"]) >= ttl
+
+    return jsonify({
+        "configured": bool(RAINFALL_RELAY_SECRET),
+        "ffgs": {
+            "needed": needed(_ffgs_rainfall_cache, FFGS_RAINFALL_CACHE_TTL_SECONDS),
+            "points": [[zones[0]["lat"], zones[0]["lon"]] for zones in FFGS_RAINFALL_CELLS],
+            "query": FFGS_RAINFALL_QUERY,
+        },
+        "towns": {
+            "needed": needed(_town_rainfall_cache, TOWN_RAINFALL_CACHE_TTL_SECONDS),
+            "points": [[t["lat"], t["lon"]] for t in GUIDANCE_TOWNS],
+            "query": TOWN_RAINFALL_QUERY,
+        },
+    })
+
+
+def _plausible_mm(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(number) and 0.0 <= number <= RAINFALL_MAX_PLAUSIBLE_MM
+
+
+def _validated_relay_locations(locations, points, hourly):
+    """
+    The relayed Open-Meteo responses, checked to be one per requested
+    point, in order, with sane precipitation values. Raises ValueError.
+    """
+
+    if not isinstance(locations, list) or len(locations) != len(points):
+        raise ValueError(f"expected {len(points)} locations")
+
+    for loc, (lat, lon) in zip(locations, points):
+
+        if not isinstance(loc, dict):
+            raise ValueError("each location must be an object")
+
+        # Open-Meteo snaps to its own grid, so allow a cell's width; this
+        # catches responses in the wrong order, not grid rounding.
+        try:
+            if abs(float(loc["latitude"]) - lat) > 0.2 or abs(float(loc["longitude"]) - lon) > 0.2:
+                raise ValueError("location out of order")
+        except (KeyError, TypeError):
+            raise ValueError("location missing coordinates")
+
+        current = loc.get("current") or {}
+        if not _plausible_mm(current.get("precipitation", 0.0)):
+            raise ValueError("implausible current precipitation")
+
+        if hourly:
+            values = (loc.get("hourly") or {}).get("precipitation")
+            if not isinstance(values, list) or len(values) > 24 * 4:
+                raise ValueError("missing or oversized hourly series")
+            if not all(v is None or _plausible_mm(v) for v in values):
+                raise ValueError("implausible hourly precipitation")
+
+    return locations
+
+
+@app.route("/rainfall/relay", methods=["POST"])
+def rainfall_relay():
+
+    if not RAINFALL_RELAY_SECRET:
+        return jsonify({"status": "error", "error": "Rainfall relay is not configured."}), 503
+
+    supplied = request.headers.get("Authorization", "")
+    expected = f"Bearer {RAINFALL_RELAY_SECRET}"
+
+    if not hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8")):
+        return jsonify({"status": "error", "error": "Unauthorized."}), 401
+
+    data = request.get_json(force=True, silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({"status": "error", "error": "Body must be a JSON object."}), 400
+
+    now = time.time()
+    accepted = []
+
+    try:
+        # Validate both before storing either, so a bad half never
+        # leaves the other half half-applied.
+        ffgs = towns = None
+
+        if data.get("ffgs") is not None:
+            ffgs = _validated_relay_locations(
+                data["ffgs"], [[z[0]["lat"], z[0]["lon"]] for z in FFGS_RAINFALL_CELLS], hourly=True)
+
+        if data.get("towns") is not None:
+            towns = _validated_relay_locations(
+                data["towns"], [[t["lat"], t["lon"]] for t in GUIDANCE_TOWNS], hourly=False)
+
+    except ValueError as e:
+        return jsonify({"status": "error", "error": f"Rejected relay data: {e}"}), 400
+
+    if ffgs is not None:
+        _store_ffgs_readings(_ffgs_readings_from_locations(ffgs), now, "relay")
+        accepted.append("ffgs")
+
+    if towns is not None:
+        _store_town_readings(_town_readings_from_locations(towns), now, "relay")
+        accepted.append("towns")
+
+    return jsonify({"status": "ok", "accepted": accepted})
+
+
+# ============================================================
+# PUSH ALERTS
+#
+# A visitor picks a zone on /ffgs and asks to be alerted; when fresh
+# rainfall puts that zone at CRITICAL, this server sends a Web Push
+# notification that arrives even with the tab closed.
+#
+# Needs DATABASE_URL: subscriptions live in Postgres so they survive
+# restarts, and so does the VAPID signing key, which is generated on
+# first use rather than configured -- there is no key to set up.
+#
+# Sent with py_vapid + http_ece directly rather than pywebpush, which
+# also imports aiohttp (+7 MB) on a server near Render's memory cap.
+#
+# The server posts to the endpoint a browser hands it, so endpoints are
+# restricted to the browser vendors' push services; otherwise anyone
+# could make this server send requests to arbitrary URLs.
+#
+# The notification says plainly that the thresholds are this app's
+# heuristic, not an official IMD/CWC warning -- same convention as the
+# thresholds everywhere else in the app.
+# ============================================================
+
+# The VAPID "sub" claim tells push services who is sending. It must be
+# a mailto: or a bare https:// origin (py_vapid rejects paths); the
+# site's own origin avoids publishing anyone's email address.
+PUSH_CONTACT = os.environ.get("PUSH_CONTACT", "https://floodsafe-u207.onrender.com")
+
+PUSH_ALLOWED_HOST_SUFFIXES = (
+    "fcm.googleapis.com",             # Chrome, Edge, Android, Opera
+    "push.services.mozilla.com",      # Firefox
+    "push.apple.com",                 # Safari
+    "notify.windows.com",             # legacy Edge
+)
+
+# One alert per subscriber per zone per window, however long the zone
+# stays critical -- repeating every ten minutes would train people to
+# ignore it.
+PUSH_ALERT_COOLDOWN_SECONDS = 6 * 60 * 60
+
+PUSH_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS push_vapid_key (
+    id          integer PRIMARY KEY CHECK (id = 1),
+    private_pem text NOT NULL,
+    public_key  text NOT NULL
+);
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint      text NOT NULL,
+    zone_key      text NOT NULL,
+    subscription  jsonb NOT NULL,
+    created_at    double precision NOT NULL,
+    last_alert_at double precision,
+    PRIMARY KEY (endpoint, zone_key)
+);
+"""
+
+_push_state = {
+    "vapid": None,
+    "public_key": None,
+    "last_error": None,
+    "last_check": None,
+    "alerts_sent": 0,
+}
+_push_lock = threading.Lock()
+
+
+def _zone_key(zone):
+    # Must match zoneKey() in the FFGS page's JavaScript.
+    return f"{zone['lat']:.5f},{zone['lon']:.5f}"
+
+
+FFGS_ZONE_BY_KEY = {_zone_key(z): z for z in FFGS_ZONES if z.get("effective_class")}
+
+
+def _b64url_decode(text):
+    text = str(text)
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def _push_db(action, fn):
+    try:
+        with _db_connect() as conn:
+            conn.execute(PUSH_TABLES_SQL)
+            result = fn(conn)
+        return result
+    except Exception as e:
+        _push_state["last_error"] = f"{action} failed: {type(e).__name__}"
+        print(f"WARNING: push {action} failed:", repr(e), flush=True)
+        return None
+
+
+def _push_vapid():
+    """The server's VAPID key, created once and kept in Postgres."""
+
+    if _push_state["vapid"] is not None:
+        return _push_state["vapid"]
+
+    # /push/config runs on every FFGS page load; without this an
+    # unreachable database would stall each one on the connect timeout.
+    if time.time() - _push_state.get("vapid_failed_at", 0.0) < 60:
+        return None
+
+    from py_vapid import Vapid02
+    from cryptography.hazmat.primitives import serialization
+
+    def load_or_create(conn):
+        row = conn.execute("SELECT private_pem, public_key FROM push_vapid_key WHERE id = 1").fetchone()
+        if row:
+            return row
+
+        key = Vapid02()
+        key.generate_keys()
+        public_raw = key.public_key.public_bytes(
+            serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+        conn.execute(
+            "INSERT INTO push_vapid_key (id, private_pem, public_key) VALUES (1, %s, %s) "
+            "ON CONFLICT (id) DO NOTHING",
+            (key.private_pem().decode("ascii"),
+             base64.urlsafe_b64encode(public_raw).decode("ascii").rstrip("=")))
+        return conn.execute("SELECT private_pem, public_key FROM push_vapid_key WHERE id = 1").fetchone()
+
+    row = _push_db("key setup", load_or_create)
+
+    if row is None:
+        _push_state["vapid_failed_at"] = time.time()
+        return None
+
+    _push_state["vapid"] = Vapid02.from_pem(row[0].encode("ascii"))
+    _push_state["public_key"] = row[1]
+    return _push_state["vapid"]
+
+
+def _validate_subscription(sub):
+    """None if sub is a usable Web Push subscription, else the reason."""
+
+    if not isinstance(sub, dict):
+        return "subscription must be an object"
+
+    endpoint = sub.get("endpoint")
+    if not isinstance(endpoint, str) or len(endpoint) > 1000:
+        return "invalid endpoint"
+
+    parsed = urlparse(endpoint)
+    host = (parsed.hostname or "").lower()
+
+    if parsed.scheme != "https" or not any(
+            host == suffix or host.endswith("." + suffix) for suffix in PUSH_ALLOWED_HOST_SUFFIXES):
+        return "endpoint is not a recognised browser push service"
+
+    keys = sub.get("keys") or {}
+
+    try:
+        p256dh = _b64url_decode(keys.get("p256dh", ""))
+        auth = _b64url_decode(keys.get("auth", ""))
+    except (ValueError, TypeError):
+        return "invalid subscription keys"
+
+    if len(p256dh) != 65 or p256dh[0] != 4 or len(auth) != 16:
+        return "invalid subscription keys"
+
+    return None
+
+
+def _send_push(subscription, message, ttl=PUSH_ALERT_COOLDOWN_SECONDS):
+    """Encrypt and deliver one notification. Returns the HTTP status."""
+
+    import http_ece
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    vapid = _push_vapid()
+    if vapid is None:
+        raise RuntimeError("push signing key unavailable")
+
+    body = http_ece.encrypt(
+        json.dumps(message).encode("utf-8"),
+        private_key=ec.generate_private_key(ec.SECP256R1()),
+        dh=_b64url_decode(subscription["keys"]["p256dh"]),
+        auth_secret=_b64url_decode(subscription["keys"]["auth"]),
+        version="aes128gcm",
+    )
+
+    endpoint = subscription["endpoint"]
+    parsed = urlparse(endpoint)
+
+    headers = vapid.sign({
+        "aud": f"{parsed.scheme}://{parsed.netloc}",
+        "sub": PUSH_CONTACT,
+        "exp": int(time.time()) + 12 * 60 * 60,
+    })
+    headers.update({
+        "TTL": str(int(ttl)),
+        "Content-Encoding": "aes128gcm",
+        "Content-Type": "application/octet-stream",
+        "Urgency": "high",
+    })
+
+    return requests.post(endpoint, data=body, headers=headers, timeout=10).status_code
+
+
+def _zone_label(zone):
+    if zone.get("parent_town"):
+        return f"{zone['name']} ({zone['parent_town']})"
+    return zone["name"]
+
+
+def _critical_windows(zone, reading):
+    """[(window, rain_mm, critical_mm)] for every window at or over critical."""
+
+    thresholds = zone.get("thresholds_mm") or {}
+    hits = []
+
+    for window in FFGS_DURATIONS:
+        rain = (reading or {}).get(window)
+        th = thresholds.get(window)
+        if rain is not None and th and rain >= th["critical"]:
+            hits.append((window, rain, th["critical"]))
+
+    return hits
+
+
+def _critical_alert_message(zone, hits):
+    window, rain, critical = max(hits, key=lambda h: h[1] / h[2])
+    return {
+        "title": f"Flash-flood CRITICAL: {_zone_label(zone)}",
+        "body": (
+            f"{rain:.1f} mm of rain in the last {window}, at or above this "
+            f"{zone['effective_class']} hazard zone's critical level of {critical:.0f} mm. "
+            "FloodSafe heuristic threshold, not an official IMD/CWC warning."
+        ),
+        "url": f"/ffgs?zone={_zone_key(zone)}",
+        "tag": f"critical-{_zone_key(zone)}",
+    }
+
+
+def _schedule_push_alert_check(readings):
+    """
+    Called with every fresh set of zone readings. Returns at once when
+    no zone is critical -- the normal case, costing no database call --
+    otherwise sends alerts on a background thread so the request that
+    brought the rainfall isn't held up by push delivery.
+    """
+
+    if not DATABASE_URL:
+        return
+
+    critical = {}
+
+    for key, zone in FFGS_ZONE_BY_KEY.items():
+        hits = _critical_windows(zone, readings.get((zone["lat"], zone["lon"])))
+        if hits:
+            critical[key] = _critical_alert_message(zone, hits)
+
+    _push_state["last_check"] = time.time()
+
+    if critical:
+        threading.Thread(target=_send_critical_alerts, args=(critical,), daemon=True).start()
+
+
+def _send_critical_alerts(messages_by_zone):
+
+    # One delivery pass at a time; a second refresh landing mid-pass
+    # would otherwise double-send before last_alert_at is written.
+    with _push_lock:
+
+        now = time.time()
+
+        rows = _push_db("alert lookup", lambda conn: conn.execute(
+            "SELECT endpoint, zone_key, subscription FROM push_subscriptions "
+            "WHERE zone_key = ANY(%s) AND (last_alert_at IS NULL OR last_alert_at < %s)",
+            (list(messages_by_zone), now - PUSH_ALERT_COOLDOWN_SECONDS)).fetchall()) or []
+
+        delivered, gone = [], []
+
+        for endpoint, zone_key, subscription in rows:
+            try:
+                status = _send_push(subscription, messages_by_zone[zone_key])
+            except Exception as e:
+                _push_state["last_error"] = f"delivery failed: {type(e).__name__}"
+                print("WARNING: push delivery failed:", repr(e), flush=True)
+                continue
+
+            if status in (404, 410):
+                # The browser unsubscribed or the subscription expired.
+                gone.append((endpoint, zone_key))
+            elif status < 300:
+                delivered.append((endpoint, zone_key))
+            else:
+                _push_state["last_error"] = f"push service returned HTTP {status}"
+
+        def record(conn):
+            for endpoint, zone_key in delivered:
+                conn.execute(
+                    "UPDATE push_subscriptions SET last_alert_at = %s "
+                    "WHERE endpoint = %s AND zone_key = %s", (now, endpoint, zone_key))
+            for endpoint, zone_key in gone:
+                conn.execute(
+                    "DELETE FROM push_subscriptions WHERE endpoint = %s AND zone_key = %s",
+                    (endpoint, zone_key))
+
+        if delivered or gone:
+            _push_db("alert bookkeeping", record)
+
+        _push_state["alerts_sent"] += len(delivered)
+
+        if delivered:
+            print(f"Push: sent {len(delivered)} critical alert(s)", flush=True)
+
+
+def _push_unavailable():
+    if not DATABASE_URL:
+        return "Push alerts need the report database (DATABASE_URL), which isn't configured."
+    if _push_vapid() is None:
+        return "Push alerts are temporarily unavailable."
+    return None
+
+
+@app.route("/push/config")
+def push_config():
+
+    reason = _push_unavailable()
+
+    return jsonify({
+        "available": reason is None,
+        "reason": reason,
+        "public_key": _push_state["public_key"] if reason is None else None,
+        # Whether the server currently has rainfall to judge zones by;
+        # without it no alert can fire, and the page says so.
+        "rainfall_live": bool(_ffgs_rainfall_cache["data"]),
+        "last_error": _push_state["last_error"],
+    })
+
+
+def _push_request(require_zone=True):
+    """Shared parsing for the subscription endpoints: (data, error_response)."""
+
+    if _rate_limited("push"):
+        return None, _rate_limit_response("push")
+
+    reason = _push_unavailable()
+    if reason:
+        return None, (jsonify({"status": "error", "error": reason}), 503)
+
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return None, (jsonify({"status": "error", "error": "Body must be a JSON object."}), 400)
+
+    if require_zone and data.get("zone") not in FFGS_ZONE_BY_KEY:
+        return None, (jsonify({"status": "error", "error": "Unknown zone."}), 400)
+
+    return data, None
+
+
+@app.route("/push/subscribe", methods=["POST"])
+def push_subscribe():
+
+    data, error = _push_request()
+    if error:
+        return error
+
+    subscription = data.get("subscription")
+    problem = _validate_subscription(subscription)
+    if problem:
+        return jsonify({"status": "error", "error": problem}), 400
+
+    from psycopg.types.json import Jsonb
+
+    stored = _push_db("subscribe", lambda conn: conn.execute(
+        "INSERT INTO push_subscriptions (endpoint, zone_key, subscription, created_at) "
+        "VALUES (%s, %s, %s, %s) "
+        "ON CONFLICT (endpoint, zone_key) DO UPDATE SET subscription = EXCLUDED.subscription",
+        (subscription["endpoint"], data["zone"], Jsonb(subscription), time.time())))
+
+    if stored is None:
+        return jsonify({"status": "error", "error": "Could not save the subscription."}), 503
+
+    return jsonify({"status": "ok", "zone": data["zone"]}), 201
+
+
+@app.route("/push/unsubscribe", methods=["POST"])
+def push_unsubscribe():
+
+    data, error = _push_request()
+    if error:
+        return error
+
+    _push_db("unsubscribe", lambda conn: conn.execute(
+        "DELETE FROM push_subscriptions WHERE endpoint = %s AND zone_key = %s",
+        (str(data.get("endpoint", "")), data["zone"])))
+
+    return jsonify({"status": "ok"})
+
+
+@app.route("/push/subscriptions", methods=["POST"])
+def push_subscriptions():
+    """Which zones this browser is subscribed to (endpoint in the body,
+    not the URL, since it identifies the browser)."""
+
+    data, error = _push_request(require_zone=False)
+    if error:
+        return error
+
+    rows = _push_db("lookup", lambda conn: conn.execute(
+        "SELECT zone_key FROM push_subscriptions WHERE endpoint = %s",
+        (str(data.get("endpoint", "")),)).fetchall()) or []
+
+    return jsonify({"zones": [row[0] for row in rows]})
+
+
+@app.route("/push/test", methods=["POST"])
+def push_test():
+    """Send a clearly-labelled test notification to one existing
+    subscription, so a subscriber can see alerts work without waiting
+    for real critical rainfall."""
+
+    data, error = _push_request()
+    if error:
+        return error
+
+    row = _push_db("test lookup", lambda conn: conn.execute(
+        "SELECT subscription FROM push_subscriptions WHERE endpoint = %s AND zone_key = %s",
+        (str(data.get("endpoint", "")), data["zone"])).fetchone())
+
+    if not row:
+        return jsonify({"status": "error", "error": "Not subscribed to this zone."}), 404
+
+    zone = FFGS_ZONE_BY_KEY[data["zone"]]
+
+    try:
+        status = _send_push(row[0], {
+            "title": f"Test alert: {_zone_label(zone)}",
+            "body": "FloodSafe push alerts are working. This is a test, not a flood warning.",
+            "url": f"/ffgs?zone={data['zone']}",
+            "tag": f"test-{data['zone']}",
+        }, ttl=60)
+    except Exception as e:
+        return jsonify({"status": "error", "error": f"Delivery failed: {type(e).__name__}"}), 502
+
+    if status >= 300:
+        return jsonify({"status": "error", "error": f"Push service returned HTTP {status}."}), 502
+
+    return jsonify({"status": "ok"})
+
+
+SERVICE_WORKER_JS = r"""
+self.addEventListener("push", function (event) {
+    var message = {};
+    try { message = event.data ? event.data.json() : {}; } catch (e) {}
+
+    event.waitUntil(self.registration.showNotification(message.title || "FloodSafe alert", {
+        body: message.body || "",
+        tag: message.tag,
+        renotify: true,
+        requireInteraction: true,
+        data: { url: message.url || "/ffgs" }
+    }));
+});
+
+self.addEventListener("notificationclick", function (event) {
+    event.notification.close();
+    var url = (event.notification.data && event.notification.data.url) || "/ffgs";
+    event.waitUntil(clients.openWindow(url));
+});
+"""
+
+
+@app.route("/sw.js")
+def service_worker():
+
+    # Served from the root so its scope covers every page, and never
+    # cached, so a fix to it reaches browsers on their next visit.
+    response = Response(SERVICE_WORKER_JS, mimetype="application/javascript")
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 # ============================================================
