@@ -3491,7 +3491,42 @@ _town_rainfall_cache = {
     "timestamp": 0.0,
     "data": {},
     "last_error": None,
+    "last_attempt": 0.0,
 }
+
+# After a failed refresh, wait this long before asking Open-Meteo again.
+#
+# Without it the caches had no failure path at all: the freshness check
+# needs non-empty data and a recent *successful* timestamp, so once a
+# fetch failed -- and always after a restart, when data is {} -- every
+# request went straight upstream. Both pages poll every 60s, so each
+# open tab became its own Open-Meteo client, 34 location-calls a time
+# for /ffgs/zones, for as long as the outage lasted. A quota block
+# therefore fed itself. Backing off for one TTL means a failing cache
+# costs no more than a healthy one.
+RAINFALL_FAILURE_BACKOFF_SECONDS = 10 * 60
+
+
+def _rainfall_backoff_active(cache, now):
+    return bool(cache["last_error"]) and (now - cache["last_attempt"]) < RAINFALL_FAILURE_BACKOFF_SECONDS
+
+
+def _describe_open_meteo_failure(response, error):
+    """
+    Human-readable reason for a failed Open-Meteo call. For a 429 this
+    is Open-Meteo's own "reason" field, which says which limit was hit
+    (minutely, hourly or daily) -- each implies a different cause, and
+    reporting every 429 as "daily" hid that.
+    """
+
+    if response is not None and response.status_code == 429:
+        try:
+            reason = (response.json() or {}).get("reason")
+        except ValueError:
+            reason = None
+        return f"Open-Meteo rate limit (HTTP 429): {reason or 'no reason given'}"[:200]
+
+    return str(error)[:200]
 
 
 def _fetch_town_rainfall():
@@ -3508,8 +3543,12 @@ def _fetch_town_rainfall():
     if cache["data"] and (now - cache["timestamp"]) < TOWN_RAINFALL_CACHE_TTL_SECONDS:
         return cache["data"]
 
+    if _rainfall_backoff_active(cache, now):
+        return cache["data"]
+
     towns = GUIDANCE_TOWNS
     response = None
+    cache["last_attempt"] = now
 
     try:
 
@@ -3547,16 +3586,8 @@ def _fetch_town_rainfall():
 
     except Exception as e:
 
-        detail = str(e)[:200]
-
-        try:
-            if response is not None and response.status_code == 429:
-                detail = "Open-Meteo daily request quota exceeded (HTTP 429)"
-        except NameError:
-            pass
-
-        cache["last_error"] = detail
-        print("WARNING: town rainfall refresh failed:", repr(e), flush=True)
+        cache["last_error"] = _describe_open_meteo_failure(response, e)
+        print("WARNING: town rainfall refresh failed:", cache["last_error"], flush=True)
 
         return cache["data"]
 
@@ -5107,6 +5138,9 @@ def _fetch_ffgs_live_rainfall():
     if cache["data"] and (now - cache["timestamp"]) < FFGS_RAINFALL_CACHE_TTL_SECONDS:
         return cache["data"]
 
+    if _rainfall_backoff_active(cache, now):
+        return cache["data"]
+
     mapped_zones = [z for z in FFGS_ZONES if z.get("effective_class")]
 
     if not mapped_zones:
@@ -5177,20 +5211,13 @@ def _fetch_ffgs_live_rainfall():
 
     except Exception as e:
 
-        detail = str(e)[:200]
-
         # A quota block is the failure this system actually hits, and it
         # reads as an ordinary HTTP error unless the body is inspected.
-        try:
-            if response is not None and response.status_code == 429:
-                detail = "Open-Meteo daily request quota exceeded (HTTP 429)"
-        except NameError:
-            pass
-
-        _ffgs_rainfall_cache["last_error"] = detail
+        _ffgs_rainfall_cache["last_error"] = _describe_open_meteo_failure(response, e)
         _ffgs_rainfall_cache["last_attempt"] = now
 
-        print("WARNING: FFGS live rainfall refresh failed:", repr(e), flush=True)
+        print("WARNING: FFGS live rainfall refresh failed:",
+              _ffgs_rainfall_cache["last_error"], flush=True)
         return cache["data"]
 
 

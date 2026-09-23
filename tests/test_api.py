@@ -139,6 +139,66 @@ class TestRainfallDeduplication:
         )
 
 
+class TestRainfallFailureBackoff:
+    """A failing rainfall cache must not turn every poll into an upstream call.
+
+    Before the backoff, a cache with no successful reading -- every cache
+    right after a restart -- retried Open-Meteo on every request. With the
+    pages polling every 60s, a quota block sustained itself: each open tab
+    spent quota that the block was waiting to recover.
+    """
+
+    class _Quota429:
+        status_code = 429
+
+        def json(self):
+            return {"error": True, "reason": "Hourly API request limit exceeded."}
+
+        def raise_for_status(self):
+            import requests
+            raise requests.HTTPError("429 Client Error: Too Many Requests")
+
+    @pytest.fixture()
+    def upstream(self, server, monkeypatch):
+        calls = []
+
+        def fake_get(url, **kwargs):
+            calls.append(url)
+            return self._Quota429()
+
+        monkeypatch.setattr(server.requests, "get", fake_get)
+        return calls
+
+    @pytest.fixture(autouse=True)
+    def empty_caches(self, server, monkeypatch):
+        for name in ("_ffgs_rainfall_cache", "_town_rainfall_cache"):
+            monkeypatch.setattr(server, name, {
+                "timestamp": 0.0, "data": {}, "last_error": None, "last_attempt": 0.0,
+            })
+
+    @pytest.mark.parametrize("path", ["/ffgs/zones", "/town-rainfall"])
+    def test_failure_is_fetched_once_per_backoff_window(self, client, upstream, path):
+        for _ in range(5):
+            assert client.get(path).status_code == 200
+        assert len(upstream) == 1
+
+    @pytest.mark.parametrize("path, cache", [
+        ("/ffgs/zones", "_ffgs_rainfall_cache"),
+        ("/town-rainfall", "_town_rainfall_cache"),
+    ])
+    def test_retries_once_the_window_has_passed(self, client, server, upstream, path, cache):
+        client.get(path)
+        getattr(server, cache)["last_attempt"] -= server.RAINFALL_FAILURE_BACKOFF_SECONDS + 1
+        client.get(path)
+        assert len(upstream) == 2
+
+    def test_reports_which_limit_was_hit(self, client, upstream):
+        """"Daily" was hard-coded for every 429; the minutely and hourly
+        limits have different causes and different recovery times."""
+        payload = client.get("/ffgs/zones").get_json()
+        assert "Hourly API request limit exceeded" in payload["rainfall"]["last_error"]
+
+
 class TestReportValidation:
 
     def test_rejects_non_json(self, client):
