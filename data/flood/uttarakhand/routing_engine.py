@@ -370,112 +370,192 @@ def calculate_route(
     # the route's risk breakdown.
     # --------------------------------------------------------
 
-    report_edges = _edges_near_points(report_points, REPORT_RADIUS_M)
+    if mode not in ("FASTEST", "SAFEST"):
+        raise ValueError(
+            "Unknown routing mode: "
+            + str(mode)
+        )
 
-    effective_risk = risk.copy()
+    # Anything that depends only on the reports and the rain -- not on
+    # the destination -- is shared across a batch (see dijkstra_cache).
+    batch = dijkstra_cache if dijkstra_cache is not None else {}
 
-    if report_edges.size > 0:
-        effective_risk[report_edges] = 8.0
+    # Finding the reported edges scans all 4M edges once per report set.
+    if "report_edges" not in batch:
+        batch["report_edges"] = _edges_near_points(report_points, REPORT_RADIUS_M)
+
+    report_edges = batch["report_edges"]
 
     live_escalate = (
         live_rain_mm is not None
         and live_rain_mm >= LIVE_RAIN_ESCALATION_THRESHOLD_MM
     )
 
-    if live_escalate:
-
-        routing_risk = np.where(
-            effective_risk == 2.0, 4.0, effective_risk
-        )
-
-        routing_risk = np.where(
-            effective_risk == 4.0, 8.0, routing_risk
-        )
-
-    else:
-
-        routing_risk = effective_risk
+    EXTREME_RISK_VALUE = 8.0
+    EXTREME_BLOCK_MULTIPLIER = 1_000_000.0
 
 
     # --------------------------------------------------------
-    # HELPERS: WEIGHTS + SHORTEST PATH
+    # RISK AND WEIGHTS, FOR EVERY EDGE OR JUST SOME
     #
-    # Factored out so the SAFEST detour cap below can rerun
-    # Dijkstra with a different weight formula without
-    # duplicating the graph-building/path-reconstruction logic.
+    # Full-graph arrays (4M edges, 33 MB each) are only needed when
+    # Dijkstra actually runs. Everything else -- the route's risk
+    # breakdown, its cost, the detour-cap check -- reads the few
+    # thousand edges on one path. So each formula takes `edges`: None
+    # for every edge, or an index array for just those, and a route
+    # served from a cached search is described by exactly the same
+    # formulas as a fresh one. Rebuilding the full arrays for each of
+    # five evacuation candidates was most of /evacuate's time on
+    # Render's ~0.1-CPU free tier.
     # --------------------------------------------------------
 
-    def _relaxed_safest_weights(risk_array):
-        # A milder penalty than SAFEST's absolute EXTREME block —
-        # used only as SAFEST's own fallback when the fully-safe
-        # detour is disproportionately long (see SAFEST_DETOUR_CAP
-        # below). Not a user-selectable mode on its own.
+    def _effective_risk(edges=None):
+        # Static hazard-map risk with crowdsourced report edges forced
+        # to EXTREME. This is what gets reported back in
+        # risk_counts/segment_risks, since it reflects real, named
+        # hazards rather than a temporary weather nudge.
 
-        EXTREME_RISK_VALUE = 8.0
-        RELAXED_EXTREME_MULTIPLIER = 25.0
+        if edges is None:
+            values = risk.copy()
+            if report_edges.size > 0:
+                values[report_edges] = 8.0
+            return values
 
-        mild_penalty = (
-            graph_distance *
-            (
-                1.0 +
-                0.75 * (risk_array - 1.0)
+        values = risk[edges]
+
+        if report_edges.size > 0:
+            values[np.isin(edges, report_edges)] = 8.0
+
+        return values
+
+    def _routing_risk(edges=None):
+        # Escalates effective risk by one tier when live rain crosses
+        # the threshold. Only steers SAFEST; never reported.
+
+        values = _effective_risk(edges)
+
+        if not live_escalate:
+            return values
+
+        escalated = np.where(values == 2.0, 4.0, values)
+        return np.where(values == 4.0, 8.0, escalated)
+
+
+    # --------------------------------------------------------
+    # WEIGHTS
+    #
+    # "primary" is the mode's own weighting, "baseline" is plain
+    # distance (SAFEST's yardstick for the detour cap), "fallback" is
+    # SAFEST's milder penalty when the cap trips. Reported hazards are
+    # hard-blocked in all three, for every mode.
+    # --------------------------------------------------------
+
+    def _weights(kind, edges=None):
+
+        distance = graph_distance if edges is None else graph_distance[edges]
+
+        if kind == "baseline" or (kind == "primary" and mode == "FASTEST"):
+
+            values = distance.copy()
+
+        elif kind == "primary":
+
+            # SAFEST: strongly penalize flood-risk roads.
+            #
+            # Risk:
+            # NORMAL      = 1  (also covers the LOW hazard-class polygons —
+            #                    those don't carry an edge penalty)
+            # MODERATE    = 2
+            # SIGNIFICANT = 4
+            # EXTREME     = 8
+            #
+            # A simple risk^2 multiplier (max 64x for EXTREME) is
+            # too weak: if an EXTREME segment is a short shortcut
+            # and the safe detour is much longer, 64x still loses
+            # to the detour's raw distance, so Dijkstra picks the
+            # "safest" route straight through the extreme segment
+            # anyway.
+            #
+            # Fix: treat EXTREME roads as effectively blocked
+            # (huge multiplier) so they're only ever used when
+            # there is truly no other way through. LOW/SIGNIFICANT
+            # still get the risk^2 penalty so the router prefers
+            # safer roads whenever a reasonable option exists.
+
+            routing = _routing_risk(edges)
+
+            values = np.where(
+                routing >= EXTREME_RISK_VALUE,
+                distance * EXTREME_BLOCK_MULTIPLIER,
+                distance * (routing ** 2)
             )
-        )
 
-        return np.where(
-            risk_array >= EXTREME_RISK_VALUE,
-            graph_distance * RELAXED_EXTREME_MULTIPLIER,
-            mild_penalty
-        )
+        else:
 
-    def _apply_report_block(weight_array):
+            # "fallback": a milder penalty than SAFEST's absolute
+            # EXTREME block — used only as SAFEST's own fallback when
+            # the fully-safe detour is disproportionately long (see
+            # SAFEST_DETOUR_CAP). Not a user-selectable mode on its own.
 
-        if report_edges.size == 0:
-            return weight_array
+            RELAXED_EXTREME_MULTIPLIER = 25.0
 
-        weight_array = weight_array.copy()
+            routing = _routing_risk(edges)
 
-        weight_array[report_edges] = (
-            graph_distance[report_edges] * REPORT_BLOCK_MULTIPLIER
-        )
+            values = np.where(
+                routing >= EXTREME_RISK_VALUE,
+                distance * RELAXED_EXTREME_MULTIPLIER,
+                distance * (1.0 + 0.75 * (routing - 1.0))
+            )
 
-        return weight_array
+        if report_edges.size > 0:
 
-    def _shortest_path(weight_array, cache_key):
+            if edges is None:
+                values[report_edges] = graph_distance[report_edges] * REPORT_BLOCK_MULTIPLIER
+            else:
+                reported = np.isin(edges, report_edges)
+                values[reported] = distance[reported] * REPORT_BLOCK_MULTIPLIER
+
+        return values
+
+
+    # --------------------------------------------------------
+    # PATH HELPERS
+    # --------------------------------------------------------
+
+    def _path_edges(path_nodes):
+        """Edge index for each hop, None where the lookup fails."""
+        return [find_edge(path_nodes[i], path_nodes[i + 1]) for i in range(len(path_nodes) - 1)]
+
+    def _found(edges):
+        return np.array([e for e in edges if e is not None], dtype=np.int64)
+
+    def _shortest_path(cache_key):
 
         # A single-source Dijkstra already yields the path to *every*
         # node, and it depends only on the start and the weights, not
         # on end_node. /evacuate and /nearest-hospital route from one
-        # start to five candidates, so without this they ran up to 15
-        # full-graph searches where three suffice -- 20+ seconds on
-        # Render against the map's 25-second timeout.
-        cached = dijkstra_cache.get(cache_key) if dijkstra_cache is not None else None
+        # start to five candidates, so the search runs once per
+        # weighting and is reused -- and the full weight array is only
+        # built when it does run.
+        predecessors = batch.get(cache_key)
 
-        if cached is None:
+        if predecessors is None:
 
             weighted_graph = csr_matrix(
-                (weight_array, indices, indptr),
+                (_weights(cache_key), indices, indptr),
                 shape=(num_nodes, num_nodes)
             )
 
-            distances, predecessors = dijkstra(
+            _, predecessors = dijkstra(
                 weighted_graph,
                 directed=True,
                 indices=int(start_node),
                 return_predecessors=True
             )
 
-            del distances
-
             # Only the predecessor array (int32, ~8 MB) is kept: the
-            # server runs close to Render's 512 MB cap, and the cost can
-            # be recomputed from the path's own edges below.
-            if dijkstra_cache is not None:
-                dijkstra_cache[cache_key] = predecessors
-
-            cached = predecessors
-
-        predecessors = cached
+            # server runs close to Render's 512 MB cap.
+            batch[cache_key] = predecessors
 
         if int(end_node) != int(start_node) and predecessors[int(end_node)] < 0:
             return None, None
@@ -494,97 +574,20 @@ def calculate_route(
         found_path.append(int(start_node))
         found_path.reverse()
 
-        cost = 0.0
-        for i in range(len(found_path) - 1):
-            edge = find_edge(found_path[i], found_path[i + 1])
-            if edge is not None:
-                cost += float(weight_array[edge])
+        edges = _found(_path_edges(found_path))
+        cost = sum(float(w) for w in _weights(cache_key, edges)) if edges.size else 0.0
 
         return found_path, cost
 
     def _path_real_distance(path_nodes):
 
-        total = 0.0
-
-        for i in range(len(path_nodes) - 1):
-
-            edge = find_edge(path_nodes[i], path_nodes[i + 1])
-
-            if edge is not None:
-                total += graph_distance[edge]
-
-        return total
+        edges = _found(_path_edges(path_nodes))
+        return sum(float(d) for d in graph_distance[edges]) if edges.size else 0.0
 
     def _path_extreme_count(path_nodes):
 
-        count = 0
-
-        for i in range(len(path_nodes) - 1):
-
-            edge = find_edge(path_nodes[i], path_nodes[i + 1])
-
-            if edge is not None and effective_risk[edge] >= 8.0:
-                count += 1
-
-        return count
-
-
-    # --------------------------------------------------------
-    # ROUTING WEIGHTS
-    # --------------------------------------------------------
-
-    if mode == "FASTEST":
-
-        weights = graph_distance.copy()
-
-
-    elif mode == "SAFEST":
-
-        # Strongly penalize flood-risk roads.
-        #
-        # Risk:
-        # NORMAL      = 1  (also covers the LOW hazard-class polygons —
-        #                    those don't carry an edge penalty)
-        # MODERATE    = 2
-        # SIGNIFICANT = 4
-        # EXTREME     = 8
-        #
-        # A simple risk^2 multiplier (max 64x for EXTREME) is
-        # too weak: if an EXTREME segment is a short shortcut
-        # and the safe detour is much longer, 64x still loses
-        # to the detour's raw distance, so Dijkstra picks the
-        # "safest" route straight through the extreme segment
-        # anyway.
-        #
-        # Fix: treat EXTREME roads as effectively blocked
-        # (huge multiplier) so they're only ever used when
-        # there is truly no other way through. LOW/SIGNIFICANT
-        # still get the risk^2 penalty so the router prefers
-        # safer roads whenever a reasonable option exists.
-
-        EXTREME_RISK_VALUE = 8.0
-        EXTREME_BLOCK_MULTIPLIER = 1_000_000.0
-
-        weights = np.where(
-            routing_risk >= EXTREME_RISK_VALUE,
-            graph_distance * EXTREME_BLOCK_MULTIPLIER,
-            graph_distance * (routing_risk ** 2)
-        )
-
-
-    else:
-
-        raise ValueError(
-            "Unknown routing mode: "
-            + str(mode)
-        )
-
-
-    # --------------------------------------------------------
-    # HARD-BLOCK REPORTED HAZARDS (all modes)
-    # --------------------------------------------------------
-
-    weights = _apply_report_block(weights)
+        edges = _found(_path_edges(path_nodes))
+        return int(np.count_nonzero(_effective_risk(edges) >= 8.0)) if edges.size else 0
 
 
     # --------------------------------------------------------
@@ -593,7 +596,7 @@ def calculate_route(
 
     print("Running Dijkstra...")
 
-    path, route_cost = _shortest_path(weights, "primary")
+    path, route_cost = _shortest_path("primary")
 
     if path is None:
 
@@ -630,9 +633,7 @@ def calculate_route(
 
     if mode == "SAFEST":
 
-        baseline_path, _ = _shortest_path(
-            _apply_report_block(graph_distance.copy()), "baseline"
-        )
+        baseline_path, _ = _shortest_path("baseline")
 
         if baseline_path is not None:
 
@@ -644,13 +645,7 @@ def calculate_route(
                 and safest_distance > SAFEST_DETOUR_CAP * baseline_distance
             ):
 
-                fallback_weights = _apply_report_block(
-                    _relaxed_safest_weights(routing_risk)
-                )
-
-                fallback_path, fallback_cost = _shortest_path(
-                    fallback_weights, "fallback"
-                )
+                fallback_path, fallback_cost = _shortest_path("fallback")
 
                 if fallback_path is not None:
 
@@ -688,12 +683,14 @@ def calculate_route(
     # drawing the whole route as a single flat color.
     segment_risks = []
 
-    for i in range(len(path) - 1):
+    hop_edges = _path_edges(path)
+    path_found_edges = _found(hop_edges)
+    path_risk = dict(zip(
+        path_found_edges.tolist(),
+        _effective_risk(path_found_edges).tolist() if path_found_edges.size else []
+    ))
 
-        u = path[i]
-        v = path[i + 1]
-
-        edge = find_edge(u, v)
+    for edge in hop_edges:
 
         if edge is None:
 
@@ -709,7 +706,7 @@ def calculate_route(
 
         total_distance += graph_distance[edge]
 
-        edge_risk = effective_risk[edge]
+        edge_risk = path_risk[int(edge)]
 
         segment_risks.append(float(edge_risk))
 
