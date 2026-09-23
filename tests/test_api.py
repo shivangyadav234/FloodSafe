@@ -334,10 +334,119 @@ class TestRateLimiting:
                             headers={"X-Forwarded-For": "203.0.113.9"})
         assert fresh.status_code in (200, 201)
 
+    def test_spoofed_forwarded_for_does_not_reset_the_limit(self, client, server):
+        """The client writes the *first* X-Forwarded-For entry.
+
+        Keying on it let a fresh fake address through on every request --
+        confirmed against the live site, 22 of 22 resolves went through
+        while a fixed header was blocked after 20. Proxies append, so
+        only the last entry identifies the caller.
+        """
+        limit, _ = server.RATE_LIMITS["report_action"]
+
+        statuses = [
+            client.post("/report/nonexistent/resolve",
+                        headers={"X-Forwarded-For": f"203.0.113.{i}, 10.0.0.1"}).status_code
+            for i in range(limit + 2)
+        ]
+
+        assert statuses[:limit] == [404] * limit
+        assert statuses[limit:] == [429, 429]
+
+    def test_cloudflare_address_is_trusted_over_forwarded_for(self, client, server):
+        """Cloudflare overwrites CF-Connecting-IP, so a client cannot forge it."""
+        limit, _ = server.RATE_LIMITS["report_action"]
+
+        for i in range(limit):
+            client.post("/report/nonexistent/resolve", headers={
+                "CF-Connecting-IP": "198.51.100.1",
+                "X-Forwarded-For": f"203.0.113.{i}",
+            })
+
+        blocked = client.post("/report/nonexistent/resolve", headers={
+            "CF-Connecting-IP": "198.51.100.1",
+            "X-Forwarded-For": "203.0.113.250",
+        })
+        assert blocked.status_code == 429
+
+    def test_routing_is_limited(self, client, server):
+        """Each route takes seconds on the single worker; a loop could stall it.
+
+        Uses an off-network start, which is refused before any routing
+        work, so this runs fast while still spending the allowance.
+        """
+        limit, _ = server.RATE_LIMITS["routing"]
+        body = {"lat": 28.6139, "lon": 77.2090}
+
+        for _ in range(limit):
+            assert client.post("/evacuate", json=body).status_code == 422
+        assert client.post("/evacuate", json=body).status_code == 429
+
     def test_reads_are_never_limited(self, client, server):
         """Rate limiting must not touch the pages people need in an emergency."""
         for _ in range(server.RATE_LIMITS["report"][0] + 5):
             assert client.get("/ffgs/zones").status_code == 200
+
+
+class TestOffNetworkRouting:
+    """Points far from the road graph are refused, not silently moved.
+
+    A route starting in Delhi came back "ok" as a 97 km route from the
+    nearest Uttarakhand road, with nothing telling the user their start
+    point had been moved about 200 km.
+    """
+
+    DELHI = (28.6139, 77.2090)
+    DEHRADUN = (30.3165, 78.0322)
+
+    def test_road_snap_distance_is_small_inside_the_state(self, server):
+        assert server.road_snap_km(*self.DEHRADUN) < 1.0
+        assert server.road_snap_km(*self.DELHI) > server.MAX_SNAP_KM
+
+    @pytest.mark.parametrize("path, body, label", [
+        ("/route", {"start_lat": 28.6139, "start_lon": 77.2090,
+                    "end_lat": 30.3165, "end_lon": 78.0322}, "starting point"),
+        ("/route", {"start_lat": 30.3165, "start_lon": 78.0322,
+                    "end_lat": 28.6139, "end_lon": 77.2090}, "destination"),
+        ("/compare", {"start_lat": 28.6139, "start_lon": 77.2090,
+                      "end_lat": 30.3165, "end_lon": 78.0322}, "starting point"),
+        ("/evacuate", {"lat": 28.6139, "lon": 77.2090}, "starting point"),
+        ("/nearest-hospital", {"lat": 28.6139, "lon": 77.2090}, "starting point"),
+    ])
+    def test_refused_with_a_reason(self, client, path, body, label):
+        response = client.post(path, json=body)
+        assert response.status_code == 422
+        assert label in response.get_json()["error"]
+
+
+class TestNearestTargetSearchReuse:
+    """Evacuation reuses one Dijkstra per weighting across its candidates.
+
+    It used to rerun a full 2M-node search for each of five candidates
+    (up to three per candidate in SAFEST), taking 20+ seconds on Render
+    against the map's 25-second timeout. Reuse must not change the answer.
+    """
+
+    def test_reuse_picks_the_same_shelter_and_path(self, monkeypatch):
+        import routing_engine
+
+        start = dict(start_lon=78.2676, start_lat=30.0869, mode="SAFEST",
+                     report_points=[[78.27, 30.09]], live_rain_mm=None)
+
+        reused = routing_engine.find_nearest_shelter(**start)
+
+        original = routing_engine.calculate_route
+
+        def without_reuse(**kwargs):
+            kwargs.pop("dijkstra_cache", None)
+            return original(**kwargs)
+
+        monkeypatch.setattr(routing_engine, "calculate_route", without_reuse)
+        separate = routing_engine.find_nearest_shelter(**start)
+
+        assert reused["route"]["path"] == separate["route"]["path"]
+        assert reused["route"]["distance_m"] == separate["route"]["distance_m"]
+        assert reused["route"]["risk_counts"] == separate["route"]["risk_counts"]
 
 
 class TestReportPersistence:

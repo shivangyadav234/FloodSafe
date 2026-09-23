@@ -254,6 +254,31 @@ def find_edge(u, v):
 
 
 # ============================================================
+# OFF-NETWORK CHECK
+#
+# calculate_route snaps each end to the nearest road node however far
+# away it is, so a start point in Delhi silently became a route from
+# the nearest Uttarakhand road -- reported as "ok", with no hint the
+# start had moved ~200 km. Callers check this first and refuse points
+# that are not near the road network at all.
+# ============================================================
+
+MAX_SNAP_KM = 5.0
+
+
+def road_snap_km(lat, lon):
+    """
+    Approximate distance in km from a point to the nearest road node.
+    The tree is in raw degrees, so this treats a degree of longitude as
+    111 km; at Uttarakhand's latitude that overstates east-west distance
+    by about 15%, which only makes the check slightly stricter.
+    """
+
+    distance_deg, _ = tree.query([lon, lat])
+    return float(distance_deg) * 111.0
+
+
+# ============================================================
 # ROUTE FUNCTION
 # ============================================================
 
@@ -264,7 +289,8 @@ def calculate_route(
     end_lat,
     mode="FASTEST",
     report_points=None,
-    live_rain_mm=None
+    live_rain_mm=None,
+    dijkstra_cache=None
 ):
     """
     Calculate a route between two points on the Uttarakhand road graph.
@@ -279,6 +305,10 @@ def calculate_route(
     live_rain_mm: optional current+near-term rainfall total (mm) —
         above LIVE_RAIN_ESCALATION_THRESHOLD_MM, SAFEST treats
         MODERATE/SIGNIFICANT roads one tier more cautiously.
+    dijkstra_cache: optional dict shared across calls with the same
+        start, mode, report_points and live_rain_mm, so the searches
+        are reused instead of rerun (see _shortest_path). Only valid
+        for that one batch; don't keep it beyond.
     Returns a result dict, or None if no route exists between the
     two points in the directed road graph.
     """
@@ -411,23 +441,43 @@ def calculate_route(
 
         return weight_array
 
-    def _shortest_path(weight_array):
+    def _shortest_path(weight_array, cache_key):
 
-        weighted_graph = csr_matrix(
-            (weight_array, indices, indptr),
-            shape=(num_nodes, num_nodes)
-        )
+        # A single-source Dijkstra already yields the path to *every*
+        # node, and it depends only on the start and the weights, not
+        # on end_node. /evacuate and /nearest-hospital route from one
+        # start to five candidates, so without this they ran up to 15
+        # full-graph searches where three suffice -- 20+ seconds on
+        # Render against the map's 25-second timeout.
+        cached = dijkstra_cache.get(cache_key) if dijkstra_cache is not None else None
 
-        distances, predecessors = dijkstra(
-            weighted_graph,
-            directed=True,
-            indices=int(start_node),
-            return_predecessors=True
-        )
+        if cached is None:
 
-        cost = distances[int(end_node)]
+            weighted_graph = csr_matrix(
+                (weight_array, indices, indptr),
+                shape=(num_nodes, num_nodes)
+            )
 
-        if not np.isfinite(cost):
+            distances, predecessors = dijkstra(
+                weighted_graph,
+                directed=True,
+                indices=int(start_node),
+                return_predecessors=True
+            )
+
+            del distances
+
+            # Only the predecessor array (int32, ~8 MB) is kept: the
+            # server runs close to Render's 512 MB cap, and the cost can
+            # be recomputed from the path's own edges below.
+            if dijkstra_cache is not None:
+                dijkstra_cache[cache_key] = predecessors
+
+            cached = predecessors
+
+        predecessors = cached
+
+        if int(end_node) != int(start_node) and predecessors[int(end_node)] < 0:
             return None, None
 
         found_path = []
@@ -444,7 +494,13 @@ def calculate_route(
         found_path.append(int(start_node))
         found_path.reverse()
 
-        return found_path, float(cost)
+        cost = 0.0
+        for i in range(len(found_path) - 1):
+            edge = find_edge(found_path[i], found_path[i + 1])
+            if edge is not None:
+                cost += float(weight_array[edge])
+
+        return found_path, cost
 
     def _path_real_distance(path_nodes):
 
@@ -537,7 +593,7 @@ def calculate_route(
 
     print("Running Dijkstra...")
 
-    path, route_cost = _shortest_path(weights)
+    path, route_cost = _shortest_path(weights, "primary")
 
     if path is None:
 
@@ -575,7 +631,7 @@ def calculate_route(
     if mode == "SAFEST":
 
         baseline_path, _ = _shortest_path(
-            _apply_report_block(graph_distance.copy())
+            _apply_report_block(graph_distance.copy()), "baseline"
         )
 
         if baseline_path is not None:
@@ -593,7 +649,7 @@ def calculate_route(
                 )
 
                 fallback_path, fallback_cost = _shortest_path(
-                    fallback_weights
+                    fallback_weights, "fallback"
                 )
 
                 if fallback_path is not None:
@@ -843,6 +899,10 @@ def _find_nearest_target(
     best_target = None
     best_result = None
 
+    # Same start, mode, reports and rain for every candidate, so each
+    # distinct Dijkstra runs once and is reused. Local to this call.
+    dijkstra_cache = {}
+
     for idx in indexes:
 
         target = targets[int(idx)]
@@ -854,7 +914,8 @@ def _find_nearest_target(
             end_lat=target["lat"],
             mode=mode,
             report_points=report_points,
-            live_rain_mm=live_rain_mm
+            live_rain_mm=live_rain_mm,
+            dijkstra_cache=dijkstra_cache
         )
 
         if result is None:

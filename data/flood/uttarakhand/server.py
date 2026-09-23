@@ -58,7 +58,8 @@ try:
 
     from routing_engine import (
         calculate_route, coordinates, shelters,
-        find_nearest_shelter, find_nearest_hospital
+        find_nearest_shelter, find_nearest_hospital,
+        road_snap_km, MAX_SNAP_KM
     )
 
     ROUTING_ENGINE_AVAILABLE = True
@@ -66,6 +67,8 @@ try:
 except Exception as e:
 
     calculate_route = None
+    road_snap_km = None
+    MAX_SNAP_KM = None
     coordinates = None
     shelters = []
     find_nearest_shelter = None
@@ -108,13 +111,15 @@ def handle_http_exception(e):
 @app.errorhandler(Exception)
 def handle_unexpected_error(e):
 
+    # The exception text stays in the log. It used to be returned to
+    # the caller too, which hands out internals (file paths, library
+    # messages) to anyone who can trigger an error.
     print()
-    print("UNHANDLED SERVER ERROR:", repr(e))
+    print("UNHANDLED SERVER ERROR:", repr(e), flush=True)
 
     return jsonify({
         "status": "error",
-        "error": "Unexpected server error",
-        "details": str(e)
+        "error": "Unexpected server error"
     }), 500
 
 # ============================================================
@@ -225,20 +230,48 @@ RATE_LIMITS = {
     # endpoint label -> (max requests, window seconds)
     "report": (5, 300),       # 5 new hazard reports per 5 minutes
     "report_action": (20, 300),  # resolve/confirm are cheaper, allow more
+    # /route, /compare, /evacuate and /nearest-hospital share one
+    # allowance. One route over the 2M-node graph takes seconds, and
+    # evacuate/hospital try up to five, on the single worker -- so an
+    # unmetered loop could stall the app for everyone. Generous because
+    # a room of people behind one venue NAT shares an address.
+    "routing": (30, 60),
 }
 
 _rate_buckets = {}
 
 
-def _client_ip():
-    # Render terminates TLS upstream, so the real client address is in
-    # X-Forwarded-For; take the first hop and fall back to the socket.
-    forwarded = request.headers.get("X-Forwarded-For", "")
+def _client_ip_and_source():
+    """
+    The caller's address, and which header it came from.
 
+    This used to take the *first* X-Forwarded-For entry. That entry is
+    whatever the client sent -- proxies append to the header, they don't
+    replace it -- so rotating a fake X-Forwarded-For gave every request a
+    fresh identity. Confirmed against the live site: 22 of 22 requests
+    went through with a spoofed header, while a fixed one was blocked
+    after 20. That bypassed the report rate limit and the one-confirm-
+    per-visitor guard, and let anyone resolve (delete) every report.
+
+    The live site sits behind Cloudflare, which sets CF-Connecting-IP
+    itself and overwrites any value the client supplies, so it is
+    trusted first. Otherwise the *last* X-Forwarded-For entry is the one
+    added by the nearest proxy, not by the client.
+    """
+
+    cf_ip = request.headers.get("CF-Connecting-IP", "").strip()
+    if cf_ip:
+        return cf_ip, "cf-connecting-ip"
+
+    forwarded = [h.strip() for h in request.headers.get("X-Forwarded-For", "").split(",") if h.strip()]
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        return forwarded[-1], "x-forwarded-for-last"
 
-    return request.remote_addr or "unknown"
+    return request.remote_addr or "unknown", "socket"
+
+
+def _client_ip():
+    return _client_ip_and_source()[0]
 
 
 def _rate_limited(label):
@@ -273,13 +306,12 @@ def _rate_limited(label):
 
 def _rate_limit_response(label):
     max_requests, window = RATE_LIMITS[label]
+    minutes = window // 60
+    per = "minute" if minutes == 1 else f"{minutes} minutes"
 
     return jsonify({
         "status": "error",
-        "error": (
-            f"Too many requests. Limit is {max_requests} per "
-            f"{window // 60} minutes."
-        ),
+        "error": f"Too many requests. Limit is {max_requests} per {per}.",
     }), 429
 
 
@@ -292,16 +324,6 @@ _reports = _load_reports()
 # which is a low-stakes trade-off for a soft, best-effort guard, not
 # a real identity system.
 _confirmed_ips_by_report = {}
-
-
-def _get_client_ip():
-
-    forwarded_for = request.headers.get("X-Forwarded-For", "")
-
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-
-    return request.remote_addr or "unknown"
 
 
 def _active_reports():
@@ -2769,7 +2791,11 @@ def status():
         "status": "ok",
         "routing": "online" if ROUTING_ENGINE_AVAILABLE else "unavailable",
         "routing_error": None if ROUTING_ENGINE_AVAILABLE else ROUTING_ENGINE_ERROR,
-        "node_count": int(len(coordinates)) if ROUTING_ENGINE_AVAILABLE else None
+        "node_count": int(len(coordinates)) if ROUTING_ENGINE_AVAILABLE else None,
+        # Which header rate limiting identifies callers by, so a deploy
+        # can be checked for trusting the right one. The address itself
+        # is not echoed.
+        "client_ip_source": _client_ip_and_source()[1],
     })
 
 
@@ -3449,7 +3475,7 @@ def confirm_report(report_id):
                 "or expired."
         }), 404
 
-    client_ip = _get_client_ip()
+    client_ip = _client_ip()
     already_confirmed_ips = _confirmed_ips_by_report.setdefault(report_id, set())
 
     already_confirmed = client_ip in already_confirmed_ips
@@ -5632,6 +5658,31 @@ def get_shelters():
 # EVACUATE — route to the nearest reachable shelter
 # ============================================================
 
+def _off_network_response(points):
+    """
+    A 422 response if any (label, lat, lon) is too far from the road
+    network to route from, else None. See road_snap_km in
+    routing_engine.py: without this, far-off points were silently
+    snapped to the nearest Uttarakhand road and reported as "ok".
+    """
+
+    for label, lat, lon in points:
+
+        km = road_snap_km(lat, lon)
+
+        if km > MAX_SNAP_KM:
+            return jsonify({
+                "status": "error",
+                "error": (
+                    f"The {label} is about {km:.0f} km from the nearest road "
+                    "FloodSafe covers. Routing only works on Uttarakhand's "
+                    "road network."
+                ),
+            }), 422
+
+    return None
+
+
 @app.route("/evacuate", methods=["POST"])
 def evacuate():
 
@@ -5642,6 +5693,9 @@ def evacuate():
             "error": "Routing is temporarily unavailable.",
             "details": ROUTING_ENGINE_ERROR or "Routing engine failed to load."
         }), 503
+
+    if _rate_limited("routing"):
+        return _rate_limit_response("routing")
 
     try:
 
@@ -5684,6 +5738,11 @@ def evacuate():
 
         if mode not in ["FASTEST", "SAFEST"]:
             mode = "SAFEST"
+
+        off_network = _off_network_response([("starting point", lat, lon)])
+
+        if off_network is not None:
+            return off_network
 
         reports_list = [
             [report["lon"], report["lat"]]
@@ -5770,6 +5829,9 @@ def nearest_hospital():
             "details": ROUTING_ENGINE_ERROR or "Routing engine failed to load."
         }), 503
 
+    if _rate_limited("routing"):
+        return _rate_limit_response("routing")
+
     try:
 
         data = request.get_json(force=True, silent=True)
@@ -5811,6 +5873,11 @@ def nearest_hospital():
 
         if mode not in ["FASTEST", "SAFEST"]:
             mode = "SAFEST"
+
+        off_network = _off_network_response([("starting point", lat, lon)])
+
+        if off_network is not None:
+            return off_network
 
         reports_list = [
             [report["lon"], report["lat"]]
@@ -5903,6 +5970,9 @@ def route():
                 or "Routing engine failed to load."
 
         }), 503
+
+    if _rate_limited("routing"):
+        return _rate_limit_response("routing")
 
     try:
 
@@ -6052,6 +6122,11 @@ def route():
         # ----------------------------------------------------
         # CALCULATE ROUTE
         # ----------------------------------------------------
+
+        off_network = _off_network_response([("starting point", start_lat, start_lon), ("destination", end_lat, end_lon)])
+
+        if off_network is not None:
+            return off_network
 
         reports_list = [
             [report["lon"], report["lat"]]
@@ -6475,6 +6550,9 @@ def compare():
             "details": ROUTING_ENGINE_ERROR or "Routing engine failed to load."
         }), 503
 
+    if _rate_limited("routing"):
+        return _rate_limit_response("routing")
+
     try:
 
         data = request.get_json(force=True, silent=True)
@@ -6541,6 +6619,11 @@ def compare():
                 "status": "error",
                 "error": "Start and destination are the same location."
             }), 400
+
+        off_network = _off_network_response([("starting point", start_lat, start_lon), ("destination", end_lat, end_lon)])
+
+        if off_network is not None:
+            return off_network
 
         reports_list = [
             [report["lon"], report["lat"]]
