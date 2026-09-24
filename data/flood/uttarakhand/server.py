@@ -86,12 +86,127 @@ except Exception as e:
     print("Routing (/route) will be unavailable until this is fixed.")
     print("Details:", repr(e))
 
+
+# ============================================================
+# ONE ROUTE AT A TIME
+#
+# The server runs several threads in one process (gunicorn.conf.py) so
+# a route computation no longer freezes every other page: on the single
+# sync worker, /status took 7.3 s while one evacuation ran, against
+# 0.36 s idle. Route computations themselves still go one at a time --
+# each briefly holds ~150 MB of arrays, and two at once could push the
+# 512 MB instance over its limit. Others queue here; everything else
+# carries on.
+# ============================================================
+
+_routing_slot = threading.Lock()
+
+
+def _one_route_at_a_time(fn):
+
+    if fn is None:
+        return None
+
+    def run(*args, **kwargs):
+        with _routing_slot:
+            return fn(*args, **kwargs)
+
+    return run
+
+
+def _single_flight(fallback):
+    """
+    At most one thread runs the wrapped refresh at a time; any other
+    caller meanwhile gets fallback() -- the current cached value --
+    instead of starting a second upstream request for the same data.
+    """
+    import functools
+
+    def wrap(fn):
+        lock = threading.Lock()
+
+        @functools.wraps(fn)
+        def run(*args, **kwargs):
+            if not lock.acquire(blocking=False):
+                return fallback()
+            try:
+                return fn(*args, **kwargs)
+            finally:
+                lock.release()
+
+        return run
+
+    return wrap
+
+
+calculate_route = _one_route_at_a_time(calculate_route)
+find_nearest_shelter = _one_route_at_a_time(find_nearest_shelter)
+find_nearest_hospital = _one_route_at_a_time(find_nearest_hospital)
+
 # ============================================================
 # APP
 # ============================================================
 
 app = Flask(__name__)
-CORS(app)
+
+# Nothing this app accepts comes near this -- the largest body is a
+# rainfall relay post of about 0.2 MB. Without a cap, one oversized
+# upload is read into memory whole on a 512 MB instance.
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
+
+# Read-only, cross-origin: the public data (zones, rainfall, official
+# warnings) may be read by other sites. This used to be CORS(app), which
+# reflected any origin and allowed every method, so any web page could
+# make its visitors' browsers post, confirm or resolve hazard reports.
+CORS(app, methods=["GET", "HEAD", "OPTIONS"])
+
+
+# ============================================================
+# CROSS-SITE WRITES AND BROWSER HARDENING
+#
+# Browsers attach an Origin header (and Sec-Fetch-Site) to every
+# cross-site POST, including a plain HTML form that needs no CORS
+# preflight. So any state-changing request whose Origin isn't this
+# site is refused: a hostile page can no longer resolve every report
+# through its visitors' browsers, each with a fresh IP that walks past
+# the per-IP limits. Requests with no Origin -- curl, the rainfall relay
+# -- are unaffected and stay rate-limited as before.
+# ============================================================
+
+@app.before_request
+def refuse_cross_site_writes():
+
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return None
+
+    origin = request.headers.get("Origin")
+    fetch_site = request.headers.get("Sec-Fetch-Site", "")
+
+    cross_site = (
+        (origin and urlparse(origin).netloc != request.host)
+        or fetch_site == "cross-site"
+    )
+
+    if cross_site:
+        return jsonify({
+            "status": "error",
+            "error": "Cross-site requests can't change FloodSafe data."
+        }), 403
+
+    return None
+
+
+@app.after_request
+def security_headers(response):
+
+    # No other site may frame these pages (clickjacking a "Resolve"
+    # button), browsers must not guess content types, and cross-site
+    # navigations carry only the origin.
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Content-Security-Policy", "frame-ancestors 'none'")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
 
 
 # ============================================================
@@ -368,6 +483,7 @@ RATE_LIMITS = {
 }
 
 _rate_buckets = {}
+_rate_lock = threading.Lock()
 
 
 def _client_ip_and_source():
@@ -400,7 +516,27 @@ def _client_ip_and_source():
 
 
 def _client_ip():
-    return _client_ip_and_source()[0]
+    """
+    The caller's identity for rate limiting and confirm de-duplication.
+
+    An IPv6 address is reduced to its /64: providers hand each home or
+    phone a whole /64, so a client can use a fresh address from it on
+    every request, which otherwise walks straight past per-IP limits.
+    """
+
+    import ipaddress
+
+    raw = _client_ip_and_source()[0]
+
+    try:
+        address = ipaddress.ip_address(raw)
+    except ValueError:
+        return raw
+
+    if address.version == 6:
+        return str(ipaddress.ip_network(f"{address}/64", strict=False))
+
+    return str(address)
 
 
 def _rate_limited(label):
@@ -411,9 +547,15 @@ def _rate_limited(label):
     """
 
     max_requests, window = RATE_LIMITS[label]
-    now = time.time()
     key = (label, _client_ip())
 
+    with _rate_lock:
+        return _rate_check(key, max_requests, window)
+
+
+def _rate_check(key, max_requests, window):
+
+    now = time.time()
     hits = [t for t in _rate_buckets.get(key, []) if now - t < window]
 
     if len(hits) >= max_requests:
@@ -446,6 +588,24 @@ def _rate_limit_response(label):
 
 _reports = _load_reports()
 
+# The server runs several threads, and _reports is shared. Every change
+# to it -- new report, resolve, confirm, expiry, the retried database
+# load -- happens under this lock, so two simultaneous requests can't
+# lose each other's update (an append landing while expiry rewrites the
+# list, say).
+_reports_lock = threading.RLock()
+
+
+def _holding_reports_lock(fn):
+    import functools
+
+    @functools.wraps(fn)
+    def run(*args, **kwargs):
+        with _reports_lock:
+            return fn(*args, **kwargs)
+
+    return run
+
 # Tracks which client IPs have already confirmed which report, purely
 # to stop the same visitor inflating a count by clicking repeatedly.
 # Deliberately in-memory only (not persisted) — losing this on a
@@ -455,6 +615,7 @@ _reports = _load_reports()
 _confirmed_ips_by_report = {}
 
 
+@_holding_reports_lock
 def _active_reports():
 
     _retry_report_load_if_needed()
@@ -3501,6 +3662,7 @@ def reports_view():
 
 
 @app.route("/report", methods=["POST"])
+@_holding_reports_lock
 def post_report():
 
     if _rate_limited("report"):
@@ -3540,6 +3702,19 @@ def post_report():
             "status": "error",
             "error": "lon must be between -180 and 180."
         }), 400
+
+    # A report only matters where it can block a road. Points far from
+    # the road network -- anywhere else on Earth, or deep in the high
+    # Himalaya -- block nothing and would only clutter everyone's map.
+    if ROUTING_ENGINE_AVAILABLE and road_snap_km(lat, lon) > MAX_SNAP_KM:
+
+        return jsonify({
+            "status": "error",
+            "error": (
+                "Reports must be on or near a road FloodSafe covers "
+                "(within 5 km of Uttarakhand's road network)."
+            )
+        }), 422
 
     description = str(data.get("description", "")).strip()
 
@@ -3606,6 +3781,7 @@ def post_report():
 # ============================================================
 
 @app.route("/report/<report_id>/resolve", methods=["POST"])
+@_holding_reports_lock
 def resolve_report(report_id):
 
     if _rate_limited("report_action"):
@@ -3648,6 +3824,7 @@ def resolve_report(report_id):
 # ============================================================
 
 @app.route("/report/<report_id>/confirm", methods=["POST"])
+@_holding_reports_lock
 def confirm_report(report_id):
 
     if _rate_limited("report_action"):
@@ -3788,6 +3965,7 @@ def _store_town_readings(fresh, now, source):
     print(f"Town rainfall refreshed from {source}: {len(fresh)} towns", flush=True)
 
 
+@_single_flight(lambda: _town_rainfall_cache["data"])
 def _fetch_town_rainfall():
     """
     Current precipitation in mm for each guidance town, keyed by name,
@@ -6098,6 +6276,7 @@ def _store_ffgs_readings(fresh, now, source):
     _schedule_push_alert_check(fresh)
 
 
+@_single_flight(lambda: _ffgs_rainfall_cache["data"])
 def _fetch_ffgs_live_rainfall():
     """
     One batched Open-Meteo call covering every FFGS zone that has a
@@ -7115,6 +7294,7 @@ def _still_valid(expires, now):
         return True
 
 
+@_single_flight(lambda: None)
 def _refresh_ndma_alerts():
     """Re-read the feed and rebuild the current Uttarakhand alert list."""
 
@@ -7409,8 +7589,7 @@ def evacuate():
 
         return jsonify({
             "status": "error",
-            "error": "Evacuation routing failed",
-            "details": str(e)
+            "error": "Evacuation routing failed"
         }), 500
 
 
@@ -7544,8 +7723,7 @@ def nearest_hospital():
 
         return jsonify({
             "status": "error",
-            "error": "Hospital routing failed",
-            "details": str(e)
+            "error": "Hospital routing failed"
         }), 500
 
 
@@ -8052,10 +8230,7 @@ def route():
             "status": "error",
 
             "error":
-                "Missing routing parameter or result field",
-
-            "details":
-                str(e)
+                "Missing routing parameter or result field"
 
         }), 400
 
@@ -8069,10 +8244,7 @@ def route():
             "status": "error",
 
             "error":
-                "Invalid routing input",
-
-            "details":
-                str(e)
+                "Invalid routing input"
 
         }), 400
 
@@ -8086,10 +8258,7 @@ def route():
             "status": "error",
 
             "error":
-                "Route calculation failed",
-
-            "details":
-                str(e)
+                "Route calculation failed"
 
         }), 500
 
@@ -8282,8 +8451,7 @@ def compare():
 
         return jsonify({
             "status": "error",
-            "error": "Route comparison failed",
-            "details": str(e)
+            "error": "Route comparison failed"
         }), 500
 
 

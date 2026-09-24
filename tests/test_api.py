@@ -1036,3 +1036,174 @@ class TestZoneDistricts:
         zones = client.get("/ffgs/zones").get_json()["zones"]
         rishikesh = {z["district"] for z in zones if z.get("parent_town") == "Rishikesh"}
         assert {"Dehradun", "Tehri Garhwal"} <= rishikesh
+
+
+# ============================================================
+# Hardening: cross-site writes, headers, limits, concurrency
+# ============================================================
+
+class TestCrossSiteWrites:
+    """Any web page used to be able to act on FloodSafe through its
+    visitors' browsers -- confirmed live: a form-style POST from a foreign
+    origin was processed, and CORS reflected every origin for every method."""
+
+    @pytest.mark.parametrize("headers", [
+        {"Origin": "https://evil.example"},
+        {"Sec-Fetch-Site": "cross-site"},
+        {"Origin": "https://evil.example", "Content-Type": "text/plain"},
+    ])
+    def test_foreign_writes_are_refused(self, client, headers):
+        assert client.post("/report/anything/resolve", headers=headers).status_code == 403
+        assert client.post("/report", data='{"lat": 30.3, "lon": 78.0}', headers=headers).status_code == 403
+
+    def test_same_site_and_non_browser_writes_still_work(self, client):
+        same_site = {"Origin": "http://localhost", "Sec-Fetch-Site": "same-origin"}
+        assert client.post("/report/anything/resolve", headers=same_site).status_code == 404
+        assert client.post("/report/anything/resolve").status_code == 404
+
+    def test_reads_stay_open_to_other_sites(self, client):
+        response = client.get("/ffgs/zones", headers={"Origin": "https://other.example"})
+        assert response.status_code == 200
+        assert response.headers.get("Access-Control-Allow-Origin") in ("*", "https://other.example")
+
+    def test_cors_never_offers_write_methods(self, client):
+        preflight = client.options("/report", headers={
+            "Origin": "https://evil.example",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        })
+        allowed = preflight.headers.get("Access-Control-Allow-Methods", "")
+        assert "POST" not in allowed
+
+
+class TestResponseHardening:
+
+    @pytest.mark.parametrize("path", ["/", "/ffgs", "/app", "/status"])
+    def test_pages_cannot_be_framed_or_sniffed(self, client, path):
+        headers = client.get(path).headers
+        assert headers["X-Frame-Options"] == "DENY"
+        assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
+        assert headers["X-Content-Type-Options"] == "nosniff"
+
+    def test_oversized_bodies_are_refused(self, client, server):
+        huge = b"x" * (server.app.config["MAX_CONTENT_LENGTH"] + 1)
+        response = client.post("/report", data=huge, content_type="application/json")
+        assert response.status_code == 413
+
+    @pytest.mark.parametrize("path, body, target", [
+        ("/evacuate", {"lat": 30.3165, "lon": 78.0322}, "find_nearest_shelter"),
+        ("/nearest-hospital", {"lat": 30.3165, "lon": 78.0322}, "find_nearest_hospital"),
+        ("/route", {"start_lat": 30.3165, "start_lon": 78.0322,
+                    "end_lat": 30.0869, "end_lon": 78.2676}, "calculate_route"),
+    ])
+    def test_errors_do_not_leak_internals(self, client, server, monkeypatch, path, body, target):
+        def boom(**kwargs):
+            raise RuntimeError(r"C:\\secret\\path\\to\\graph.npz is corrupt")
+
+        monkeypatch.setattr(server, target, boom)
+        text = client.post(path, json=body).get_data(as_text=True)
+        assert "secret" not in text and "graph.npz" not in text
+
+
+class TestClientIdentity:
+
+    def test_ipv6_is_grouped_by_its_slash_64(self, client, server):
+        """A client can pick a fresh address from its /64 on every request."""
+        limit, _ = server.RATE_LIMITS["report_action"]
+        statuses = [
+            client.post("/report/nonexistent/resolve",
+                        headers={"CF-Connecting-IP": f"2001:db8:1:2::{i:x}"}).status_code
+            for i in range(limit + 1)
+        ]
+        assert statuses[-1] == 429
+
+    def test_different_ipv6_networks_are_separate(self, client, server):
+        limit, _ = server.RATE_LIMITS["report_action"]
+        for i in range(limit):
+            client.post("/report/nonexistent/resolve", headers={"CF-Connecting-IP": "2001:db8:1:2::1"})
+        other = client.post("/report/nonexistent/resolve", headers={"CF-Connecting-IP": "2001:db8:9:9::1"})
+        assert other.status_code == 404
+
+
+class TestReportPlacement:
+
+    def test_reports_far_from_any_road_are_refused(self, client):
+        # Mid-Atlantic, then the Nanda Devi sanctuary (30 km from a road).
+        for lat, lon in ((0.0, -30.0), (30.376, 79.970)):
+            assert client.post("/report", json={"lat": lat, "lon": lon}).status_code == 422
+
+
+class TestConcurrency:
+    """The server now runs threads, so shared state must stay consistent."""
+
+    def test_route_computations_never_overlap(self, server, monkeypatch):
+        import threading
+
+        active, overlaps = [0], []
+
+        def slow_route(**kwargs):
+            active[0] += 1
+            if active[0] > 1:
+                overlaps.append(True)
+            time.sleep(0.05)
+            active[0] -= 1
+
+        guarded = server._one_route_at_a_time(slow_route)
+        threads = [threading.Thread(target=guarded) for _ in range(6)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert not overlaps
+
+    def test_simultaneous_reports_are_all_kept(self, server, monkeypatch, tmp_path):
+        import threading
+
+        monkeypatch.setattr(server, "DATABASE_URL", "")
+        monkeypatch.setattr(server, "REPORTS_FILE", str(tmp_path / "reports.json"))
+        monkeypatch.setattr(server, "_reports", [])
+        monkeypatch.setitem(server.RATE_LIMITS, "report", (1000, 300))
+
+        def post(i):
+            with server.app.test_client() as c:
+                c.post("/report", json={"lat": 30.3165, "lon": 78.0322, "description": f"r{i}"},
+                       headers={"CF-Connecting-IP": f"198.51.100.{i}"})
+
+        threads = [threading.Thread(target=post, args=(i,)) for i in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(server._reports) == 20
+        assert len(json.loads((tmp_path / "reports.json").read_text())) == 20
+
+    def test_a_stale_cache_is_refreshed_by_one_request_not_all(self, server, monkeypatch):
+        import threading
+
+        calls = []
+
+        class Slow429:
+            status_code = 429
+
+            def json(self):
+                return {"reason": "Daily API request limit exceeded."}
+
+            def raise_for_status(self):
+                raise server.requests.HTTPError("429")
+
+        def slow_get(url, **kwargs):
+            calls.append(url)
+            time.sleep(0.2)
+            return Slow429()
+
+        monkeypatch.setattr(server.requests, "get", slow_get)
+        monkeypatch.setattr(server, "_ffgs_rainfall_cache", {
+            "timestamp": 0.0, "data": {}, "last_error": None, "last_attempt": 0.0, "source": None})
+
+        threads = [threading.Thread(target=server._fetch_ffgs_live_rainfall) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert len(calls) == 1
