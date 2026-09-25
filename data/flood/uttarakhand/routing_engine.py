@@ -27,11 +27,35 @@ if _PROJ_OVERRIDE and os.path.isdir(_PROJ_OVERRIDE):
 # IMPORTS
 # ============================================================
 
+import ctypes
+
 import numpy as np
 
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 from scipy.spatial import cKDTree
+
+
+# ============================================================
+# MEMORY
+#
+# Each route builds a few full-graph arrays of ~31 MiB, just under
+# glibc's largest automatic mmap threshold (32 MiB). Such blocks come
+# from the heap, and with the server's worker threads each getting its
+# own malloc arena, freed blocks stayed in the process instead of going
+# back to the OS: resident memory crept up route by route until Render
+# restarted the 512 MB instance for exceeding its limit. A fixed 4 MiB
+# threshold makes every large array its own mapping, returned on free,
+# and two arenas bound what idle threads can hold on to. Linux/glibc
+# only; elsewhere (a teammate's Windows machine) this is skipped.
+# ============================================================
+
+try:
+    _libc = ctypes.CDLL("libc.so.6")
+    _libc.mallopt(-3, 4 * 1024 * 1024)  # M_MMAP_THRESHOLD
+    _libc.mallopt(-8, 2)                # M_ARENA_MAX
+except (OSError, AttributeError):
+    pass
 
 
 # ============================================================
@@ -118,6 +142,18 @@ if len(risk) != num_edges:
     )
 
 print("Risk data aligned with graph.")
+
+# Each edge's risk as an index into RISK_LEVELS, so a route's
+# full-graph weights are one table lookup (see _full_weights).
+RISK_LEVELS = np.array([1.0, 2.0, 4.0, 8.0])
+
+if not np.isin(risk, RISK_LEVELS).all():
+
+    raise RuntimeError(
+        "ERROR: Risk array has values other than 1, 2, 4 and 8!"
+    )
+
+risk_level = np.searchsorted(RISK_LEVELS, risk).astype(np.uint8)
 
 
 # ============================================================
@@ -398,28 +434,22 @@ def calculate_route(
     # --------------------------------------------------------
     # RISK AND WEIGHTS, FOR EVERY EDGE OR JUST SOME
     #
-    # Full-graph arrays (4M edges, 33 MB each) are only needed when
-    # Dijkstra actually runs. Everything else -- the route's risk
-    # breakdown, its cost, the detour-cap check -- reads the few
-    # thousand edges on one path. So each formula takes `edges`: None
-    # for every edge, or an index array for just those, and a route
-    # served from a cached search is described by exactly the same
-    # formulas as a fresh one. Rebuilding the full arrays for each of
-    # five evacuation candidates was most of /evacuate's time on
-    # Render's ~0.1-CPU free tier.
+    # Full-graph weights (4M edges, 33 MB) are only needed when
+    # Dijkstra actually runs (_full_weights). Everything else -- the
+    # route's risk breakdown, its cost, the detour-cap check -- reads
+    # the few thousand edges on one path, so those formulas take an
+    # index array of just those edges, and a route served from a
+    # cached search is described by exactly the same formulas as a
+    # fresh one. Rebuilding the full arrays for each of five
+    # evacuation candidates was most of /evacuate's time on Render's
+    # ~0.1-CPU free tier.
     # --------------------------------------------------------
 
-    def _effective_risk(edges=None):
+    def _effective_risk(edges):
         # Static hazard-map risk with crowdsourced report edges forced
         # to EXTREME. This is what gets reported back in
         # risk_counts/segment_risks, since it reflects real, named
         # hazards rather than a temporary weather nudge.
-
-        if edges is None:
-            values = risk.copy()
-            if report_edges.size > 0:
-                values[report_edges] = 8.0
-            return values
 
         values = risk[edges]
 
@@ -428,17 +458,18 @@ def calculate_route(
 
         return values
 
-    def _routing_risk(edges=None):
-        # Escalates effective risk by one tier when live rain crosses
-        # the threshold. Only steers SAFEST; never reported.
-
-        values = _effective_risk(edges)
+    def _escalate(values):
+        # One tier up when live rain crosses the threshold. Only
+        # steers SAFEST; never reported.
 
         if not live_escalate:
             return values
 
         escalated = np.where(values == 2.0, 4.0, values)
         return np.where(values == 4.0, 8.0, escalated)
+
+    def _routing_risk(edges):
+        return _escalate(_effective_risk(edges))
 
 
     # --------------------------------------------------------
@@ -450,15 +481,12 @@ def calculate_route(
     # hard-blocked in all three, for every mode.
     # --------------------------------------------------------
 
-    def _weights(kind, edges=None):
+    def _plain_distance(kind):
+        return kind == "baseline" or (kind == "primary" and mode == "FASTEST")
 
-        distance = graph_distance if edges is None else graph_distance[edges]
+    def _multiplier(kind, routing):
 
-        if kind == "baseline" or (kind == "primary" and mode == "FASTEST"):
-
-            values = distance.copy()
-
-        elif kind == "primary":
+        if kind == "primary":
 
             # SAFEST: strongly penalize flood-risk roads.
             #
@@ -482,38 +510,69 @@ def calculate_route(
             # still get the risk^2 penalty so the router prefers
             # safer roads whenever a reasonable option exists.
 
-            routing = _routing_risk(edges)
-
-            values = np.where(
+            return np.where(
                 routing >= EXTREME_RISK_VALUE,
-                distance * EXTREME_BLOCK_MULTIPLIER,
-                distance * (routing ** 2)
+                EXTREME_BLOCK_MULTIPLIER,
+                routing ** 2
             )
+
+        # "fallback": a milder penalty than SAFEST's absolute
+        # EXTREME block — used only as SAFEST's own fallback when
+        # the fully-safe detour is disproportionately long (see
+        # SAFEST_DETOUR_CAP). Not a user-selectable mode on its own.
+
+        RELAXED_EXTREME_MULTIPLIER = 25.0
+
+        return np.where(
+            routing >= EXTREME_RISK_VALUE,
+            RELAXED_EXTREME_MULTIPLIER,
+            1.0 + 0.75 * (routing - 1.0)
+        )
+
+    def _weights(kind, edges):
+        # Weights of just these edges, for a found path's cost.
+
+        distance = graph_distance[edges]
+
+        if _plain_distance(kind):
+            values = distance.copy()
+        else:
+            values = distance * _multiplier(kind, _routing_risk(edges))
+
+        if report_edges.size > 0:
+            reported = np.isin(edges, report_edges)
+            values[reported] = distance[reported] * REPORT_BLOCK_MULTIPLIER
+
+        return values
+
+    def _full_weights(kind):
+        # The same weights for every edge, for Dijkstra, built in one
+        # array. Chained expressions over all 4M edges held about five
+        # full-size temporaries at once (~110 MB above the resident
+        # graph), enough to push Render's 512 MB instance over its
+        # limit. Risk takes only four values, so the multiplier is a
+        # four-entry table looked up by each edge's risk level, then
+        # scaled by distance in place. Reported edges are overwritten
+        # below whatever their risk, so their forced EXTREME in
+        # _effective_risk needs no counterpart here.
+
+        if _plain_distance(kind):
+
+            if report_edges.size == 0:
+                # Read-only from here: csr_matrix and dijkstra don't
+                # write to their data array.
+                return graph_distance
+
+            values = graph_distance.copy()
 
         else:
 
-            # "fallback": a milder penalty than SAFEST's absolute
-            # EXTREME block — used only as SAFEST's own fallback when
-            # the fully-safe detour is disproportionately long (see
-            # SAFEST_DETOUR_CAP). Not a user-selectable mode on its own.
-
-            RELAXED_EXTREME_MULTIPLIER = 25.0
-
-            routing = _routing_risk(edges)
-
-            values = np.where(
-                routing >= EXTREME_RISK_VALUE,
-                distance * RELAXED_EXTREME_MULTIPLIER,
-                distance * (1.0 + 0.75 * (routing - 1.0))
-            )
+            table = _multiplier(kind, _escalate(RISK_LEVELS))
+            values = np.take(table, risk_level)
+            np.multiply(values, graph_distance, out=values)
 
         if report_edges.size > 0:
-
-            if edges is None:
-                values[report_edges] = graph_distance[report_edges] * REPORT_BLOCK_MULTIPLIER
-            else:
-                reported = np.isin(edges, report_edges)
-                values[reported] = distance[reported] * REPORT_BLOCK_MULTIPLIER
+            values[report_edges] = graph_distance[report_edges] * REPORT_BLOCK_MULTIPLIER
 
         return values
 
@@ -542,7 +601,7 @@ def calculate_route(
         if predecessors is None:
 
             weighted_graph = csr_matrix(
-                (_weights(cache_key), indices, indptr),
+                (_full_weights(cache_key), indices, indptr),
                 shape=(num_nodes, num_nodes)
             )
 
