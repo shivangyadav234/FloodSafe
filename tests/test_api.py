@@ -1327,3 +1327,114 @@ class TestZoneCoverage:
     def test_places_named_in_flood_records_are_zones(self, client):
         names = {z["name"] for z in client.get("/ffgs/zones").get_json()["zones"]}
         assert {"Kedarnath", "Gaurikund", "Guptkashi", "Tharali"} <= names
+
+
+class TestLandslideLayer:
+    """The landslide layer is on only when data/landslide_thresholds.json
+    exists -- which the pipeline writes only if the rule adds warning over
+    the flood rule. The repository doesn't ship one yet."""
+
+    @staticmethod
+    def payload(hours, now_index=None):
+        times = [f"2026-09-{1 + h // 24:02d}T{h % 24:02d}:00" for h in range(hours)]
+        index = hours - 1 if now_index is None else now_index
+        return {"current": {"time": times[index], "precipitation": 0.0},
+                "hourly": {"time": times, "precipitation": [1.0] * hours}}
+
+    def test_off_without_the_thresholds_file(self, client, server):
+        data = client.get("/ffgs/zones").get_json()
+
+        assert data["landslide"] == {"available": False}
+        assert data["rainfall"]["past_days"] == 2
+        assert all(z["landslide_thresholds_mm"] is None for z in data["zones"])
+        assert server.FFGS_RAINFALL_QUERY["past_days"] == 2
+        assert server.FFGS_RELAY_MAX_HOURS == 96
+
+    def test_short_history_never_reads_as_a_week(self, server):
+        reading = server._parse_open_meteo_durations(self.payload(72))
+        assert reading["24h"] == 24.0 and reading["72h"] == 72.0
+        assert reading["168h"] is None
+
+    def test_a_week_of_history_gives_a_7_day_total(self, server):
+        reading = server._parse_open_meteo_durations(self.payload(192, now_index=180))
+        assert reading["168h"] == 168.0 and reading["1h"] == 1.0
+
+    def test_an_unreadable_file_leaves_the_layer_off(self, server, tmp_path, monkeypatch):
+        monkeypatch.setattr(server, "DATA_DIR", str(tmp_path))
+        assert server._load_landslide_thresholds() is None
+
+        (tmp_path / "landslide_thresholds.json").write_text(json.dumps({"points": [
+            {"lat": 30.0, "lon": 79.0, "thresholds_mm": {
+                "24h": {"watch": 50, "critical": 40}, "72h": {"watch": 1, "critical": 2},
+                "168h": {"watch": 1, "critical": 2}}}]}))
+        assert server._load_landslide_thresholds() is None
+
+    def test_past_landslides_are_empty_without_the_catalogue(self, client):
+        data = client.get("/ffgs/landslides.geojson").get_json()
+        assert data == {"type": "FeatureCollection", "features": []}
+
+    def test_page_carries_the_layer(self, client):
+        page = client.get("/ffgs").get_data(as_text=True)
+        assert 'id="ffgsLandslideAlert"' in page and 'id="pastLandslidesLegend" hidden' in page
+        assert "landslide: landslideStatus(rain, zone.landslide_thresholds_mm)" in page
+        # The browser fallback asks for the server's own history length.
+        fallback = client.get("/rainfall-fallback.js").get_data(as_text=True)
+        assert "var pastDays = rainfall.past_days || 2;" in fallback
+
+    def test_on_with_the_thresholds_file(self, tmp_path):
+        """A fresh server over a data directory that has the file."""
+        import subprocess
+        import sys
+
+        app_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "data", "flood", "uttarakhand")
+        real = os.path.join(app_dir, "data")
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        for name in os.listdir(real):
+            if name != "reports.json":
+                os.symlink(os.path.join(real, name), data_dir / name)
+
+        with open(os.path.join(real, "calibrated_thresholds.json"), encoding="utf-8") as f:
+            points = json.load(f)["points"]
+        (data_dir / "landslide_thresholds.json").write_text(json.dumps({
+            "validation": {"landslide_episodes_scored": 40, "critical": {"POD": 0.5}, "watch": {"POD": 0.7}},
+            "points": [{"lat": p["lat"], "lon": p["lon"], "district": p["district"], "thresholds_mm": {
+                "24h": {"watch": 60, "critical": 90}, "72h": {"watch": 110, "critical": 160},
+                "168h": {"watch": 170, "critical": 250}}} for p in points]}))
+
+        script = r'''
+import json, server
+c = server.app.test_client()
+zones = c.get("/ffgs/zones").get_json()
+plan = c.get("/rainfall/relay-points").get_json()["ffgs"]
+hours = 192
+times = ["2026-09-%02dT%02d:00" % (1 + h // 24, h % 24) for h in range(hours)]
+locations = [{"latitude": lat, "longitude": lon,
+              "current": {"time": times[180], "precipitation": 0.0},
+              "hourly": {"time": times, "precipitation": [1.5] * hours}} for lat, lon in plan["points"]]
+relay = c.post("/rainfall/relay", json={"ffgs": locations}, headers={"Authorization": "Bearer s3cret"})
+after = c.get("/ffgs/zones").get_json()
+print("RESULT " + json.dumps({
+    "landslide": zones["landslide"], "past_days": zones["rainfall"]["past_days"],
+    "query_past_days": plan["query"]["past_days"],
+    "zones_with_thresholds": sum(1 for z in zones["zones"] if z["landslide_thresholds_mm"]),
+    "zones": len(zones["zones"]), "relay_status": relay.status_code,
+    "week_totals": sorted({z["live_rainfall"]["168h"] for z in after["zones"] if z.get("live_rainfall")}),
+}))
+'''
+        env = dict(os.environ, FLOODSAFE_DATA_DIR=str(data_dir), RAINFALL_RELAY_SECRET="s3cret")
+        env.pop("DATABASE_URL", None)
+        run = subprocess.run([sys.executable, "-c", script], cwd=app_dir, env=env,
+                             capture_output=True, text=True, timeout=600)
+        line = [l for l in run.stdout.splitlines() if l.startswith("RESULT ")]
+        assert line, run.stdout[-2000:] + run.stderr[-2000:]
+        result = json.loads(line[0][len("RESULT "):])
+
+        assert result["landslide"] == {"available": True, "durations": ["24h", "72h", "168h"],
+                                       "episodes_scored": 40, "critical_pod": 0.5, "watch_pod": 0.7}
+        assert result["past_days"] == 7 and result["query_past_days"] == 7
+        assert result["zones_with_thresholds"] == result["zones"]
+        # A week of relayed hourly data is accepted, not rejected as oversized.
+        assert result["relay_status"] == 200
+        assert result["week_totals"] == [252.0]

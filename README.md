@@ -373,6 +373,22 @@ python build_landslide_thresholds.py       # -> data/landslide_thresholds.json, 
 `fetch_landslide_catalog.py` writes the selected landslides to
 `data/landslides_uttarakhand.geojson`.
 
+The live side is built and switches on by itself when
+`data/landslide_thresholds.json` exists (commit it and deploy):
+
+- the zone rainfall feed, the rainfall relay and the browser fallback ask
+  Open-Meteo for 7 past days instead of 2, for the 7-day total (still one
+  call per location: Open-Meteo counts up to two weeks of data as one);
+- `/ffgs/zones` gives each zone its landslide thresholds, and `/ffgs` shows
+  a "Landslide risk from rain" table (1, 3 and 7 days) under each zone's
+  flood table, a landslide line on zone cards and map popups, and its own
+  banner line -- never merged into the flood status;
+- `/ffgs/landslides.geojson` serves past landslides, drawn as brown dots on
+  the `/ffgs` map whenever the catalogue file is present.
+
+Totals the feed can't reach back far enough for are left blank rather than
+shown short. Push alerts are still flood-only.
+
 ### Zone coverage follows recorded floods
 
 Zones used to follow the hazard atlas, which covers ~10% of the state, so
