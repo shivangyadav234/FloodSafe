@@ -1,0 +1,38 @@
+# Checks the live site end to end: every API endpoint, the routing
+# calls, security headers, and each page in a real browser for script
+# errors. Read-only; see .github/scripts/live_check.py.
+#
+# Run it from the Actions tab (Run workflow) after a deploy.
+
+name: Live site check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/zealous-ptolemy-2im8yg]
+    paths:
+      - .github/scripts/live_check.py
+      - .github/workflows/live-check.yml
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Chromium
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Check the live site
+        run: python .github/scripts/live_check.py
+      - name: Keep screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-check-screenshots
+          path: live-check/
+          if-no-files-found: ignore
