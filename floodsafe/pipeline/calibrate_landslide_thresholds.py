@@ -59,6 +59,8 @@ CURVE_TARGETS = (0.05, 0.10, 0.15, 0.20, 0.30)
 
 def load_landslide_events(path=LANDSLIDES):
     """Episodes: {id, start, end, kind, districts} in the flood inventory's shape."""
+    if not os.path.exists(path):
+        sys.exit(f"No landslide list at {path}. Run fetch_landslide_catalog.py first.")
     with open(path, encoding="utf-8") as f:
         features = json.load(f)["features"]
 

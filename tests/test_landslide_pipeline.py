@@ -179,3 +179,8 @@ def test_build_refuses_without_the_long_window_mapping(synthetic_record, monkeyp
     monkeypatch.setattr(sys, "argv", ["build_landslide_thresholds.py"])
     with pytest.raises(SystemExit, match="check_live_model_bias"):
         BL.main()
+
+
+def test_missing_landslide_list_says_what_to_run(tmp_path):
+    with pytest.raises(SystemExit, match="fetch_landslide_catalog"):
+        L.load_landslide_events(str(tmp_path / "absent.geojson"))
