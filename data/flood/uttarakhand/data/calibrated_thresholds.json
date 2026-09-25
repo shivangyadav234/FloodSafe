@@ -1,0 +1,1591 @@
+{
+ "method": "Rainfall rarity against each place's own climate, calibrated on 24 monsoons (2000-2023) of IMD-recorded floods from the India Flood Inventory and hourly ERA5 rainfall, then mapped to the live forecast feed's units.",
+ "built": "2026-09-25",
+ "operating_point": {
+  "critical_target_share_of_dry_days": 0.1,
+  "watch_target_share_of_dry_days": 0.2
+ },
+ "validation": {
+  "scheme": "leave-one-year-out; district-days; June-September 2000-2023",
+  "flood_events_scored": 156,
+  "dry_district_days": 36794,
+  "critical": {
+   "POD": 0.429,
+   "POFD": 0.1006,
+   "TSS": 0.329,
+   "hits": 67,
+   "misses": 89
+  },
+  "watch": {
+   "POD": 0.571,
+   "POFD": 0.2001,
+   "TSS": 0.37,
+   "hits": 89,
+   "misses": 67
+  }
+ },
+ "rarity_levels": {
+  "critical": {
+   "1h_rel": 0.99805,
+   "3h_rel": 0.99735,
+   "24h_rel": 0.99041
+  },
+  "watch": {
+   "1h_rel": 0.99568,
+   "3h_rel": 0.99261,
+   "24h_rel": 0.97688
+  }
+ },
+ "sources": {
+  "events": "India Flood Inventory v3 (Saharia et al. 2021, Nat Hazards; IIT Delhi with IMD), doi:10.5281/zenodo.4742142, CC BY-NC 4.0",
+  "rainfall": "ERA5 hourly precipitation via Open-Meteo historical archive",
+  "live_units": "Open-Meteo historical forecast (best_match), 2022-2023, quantile-mapped"
+ },
+ "limits": [
+  "ERA5 is ~25 km and smooths local cloudbursts; flood records are dated by day and located by district.",
+  "Recorded floods are under-reported in remote areas, so true detection rates are uncertain.",
+  "Landslide-only events are not predictable from district rainfall this way and were excluded.",
+  "The flood inventory is licensed for non-commercial use only."
+ ],
+ "points": [
+  {
+   "lat": 28.75,
+   "lon": 80.0,
+   "district": "Udham Singh Nagar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 17.9,
+     "watch": 12.2
+    },
+    "3h": {
+     "critical": 36.3,
+     "watch": 18.9
+    },
+    "24h": {
+     "critical": 89.3,
+     "watch": 43.6
+    }
+   }
+  },
+  {
+   "lat": 29.0,
+   "lon": 79.25,
+   "district": "Udham Singh Nagar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.2,
+     "watch": 8.5
+    },
+    "3h": {
+     "critical": 21.0,
+     "watch": 13.0
+    },
+    "24h": {
+     "critical": 49.8,
+     "watch": 32.2
+    }
+   }
+  },
+  {
+   "lat": 29.0,
+   "lon": 79.5,
+   "district": "Udham Singh Nagar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 13.1,
+     "watch": 10.0
+    },
+    "3h": {
+     "critical": 24.7,
+     "watch": 15.9
+    },
+    "24h": {
+     "critical": 61.4,
+     "watch": 37.6
+    }
+   }
+  },
+  {
+   "lat": 29.0,
+   "lon": 79.75,
+   "district": "Udham Singh Nagar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 16.6,
+     "watch": 11.3
+    },
+    "3h": {
+     "critical": 31.2,
+     "watch": 18.3
+    },
+    "24h": {
+     "critical": 79.9,
+     "watch": 43.4
+    }
+   }
+  },
+  {
+   "lat": 29.0,
+   "lon": 80.0,
+   "district": "Udham Singh Nagar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 19.9,
+     "watch": 13.0
+    },
+    "3h": {
+     "critical": 40.3,
+     "watch": 21.9
+    },
+    "24h": {
+     "critical": 115.0,
+     "watch": 50.2
+    }
+   }
+  },
+  {
+   "lat": 29.25,
+   "lon": 79.0,
+   "district": "Udham Singh Nagar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 10.8,
+     "watch": 8.2
+    },
+    "3h": {
+     "critical": 20.1,
+     "watch": 12.7
+    },
+    "24h": {
+     "critical": 48.4,
+     "watch": 31.8
+    }
+   }
+  },
+  {
+   "lat": 29.25,
+   "lon": 79.25,
+   "district": "Nainital",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.9,
+     "watch": 9.9
+    },
+    "3h": {
+     "critical": 22.8,
+     "watch": 15.4
+    },
+    "24h": {
+     "critical": 58.4,
+     "watch": 37.6
+    }
+   }
+  },
+  {
+   "lat": 29.25,
+   "lon": 79.5,
+   "district": "Nainital",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 13.5,
+     "watch": 11.0
+    },
+    "3h": {
+     "critical": 26.2,
+     "watch": 18.2
+    },
+    "24h": {
+     "critical": 71.1,
+     "watch": 43.7
+    }
+   }
+  },
+  {
+   "lat": 29.25,
+   "lon": 79.75,
+   "district": "Nainital",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 17.7,
+     "watch": 13.9
+    },
+    "3h": {
+     "critical": 38.0,
+     "watch": 24.2
+    },
+    "24h": {
+     "critical": 110.8,
+     "watch": 63.8
+    }
+   }
+  },
+  {
+   "lat": 29.25,
+   "lon": 80.0,
+   "district": "Champawat",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 45.4,
+     "watch": 26.7
+    },
+    "3h": {
+     "critical": 71.5,
+     "watch": 37.7
+    },
+    "24h": {
+     "critical": 152.5,
+     "watch": 120.6
+    }
+   }
+  },
+  {
+   "lat": 29.25,
+   "lon": 80.25,
+   "district": "Champawat",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 22.5,
+     "watch": 15.6
+    },
+    "3h": {
+     "critical": 44.1,
+     "watch": 27.8
+    },
+    "24h": {
+     "critical": 121.9,
+     "watch": 73.1
+    }
+   }
+  },
+  {
+   "lat": 29.5,
+   "lon": 78.75,
+   "district": "Pauri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.1,
+     "watch": 9.2
+    },
+    "3h": {
+     "critical": 22.1,
+     "watch": 13.6
+    },
+    "24h": {
+     "critical": 56.1,
+     "watch": 33.4
+    }
+   }
+  },
+  {
+   "lat": 29.5,
+   "lon": 79.0,
+   "district": "Nainital",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.4,
+     "watch": 10.0
+    },
+    "3h": {
+     "critical": 24.2,
+     "watch": 16.2
+    },
+    "24h": {
+     "critical": 64.8,
+     "watch": 39.9
+    }
+   }
+  },
+  {
+   "lat": 29.5,
+   "lon": 79.25,
+   "district": "Nainital",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 13.4,
+     "watch": 10.9
+    },
+    "3h": {
+     "critical": 26.7,
+     "watch": 18.3
+    },
+    "24h": {
+     "critical": 70.3,
+     "watch": 43.9
+    }
+   }
+  },
+  {
+   "lat": 29.5,
+   "lon": 79.5,
+   "district": "Almora",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.7,
+     "watch": 10.8
+    },
+    "3h": {
+     "critical": 25.5,
+     "watch": 18.3
+    },
+    "24h": {
+     "critical": 70.1,
+     "watch": 47.9
+    }
+   }
+  },
+  {
+   "lat": 29.5,
+   "lon": 79.75,
+   "district": "Almora",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 16.4,
+     "watch": 12.8
+    },
+    "3h": {
+     "critical": 34.7,
+     "watch": 22.6
+    },
+    "24h": {
+     "critical": 102.3,
+     "watch": 62.8
+    }
+   }
+  },
+  {
+   "lat": 29.5,
+   "lon": 80.0,
+   "district": "Almora",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 42.8,
+     "watch": 18.2
+    },
+    "3h": {
+     "critical": 64.1,
+     "watch": 31.9
+    },
+    "24h": {
+     "critical": 136.6,
+     "watch": 110.4
+    }
+   }
+  },
+  {
+   "lat": 29.5,
+   "lon": 80.25,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 17.8,
+     "watch": 13.4
+    },
+    "3h": {
+     "critical": 37.9,
+     "watch": 24.3
+    },
+    "24h": {
+     "critical": 115.9,
+     "watch": 65.3
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 78.0,
+   "district": "Haridwar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 10.7,
+     "watch": 8.2
+    },
+    "3h": {
+     "critical": 19.8,
+     "watch": 12.1
+    },
+    "24h": {
+     "critical": 44.6,
+     "watch": 28.8
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 78.25,
+   "district": "Haridwar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.5,
+     "watch": 8.5
+    },
+    "3h": {
+     "critical": 21.8,
+     "watch": 12.4
+    },
+    "24h": {
+     "critical": 48.1,
+     "watch": 30.0
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 78.5,
+   "district": "Pauri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.2,
+     "watch": 9.3
+    },
+    "3h": {
+     "critical": 22.5,
+     "watch": 13.5
+    },
+    "24h": {
+     "critical": 56.6,
+     "watch": 33.3
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 78.75,
+   "district": "Pauri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 13.0,
+     "watch": 10.3
+    },
+    "3h": {
+     "critical": 25.0,
+     "watch": 16.4
+    },
+    "24h": {
+     "critical": 64.4,
+     "watch": 38.9
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 79.0,
+   "district": "Pauri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 13.2,
+     "watch": 10.7
+    },
+    "3h": {
+     "critical": 25.8,
+     "watch": 18.2
+    },
+    "24h": {
+     "critical": 70.1,
+     "watch": 43.9
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 79.25,
+   "district": "Almora",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.3,
+     "watch": 10.1
+    },
+    "3h": {
+     "critical": 24.4,
+     "watch": 17.5
+    },
+    "24h": {
+     "critical": 66.4,
+     "watch": 43.7
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 79.5,
+   "district": "Almora",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.8,
+     "watch": 10.1
+    },
+    "3h": {
+     "critical": 22.8,
+     "watch": 17.7
+    },
+    "24h": {
+     "critical": 66.7,
+     "watch": 44.0
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 79.75,
+   "district": "Bageshwar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.4,
+     "watch": 10.5
+    },
+    "3h": {
+     "critical": 24.4,
+     "watch": 17.8
+    },
+    "24h": {
+     "critical": 69.0,
+     "watch": 47.9
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 80.0,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.7,
+     "watch": 11.2
+    },
+    "3h": {
+     "critical": 26.3,
+     "watch": 20.1
+    },
+    "24h": {
+     "critical": 77.0,
+     "watch": 53.6
+    }
+   }
+  },
+  {
+   "lat": 29.75,
+   "lon": 80.25,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.6,
+     "watch": 10.2
+    },
+    "3h": {
+     "critical": 22.7,
+     "watch": 18.2
+    },
+    "24h": {
+     "critical": 69.4,
+     "watch": 49.9
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 78.0,
+   "district": "Haridwar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.1,
+     "watch": 9.0
+    },
+    "3h": {
+     "critical": 22.4,
+     "watch": 12.7
+    },
+    "24h": {
+     "critical": 54.9,
+     "watch": 31.3
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 78.25,
+   "district": "Pauri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.3,
+     "watch": 9.1
+    },
+    "3h": {
+     "critical": 22.6,
+     "watch": 13.4
+    },
+    "24h": {
+     "critical": 57.0,
+     "watch": 32.1
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 78.5,
+   "district": "Pauri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.4,
+     "watch": 9.5
+    },
+    "3h": {
+     "critical": 22.6,
+     "watch": 15.3
+    },
+    "24h": {
+     "critical": 59.9,
+     "watch": 37.4
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 78.75,
+   "district": "Pauri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.5,
+     "watch": 9.9
+    },
+    "3h": {
+     "critical": 23.3,
+     "watch": 15.8
+    },
+    "24h": {
+     "critical": 61.3,
+     "watch": 38.7
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 79.0,
+   "district": "Pauri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.6,
+     "watch": 9.6
+    },
+    "3h": {
+     "critical": 22.2,
+     "watch": 16.0
+    },
+    "24h": {
+     "critical": 62.0,
+     "watch": 40.6
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 79.25,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.0,
+     "watch": 9.5
+    },
+    "3h": {
+     "critical": 21.3,
+     "watch": 15.9
+    },
+    "24h": {
+     "critical": 59.8,
+     "watch": 40.4
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 79.5,
+   "district": "Bageshwar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 10.5,
+     "watch": 9.1
+    },
+    "3h": {
+     "critical": 19.9,
+     "watch": 14.5
+    },
+    "24h": {
+     "critical": 52.3,
+     "watch": 38.7
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 79.75,
+   "district": "Bageshwar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 10.8,
+     "watch": 9.2
+    },
+    "3h": {
+     "critical": 20.8,
+     "watch": 16.2
+    },
+    "24h": {
+     "critical": 60.6,
+     "watch": 44.6
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 80.0,
+   "district": "Bageshwar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 13.0,
+     "watch": 10.9
+    },
+    "3h": {
+     "critical": 26.3,
+     "watch": 19.6
+    },
+    "24h": {
+     "critical": 84.0,
+     "watch": 60.9
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 80.25,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.5,
+     "watch": 11.3
+    },
+    "3h": {
+     "critical": 26.0,
+     "watch": 21.1
+    },
+    "24h": {
+     "critical": 100.3,
+     "watch": 66.8
+    }
+   }
+  },
+  {
+   "lat": 30.0,
+   "lon": 80.5,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 6.3,
+     "watch": 4.9
+    },
+    "3h": {
+     "critical": 12.1,
+     "watch": 9.1
+    },
+    "24h": {
+     "critical": 33.3,
+     "watch": 24.4
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 78.0,
+   "district": "Dehradun",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.3,
+     "watch": 9.6
+    },
+    "3h": {
+     "critical": 23.0,
+     "watch": 15.4
+    },
+    "24h": {
+     "critical": 63.2,
+     "watch": 37.8
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 78.25,
+   "district": "Dehradun",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.3,
+     "watch": 9.9
+    },
+    "3h": {
+     "critical": 23.3,
+     "watch": 16.0
+    },
+    "24h": {
+     "critical": 63.8,
+     "watch": 39.8
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 78.5,
+   "district": "Tehri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.1,
+     "watch": 10.0
+    },
+    "3h": {
+     "critical": 22.4,
+     "watch": 16.0
+    },
+    "24h": {
+     "critical": 61.5,
+     "watch": 39.8
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 78.75,
+   "district": "Tehri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.6,
+     "watch": 9.4
+    },
+    "3h": {
+     "critical": 22.3,
+     "watch": 14.1
+    },
+    "24h": {
+     "critical": 57.0,
+     "watch": 37.4
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 79.0,
+   "district": "Rudraprayag",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.2,
+     "watch": 9.2
+    },
+    "3h": {
+     "critical": 21.1,
+     "watch": 14.5
+    },
+    "24h": {
+     "critical": 52.9,
+     "watch": 37.7
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 79.25,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 10.7,
+     "watch": 9.0
+    },
+    "3h": {
+     "critical": 20.6,
+     "watch": 14.9
+    },
+    "24h": {
+     "critical": 56.1,
+     "watch": 40.6
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 79.5,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 9.8,
+     "watch": 8.3
+    },
+    "3h": {
+     "critical": 18.5,
+     "watch": 13.5
+    },
+    "24h": {
+     "critical": 50.0,
+     "watch": 36.5
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 79.75,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 5.3,
+     "watch": 4.2
+    },
+    "3h": {
+     "critical": 10.5,
+     "watch": 7.5
+    },
+    "24h": {
+     "critical": 27.3,
+     "watch": 19.8
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 80.0,
+   "district": "Bageshwar",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 8.0,
+     "watch": 6.5
+    },
+    "3h": {
+     "critical": 15.4,
+     "watch": 11.6
+    },
+    "24h": {
+     "critical": 41.8,
+     "watch": 31.3
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 80.25,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 8.2,
+     "watch": 6.5
+    },
+    "3h": {
+     "critical": 15.3,
+     "watch": 11.1
+    },
+    "24h": {
+     "critical": 41.4,
+     "watch": 31.1
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 80.5,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 6.3,
+     "watch": 4.9
+    },
+    "3h": {
+     "critical": 12.1,
+     "watch": 9.1
+    },
+    "24h": {
+     "critical": 33.3,
+     "watch": 24.4
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 80.75,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 5.3,
+     "watch": 3.9
+    },
+    "3h": {
+     "critical": 10.4,
+     "watch": 7.0
+    },
+    "24h": {
+     "critical": 26.4,
+     "watch": 19.6
+    }
+   }
+  },
+  {
+   "lat": 30.25,
+   "lon": 81.0,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 4.5,
+     "watch": 3.3
+    },
+    "3h": {
+     "critical": 8.9,
+     "watch": 5.7
+    },
+    "24h": {
+     "critical": 21.9,
+     "watch": 14.6
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 78.0,
+   "district": "Tehri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 14.2,
+     "watch": 10.9
+    },
+    "3h": {
+     "critical": 26.9,
+     "watch": 17.9
+    },
+    "24h": {
+     "critical": 71.2,
+     "watch": 45.1
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 78.25,
+   "district": "Tehri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 12.7,
+     "watch": 10.1
+    },
+    "3h": {
+     "critical": 24.6,
+     "watch": 16.8
+    },
+    "24h": {
+     "critical": 67.9,
+     "watch": 41.7
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 78.5,
+   "district": "Tehri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.8,
+     "watch": 9.5
+    },
+    "3h": {
+     "critical": 22.6,
+     "watch": 16.0
+    },
+    "24h": {
+     "critical": 62.0,
+     "watch": 38.4
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 78.75,
+   "district": "Tehri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.2,
+     "watch": 9.2
+    },
+    "3h": {
+     "critical": 21.3,
+     "watch": 13.9
+    },
+    "24h": {
+     "critical": 55.4,
+     "watch": 36.3
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 79.0,
+   "district": "Rudraprayag",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.3,
+     "watch": 9.3
+    },
+    "3h": {
+     "critical": 21.7,
+     "watch": 15.6
+    },
+    "24h": {
+     "critical": 62.2,
+     "watch": 41.4
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 79.25,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.0,
+     "watch": 9.4
+    },
+    "3h": {
+     "critical": 21.6,
+     "watch": 16.0
+    },
+    "24h": {
+     "critical": 66.9,
+     "watch": 47.3
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 79.5,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 9.5,
+     "watch": 7.9
+    },
+    "3h": {
+     "critical": 18.3,
+     "watch": 13.6
+    },
+    "24h": {
+     "critical": 51.0,
+     "watch": 41.8
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 79.75,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 6.7,
+     "watch": 5.4
+    },
+    "3h": {
+     "critical": 12.9,
+     "watch": 9.7
+    },
+    "24h": {
+     "critical": 36.0,
+     "watch": 28.3
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 80.0,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 5.3,
+     "watch": 4.2
+    },
+    "3h": {
+     "critical": 10.5,
+     "watch": 7.5
+    },
+    "24h": {
+     "critical": 27.3,
+     "watch": 19.8
+    }
+   }
+  },
+  {
+   "lat": 30.5,
+   "lon": 80.25,
+   "district": "Pithoragarh",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 5.1,
+     "watch": 3.5
+    },
+    "3h": {
+     "critical": 9.7,
+     "watch": 6.6
+    },
+    "24h": {
+     "critical": 24.9,
+     "watch": 17.5
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 77.75,
+   "district": "Dehradun",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 15.5,
+     "watch": 12.3
+    },
+    "3h": {
+     "critical": 29.5,
+     "watch": 19.7
+    },
+    "24h": {
+     "critical": 68.4,
+     "watch": 43.0
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 78.0,
+   "district": "Dehradun",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 11.6,
+     "watch": 9.6
+    },
+    "3h": {
+     "critical": 22.3,
+     "watch": 15.3
+    },
+    "24h": {
+     "critical": 59.4,
+     "watch": 37.2
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 78.25,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 10.7,
+     "watch": 8.4
+    },
+    "3h": {
+     "critical": 20.6,
+     "watch": 13.9
+    },
+    "24h": {
+     "critical": 53.6,
+     "watch": 35.4
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 78.5,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 10.5,
+     "watch": 8.4
+    },
+    "3h": {
+     "critical": 19.6,
+     "watch": 13.5
+    },
+    "24h": {
+     "critical": 50.9,
+     "watch": 36.6
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 78.75,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 9.4,
+     "watch": 7.5
+    },
+    "3h": {
+     "critical": 17.6,
+     "watch": 12.5
+    },
+    "24h": {
+     "critical": 44.4,
+     "watch": 34.0
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 79.0,
+   "district": "Tehri Garhwal",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 7.9,
+     "watch": 6.3
+    },
+    "3h": {
+     "critical": 15.2,
+     "watch": 10.7
+    },
+    "24h": {
+     "critical": 38.4,
+     "watch": 28.2
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 79.25,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 4.7,
+     "watch": 3.5
+    },
+    "3h": {
+     "critical": 9.6,
+     "watch": 5.8
+    },
+    "24h": {
+     "critical": 22.6,
+     "watch": 15.3
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 79.5,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 9.5,
+     "watch": 7.9
+    },
+    "3h": {
+     "critical": 18.3,
+     "watch": 13.6
+    },
+    "24h": {
+     "critical": 51.0,
+     "watch": 41.8
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 79.75,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 4.7,
+     "watch": 3.3
+    },
+    "3h": {
+     "critical": 9.0,
+     "watch": 6.1
+    },
+    "24h": {
+     "critical": 23.1,
+     "watch": 16.3
+    }
+   }
+  },
+  {
+   "lat": 30.75,
+   "lon": 80.0,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 4.1,
+     "watch": 3.0
+    },
+    "3h": {
+     "critical": 7.4,
+     "watch": 4.4
+    },
+    "24h": {
+     "critical": 17.9,
+     "watch": 12.0
+    }
+   }
+  },
+  {
+   "lat": 31.0,
+   "lon": 78.0,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 9.4,
+     "watch": 7.3
+    },
+    "3h": {
+     "critical": 17.5,
+     "watch": 11.8
+    },
+    "24h": {
+     "critical": 43.0,
+     "watch": 31.3
+    }
+   }
+  },
+  {
+   "lat": 31.0,
+   "lon": 78.25,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 8.0,
+     "watch": 6.3
+    },
+    "3h": {
+     "critical": 15.0,
+     "watch": 10.8
+    },
+    "24h": {
+     "critical": 40.6,
+     "watch": 29.2
+    }
+   }
+  },
+  {
+   "lat": 31.0,
+   "lon": 78.5,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 5.3,
+     "watch": 3.7
+    },
+    "3h": {
+     "critical": 10.4,
+     "watch": 6.7
+    },
+    "24h": {
+     "critical": 28.8,
+     "watch": 17.4
+    }
+   }
+  },
+  {
+   "lat": 31.0,
+   "lon": 78.75,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 6.2,
+     "watch": 4.6
+    },
+    "3h": {
+     "critical": 11.7,
+     "watch": 8.0
+    },
+    "24h": {
+     "critical": 31.2,
+     "watch": 21.5
+    }
+   }
+  },
+  {
+   "lat": 31.0,
+   "lon": 79.0,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 5.6,
+     "watch": 3.7
+    },
+    "3h": {
+     "critical": 10.7,
+     "watch": 6.6
+    },
+    "24h": {
+     "critical": 25.7,
+     "watch": 16.9
+    }
+   }
+  },
+  {
+   "lat": 31.0,
+   "lon": 79.25,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 4.7,
+     "watch": 3.5
+    },
+    "3h": {
+     "critical": 9.6,
+     "watch": 5.8
+    },
+    "24h": {
+     "critical": 22.6,
+     "watch": 15.3
+    }
+   }
+  },
+  {
+   "lat": 31.0,
+   "lon": 79.5,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 3.9,
+     "watch": 2.7
+    },
+    "3h": {
+     "critical": 7.7,
+     "watch": 4.4
+    },
+    "24h": {
+     "critical": 19.3,
+     "watch": 11.8
+    }
+   }
+  },
+  {
+   "lat": 31.0,
+   "lon": 79.75,
+   "district": "Chamoli",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 3.1,
+     "watch": 1.8
+    },
+    "3h": {
+     "critical": 6.4,
+     "watch": 3.4
+    },
+    "24h": {
+     "critical": 15.7,
+     "watch": 9.4
+    }
+   }
+  },
+  {
+   "lat": 31.25,
+   "lon": 79.0,
+   "district": "Uttarkashi",
+   "thresholds_mm": {
+    "1h": {
+     "critical": 4.3,
+     "watch": 3.0
+    },
+    "3h": {
+     "critical": 8.0,
+     "watch": 4.6
+    },
+    "24h": {
+     "critical": 19.4,
+     "watch": 11.3
+    }
+   }
+  }
+ ]
+}

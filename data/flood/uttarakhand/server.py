@@ -1367,6 +1367,65 @@ def ffgs_thresholds_for_class(hazard_class, antecedent_48h_mm=None, static_multi
     }
 
 
+# ============================================================
+# CALIBRATED THRESHOLDS
+#
+# The hand-set, hazard-class thresholds above were tested against 24
+# monsoons (2000-2023) of IMD-recorded floods from the India Flood
+# Inventory, with hourly ERA5 rainfall at 81 grid points across the
+# state (floodsafe/pipeline/calibrate_thresholds.py). They fired on about
+# a quarter of all monsoon district-days. Rain measured against each
+# place's own climate did better at every false-alarm rate, so each FFGS
+# zone now takes the calibrated thresholds of its nearest grid point,
+# converted to the live feed's units (build_calibrated_thresholds.py).
+#
+# Operating point, chosen by the project owner ("balanced"): CRITICAL on
+# ~10% of dry monsoon district-days, WATCH on ~20%. Validated
+# leave-one-year-out, that caught 43% (CRITICAL) and 57% (WATCH) of
+# recorded floods -- the numbers the page publishes.
+#
+# The antecedent-rain and watershed/soil multipliers are not applied on
+# top: the calibration measured the rainfall rule alone, and antecedent
+# rain on its own barely separated flood days (AUC 0.57). The hand-set
+# formula remains only as a fallback if the calibration file is missing.
+# ============================================================
+
+def _load_calibrated_thresholds():
+    path = os.path.join(DATA_DIR, "calibrated_thresholds.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError) as e:
+        print("WARNING: calibrated thresholds unavailable, using the hand-set ones:", repr(e), flush=True)
+        return None
+
+
+CALIBRATED_THRESHOLDS = _load_calibrated_thresholds()
+
+# Nearest grid point further than this (~33 km) is outside the calibrated
+# area -- outside Uttarakhand -- and gets the hand-set fallback instead.
+CALIBRATED_MAX_DEG = 0.3
+
+
+def calibrated_thresholds_for_point(lat, lon):
+
+    if not CALIBRATED_THRESHOLDS:
+        return None
+
+    lon_scale = math.cos(math.radians(lat))
+    best, best_d2 = None, None
+
+    for point in CALIBRATED_THRESHOLDS["points"]:
+        d2 = (point["lat"] - lat) ** 2 + ((point["lon"] - lon) * lon_scale) ** 2
+        if best_d2 is None or d2 < best_d2:
+            best, best_d2 = point, d2
+
+    if best is None or best_d2 > CALIBRATED_MAX_DEG ** 2:
+        return None
+
+    return {window: dict(levels) for window, levels in best["thresholds_mm"].items()}
+
+
 def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
     """
     Like guidance_for_point() above, but returns the full
@@ -1387,8 +1446,15 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
 
     effective_class, hazard_source = resolve_effective_class(hazard_class, ffpi)
 
-    thresholds = ffgs_thresholds_for_class(
-        effective_class, antecedent_48h_mm, physical["static_multiplier"])
+    # Calibrated thresholds where the calibration reaches (all of
+    # Uttarakhand); the hand-set class formula only as a fallback.
+    thresholds = calibrated_thresholds_for_point(lat, lon)
+    threshold_source = "calibrated"
+
+    if thresholds is None:
+        thresholds = ffgs_thresholds_for_class(
+            effective_class, antecedent_48h_mm, physical["static_multiplier"])
+        threshold_source = "heuristic" if thresholds else None
 
     return {
         "lat": lat,
@@ -1399,6 +1465,7 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
         "exact_match": exact,
         "distance_km": round(distance_km, 1) if distance_km is not None else None,
         "thresholds_mm": thresholds,
+        "threshold_source": threshold_source,
         "watershed": physical["watershed"],
         "soil": physical["soil"],
         "static_multiplier": physical["static_multiplier"],
@@ -4744,7 +4811,7 @@ const translations = {
     pageSubtitle: "Duration-based rainfall guidance for Uttarakhand",
     navMapTool: "Map tool →",
     navBackDashboard: "← Back to dashboard",
-    noticeHtml: "This page pairs each zone's static classification with live rainfall over three windows (1h / 3h / 24h) to show whether it is SAFE, in WATCH, or in CRITICAL status right now. Thresholds are adjusted using real watershed data (upstream catchment area, from HydroSHEDS/HydroBASINS) and soil data (texture-based drainage class, from SoilGrids) on top of the hazard class and antecedent rainfall — <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would require a full calibrated hydrological model this project doesn't have. The state hazard atlas only covers about 9.7% of Uttarakhand's area; zones outside it are marked <i>modelled</i> and their class comes from the <b>Flash Flood Potential Index</b> (FFPI) — a 1-10 susceptibility index computed from real terrain (Copernicus GLO-30 DEM), soil (SoilGrids) and land cover (ESA WorldCover). FFPI is a physical susceptibility score, not a probability or a forecast, and a surveyed atlas class always takes precedence over it.",
+    noticeHtml: "This page compares live rainfall over three windows (1h / 3h / 24h) with each zone's thresholds to show whether it is SAFE, in WATCH, or CRITICAL right now. The thresholds are <b>calibrated against real floods</b>: 24 monsoons (2000-2023) of IMD-recorded flood events from the India Flood Inventory, matched with hourly ERA5 rainfall across the state, judging each place by how rare the rain is <i>for that place</i>. Tested on years it had not seen, CRITICAL caught __CRIT_POD__ of recorded floods while firing on about __CRIT_POFD__ of dry monsoon days per district, and WATCH caught __WATCH_POD__ at about __WATCH_POFD__. So many floods still come with no CRITICAL: rainfall data at ~25 km cannot see every cloudburst. Read SAFE as “no alert”, not “no risk”. This is <b>not</b> an official CWC/IMD warning; official warnings appear in their own panel above. Each zone's hazard class and <b>Flash Flood Potential Index</b> (FFPI) describe how susceptible its terrain is, from the state hazard atlas (about 9.7% of Uttarakhand) or, outside it, from real terrain, soil and land cover; they are context, and a surveyed atlas class takes precedence over FFPI.",
     myLocationHeading: "Check guidance at my location",
     myLocationBtn: "Use my current location",
     zoneMapHeading: "Zone map — live status",
@@ -4840,7 +4907,7 @@ const translations = {
     pageSubtitle: "उत्तराखंड के लिए अवधि-आधारित वर्षा मार्गदर्शन",
     navMapTool: "मानचित्र टूल →",
     navBackDashboard: "← डैशबोर्ड पर वापस जाएं",
-    noticeHtml: "यह पृष्ठ प्रत्येक मैप किए गए खतरा क्षेत्र के स्थिर वर्गीकरण को तीन अवधियों (1 घंटा / 3 घंटा / 24 घंटा) की लाइव वर्षा के साथ जोड़ता है, ताकि यह दिखाया जा सके कि वह अभी सुरक्षित (SAFE), सतर्क (WATCH) या गंभीर (CRITICAL) स्थिति में है। सीमाएँ वास्तविक जलग्रहण डेटा (अपस्ट्रीम कैचमेंट क्षेत्र, HydroSHEDS/HydroBASINS से) और मिट्टी डेटा (बनावट-आधारित जल निकासी वर्ग, SoilGrids से) का उपयोग करके, खतरा एटलस और पूर्ववर्ती वर्षा के साथ, समायोजित की जाती हैं — <b>न कि</b> कोई आधिकारिक CWC/IMD फ्लैश फ्लड गाइडेंस मान, जिसके लिए एक पूर्ण जल-विज्ञान मॉडल चाहिए जो इस प्रोजेक्ट के पास नहीं है। खतरा एटलस केवल उत्तराखंड के विशिष्ट खतरा-प्रवण क्षेत्रों को कवर करता है, पूरे राज्य को नहीं, और मिट्टी डेटा केवल उन्हीं बिंदुओं पर उपलब्ध है जहाँ इसे वास्तव में मापा गया था।",
+    noticeHtml: "यह पृष्ठ तीन अवधियों (1 घंटा / 3 घंटे / 24 घंटे) की लाइव वर्षा की तुलना हर क्षेत्र की सीमाओं से करके बताता है कि वह अभी सुरक्षित, सतर्क या गंभीर स्थिति में है। ये सीमाएँ <b>असली बाढ़ों पर कैलिब्रेट</b> की गई हैं: India Flood Inventory में IMD द्वारा दर्ज 24 मानसूनों (2000-2023) की बाढ़ की घटनाएँ, पूरे राज्य की घंटेवार ERA5 वर्षा के साथ, और हर जगह को इस आधार पर आँका गया है कि वहाँ के लिए वह वर्षा कितनी असामान्य है। जिन वर्षों को मॉडल ने नहीं देखा था, उन पर परखने पर गंभीर स्तर ने दर्ज बाढ़ों में से __CRIT_POD__ पकड़ीं और हर ज़िले में मानसून के लगभग __CRIT_POFD__ सूखे दिनों पर चेतावनी दी; सतर्क स्तर ने __WATCH_POD__ पकड़ीं, लगभग __WATCH_POFD__ दिनों पर। इसलिए कई बाढ़ें बिना गंभीर चेतावनी के भी आती हैं: ~25 किमी के वर्षा डेटा में हर बादल फटना दिखाई नहीं देता। सुरक्षित का अर्थ “कोई चेतावनी नहीं” है, “कोई खतरा नहीं” नहीं। यह CWC/IMD की आधिकारिक चेतावनी <b>नहीं</b> है; आधिकारिक चेतावनियाँ ऊपर अपने अलग पैनल में दिखती हैं। हर क्षेत्र का खतरा वर्ग और <b>Flash Flood Potential Index</b> (FFPI) बताते हैं कि उसका भूभाग कितना संवेदनशील है — राज्य खतरा एटलस (उत्तराखंड का लगभग 9.7%) से, या उसके बाहर असली भू-आकृति, मिट्टी और भूमि आवरण से; ये संदर्भ हैं, और सर्वेक्षित एटलस वर्ग FFPI से ऊपर रहता है।",
     myLocationHeading: "मेरे स्थान पर मार्गदर्शन जांचें",
     myLocationBtn: "मेरा वर्तमान स्थान उपयोग करें",
     zoneMapHeading: "क्षेत्र मानचित्र — लाइव स्थिति",
@@ -6099,7 +6166,34 @@ document.getElementById("ffgsMyLocationBtn").addEventListener("click", function(
 @app.route("/ffgs")
 def ffgs_page():
 
-    return FFGS_PAGE_HTML
+    return _ffgs_page_html()
+
+
+def _validation_percent(level, key):
+    try:
+        return f"{round(CALIBRATED_THRESHOLDS['validation'][level][key] * 100)}%"
+    except (TypeError, KeyError):
+        return "n/a"
+
+
+_ffgs_page_cache = []
+
+
+def _ffgs_page_html():
+    """
+    The methods note quotes the validation scores; they're filled in from
+    the calibration file itself, so the page can never drift from what
+    the thresholds actually achieved.
+    """
+    if not _ffgs_page_cache:
+        html = FFGS_PAGE_HTML
+        for placeholder, level, key in (
+            ("__CRIT_POD__", "critical", "POD"), ("__CRIT_POFD__", "critical", "POFD"),
+            ("__WATCH_POD__", "watch", "POD"), ("__WATCH_POFD__", "watch", "POFD"),
+        ):
+            html = html.replace(placeholder, _validation_percent(level, key))
+        _ffgs_page_cache.append(html)
+    return _ffgs_page_cache[0]
 
 
 @app.route("/ffgs/hazard-atlas.geojson")
@@ -6774,7 +6868,7 @@ def _critical_alert_message(zone, hits):
         "body": (
             f"{rain:.1f} mm of rain in the last {window}, at or above this "
             f"{zone['effective_class']} hazard zone's critical level of {critical:.0f} mm. "
-            "FloodSafe heuristic threshold, not an official IMD/CWC warning."
+            "FloodSafe threshold calibrated on past floods, not an official IMD/CWC warning."
         ),
         "url": f"/ffgs?zone={_zone_key(zone)}",
         "tag": f"critical-{_zone_key(zone)}",

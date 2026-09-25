@@ -1,0 +1,196 @@
+{
+  "method": "Test and calibrate the FFGS rainfall thresholds against real floods.",
+  "events": {
+    "source": "India Flood Inventory v3 (Saharia et al. 2021), CC BY-NC 4.0",
+    "uttarakhand_events_2000_2023_monsoon": 83,
+    "by_kind": {
+      "rain": 71,
+      "landslide": 12
+    },
+    "positive_district_days": 156,
+    "negative_district_days": 36794
+  },
+  "rainfall": {
+    "source": "ERA5 hourly via Open-Meteo archive",
+    "district_years": 312
+  },
+  "current_watch": {
+    "hits": 114,
+    "misses": 42,
+    "false_alarms": 16687,
+    "correct_negatives": 20107,
+    "POD": 0.731,
+    "POFD": 0.4535,
+    "FAR": 0.993,
+    "TSS": 0.277,
+    "floods_in_districts_without_zones": 7
+  },
+  "current_critical": {
+    "hits": 84,
+    "misses": 72,
+    "false_alarms": 8897,
+    "correct_negatives": 27897,
+    "POD": 0.538,
+    "POFD": 0.2418,
+    "FAR": 0.991,
+    "TSS": 0.297,
+    "floods_in_districts_without_zones": 7
+  },
+  "fitted_1h_only": {
+    "hits": 87,
+    "misses": 69,
+    "false_alarms": 7505,
+    "correct_negatives": 29289,
+    "POD": 0.558,
+    "POFD": 0.204,
+    "FAR": 0.989,
+    "TSS": 0.354,
+    "threshold_all_years": 6.8
+  },
+  "fitted_3h_only": {
+    "hits": 98,
+    "misses": 58,
+    "false_alarms": 10635,
+    "correct_negatives": 26159,
+    "POD": 0.628,
+    "POFD": 0.289,
+    "FAR": 0.991,
+    "TSS": 0.339,
+    "threshold_all_years": 11.6
+  },
+  "fitted_24h_only": {
+    "hits": 77,
+    "misses": 79,
+    "false_alarms": 18244,
+    "correct_negatives": 18550,
+    "POD": 0.494,
+    "POFD": 0.4958,
+    "FAR": 0.996,
+    "TSS": -0.002,
+    "threshold_all_years": 16.8
+  },
+  "fitted_any_window": {
+    "hits": 106,
+    "misses": 50,
+    "false_alarms": 19551,
+    "correct_negatives": 17243,
+    "POD": 0.679,
+    "POFD": 0.5314,
+    "FAR": 0.995,
+    "TSS": 0.148,
+    "thresholds_all_years": {
+      "1h": 6.8,
+      "3h": 11.6,
+      "24h": 16.8
+    },
+    "threshold_spread_across_folds": {
+      "1h": [
+        6.8,
+        6.8
+      ],
+      "3h": [
+        11.6,
+        13.0
+      ],
+      "24h": [
+        16.8,
+        86.8
+      ]
+    }
+  },
+  "roc_auc": {
+    "1h": 0.729,
+    "3h": 0.744,
+    "24h": 0.726,
+    "antecedent_5d": 0.571
+  },
+  "calibrated_critical": {
+    "hits": 40,
+    "misses": 116,
+    "false_alarms": 1840,
+    "correct_negatives": 34954,
+    "POD": 0.256,
+    "POFD": 0.05,
+    "FAR": 0.979,
+    "TSS": 0.206,
+    "target_POFD": 0.05,
+    "thresholds_all_years_mm": {
+      "1h": 14.0,
+      "3h": 38.4,
+      "24h": 131.0
+    }
+  },
+  "calibrated_watch": {
+    "hits": 73,
+    "misses": 83,
+    "false_alarms": 5513,
+    "correct_negatives": 31281,
+    "POD": 0.468,
+    "POFD": 0.1498,
+    "FAR": 0.987,
+    "TSS": 0.318,
+    "target_POFD": 0.15,
+    "thresholds_all_years_mm": {
+      "1h": 9.0,
+      "3h": 22.7,
+      "24h": 76.5
+    }
+  },
+  "roc_auc_relative_to_local_climate": {
+    "1h": 0.76,
+    "3h": 0.765,
+    "24h": 0.741
+  },
+  "calibrated_relative_critical": {
+    "hits": 44,
+    "misses": 112,
+    "false_alarms": 1839,
+    "correct_negatives": 34955,
+    "POD": 0.282,
+    "POFD": 0.05,
+    "FAR": 0.977,
+    "TSS": 0.232,
+    "target_POFD": 0.05,
+    "local_climate_quantile_all_years": {
+      "1h_rel": 0.99927,
+      "3h_rel": 0.99909,
+      "24h_rel": 0.99618
+    }
+  },
+  "calibrated_relative_watch": {
+    "hits": 75,
+    "misses": 81,
+    "false_alarms": 5524,
+    "correct_negatives": 31270,
+    "POD": 0.481,
+    "POFD": 0.1501,
+    "FAR": 0.987,
+    "TSS": 0.331,
+    "target_POFD": 0.15,
+    "local_climate_quantile_all_years": {
+      "1h_rel": 0.9969,
+      "3h_rel": 0.99515,
+      "24h_rel": 0.98427
+    }
+  },
+  "fitted_relative_any_window": {
+    "hits": 110,
+    "misses": 46,
+    "false_alarms": 18513,
+    "correct_negatives": 18281,
+    "POD": 0.705,
+    "POFD": 0.5032,
+    "FAR": 0.994,
+    "TSS": 0.202
+  },
+  "sensitivity_including_landslides": {
+    "hits": 115,
+    "misses": 53,
+    "false_alarms": 19934,
+    "correct_negatives": 16860,
+    "POD": 0.685,
+    "POFD": 0.5418,
+    "FAR": 0.994,
+    "TSS": 0.143
+  }
+}

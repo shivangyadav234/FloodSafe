@@ -1207,3 +1207,43 @@ class TestConcurrency:
         for t in threads:
             t.join()
         assert len(calls) == 1
+
+
+class TestCalibratedThresholds:
+    """Zone thresholds come from the flood-calibrated rainfall rule
+    (floodsafe/pipeline/calibrate_thresholds.py), not the hand-set table."""
+
+    def test_every_zone_uses_calibrated_thresholds(self, client):
+        zones = client.get("/ffgs/zones").get_json()["zones"]
+        assert all(z["threshold_source"] == "calibrated" for z in zones)
+        for zone in zones:
+            for window in ("1h", "3h", "24h"):
+                pair = zone["thresholds_mm"][window]
+                assert 0 < pair["watch"] < pair["critical"]
+
+    def test_a_zone_takes_its_nearest_grid_points_thresholds(self, server):
+        import math
+
+        zone = next(z for z in server.FFGS_ZONES if z["name"] == "Dehradun")
+        points = server.CALIBRATED_THRESHOLDS["points"]
+        scale = math.cos(math.radians(zone["lat"]))
+        nearest = min(points, key=lambda p: (p["lat"] - zone["lat"]) ** 2 + ((p["lon"] - zone["lon"]) * scale) ** 2)
+        assert zone["thresholds_mm"] == nearest["thresholds_mm"]
+
+    def test_outside_the_calibrated_area_falls_back(self, client):
+        inside = client.get("/ffgs/point?lat=30.3165&lon=78.0322").get_json()
+        assert inside["threshold_source"] == "calibrated"
+        outside = client.get("/ffgs/point?lat=28.6139&lon=77.2090").get_json()
+        assert outside["threshold_source"] != "calibrated"
+
+    def test_page_publishes_the_measured_scores(self, client, server):
+        page = client.get("/ffgs").get_data(as_text=True)
+        assert "__CRIT_POD__" not in page and "__WATCH_POFD__" not in page
+        critical = server.CALIBRATED_THRESHOLDS["validation"]["critical"]["POD"]
+        assert f"{round(critical * 100)}%" in page
+
+    def test_calibration_records_its_validation(self, server):
+        validation = server.CALIBRATED_THRESHOLDS["validation"]
+        assert validation["flood_events_scored"] > 100
+        assert validation["critical"]["POFD"] < validation["watch"]["POFD"]
+        assert validation["critical"]["TSS"] > 0 and validation["watch"]["TSS"] > 0

@@ -310,3 +310,37 @@ Each zone's district comes from the OpenStreetMap district polygons in
 Rishikesh's localities fall in three districts. SACHET also publishes
 alert polygons but refuses automated requests for them, so alerts are
 matched to districts by the names in their area description.
+
+### Flood-calibrated thresholds
+
+The FFGS WATCH/CRITICAL thresholds used to be set by hand per hazard class.
+They are now calibrated against real floods:
+
+- **Events:** 97 IMD-recorded Uttarakhand flood events, 2000-2023, from the
+  India Flood Inventory v3 (Saharia et al. 2021, *Natural Hazards*; IIT Delhi
+  with IMD; doi:10.5281/zenodo.4742142). **Licensed CC BY-NC 4.0: free with
+  attribution, non-commercial use only.**
+- **Rainfall:** hourly ERA5 at all 81 grid points (0.25 deg) inside the 13
+  districts, every monsoon 2000-2023, via Open-Meteo's archive
+  (`floodsafe/pipeline/fetch_era5_rainfall.py`).
+- **Method** (`calibrate_thresholds.py`): each district-day is scored by how
+  rare its 1h/3h/24h rain was *for that grid cell*, against the cell's own
+  climate in the other years; each flood event counts once over its whole
+  duration. Thresholds are tuned to a fixed false-alarm rate and validated
+  leave-one-year-out.
+- **Live units** (`check_live_model_bias.py`): ERA5 smooths short bursts, so
+  thresholds are quantile-mapped onto the live forecast feed using 2022-2023,
+  when both are available.
+- **Result** (`build_calibrated_thresholds.py` ->
+  `data/calibrated_thresholds.json`), at the chosen "balanced" setting and on
+  years never seen in fitting: CRITICAL caught 43% of recorded floods while
+  firing on ~10% of dry monsoon district-days; WATCH caught 57% at ~20%. The
+  old hand-set thresholds caught 54% (CRITICAL) but fired on ~24% of days,
+  and at any matched false-alarm rate the calibrated rule catches more floods.
+  Rain relative to local climate separates flood days with ROC AUC 0.74-0.77.
+
+Limits: ERA5 is ~25 km and misses local cloudbursts; the inventory dates
+events by day and places them by district, and under-records remote areas;
+landslide-only events are not predictable this way and were excluded.
+The landing page's single-reading "headroom" panel still uses the older
+hand-set per-class values.
