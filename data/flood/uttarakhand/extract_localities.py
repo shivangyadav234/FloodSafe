@@ -48,7 +48,8 @@ DISTRICT_BOUNDARY_FILE = os.path.join(DATA_DIR, "uttarakhand_boundary.geojson")
 # OSM-mapped localities — not official ward numbers — and every page
 # that shows them labels them as such.
 #
-# Two independent passes feed the same output file:
+# Three independent passes feed the same output file (Pass 3 is
+# described at its own code, below Pass 2):
 #
 # PASS 1 — near a known town (place=suburb/neighbourhood/quarter
 # only; village/hamlet excluded here since within a flat radius of a
@@ -351,6 +352,79 @@ for _, row in flood_prone_places.iterrows():
         pass2_count += 1
 
 print("Pass 2 localities:", pass2_count)
+
+
+# ---- PASS 3: districts where floods are recorded but zones were thin ----
+#
+# Passes 1 and 2 follow the anchor towns and the hazard atlas, which
+# covers only ~10% of the state -- so zones ended up where the atlas
+# was drawn, not where floods happen. Checked against the India Flood
+# Inventory (IMD records, 2000-2023): Chamoli had the most recorded
+# floods of any district but one zone, Rudraprayag (Kedarnath 2013
+# among its 18) one, and Udham Singh Nagar none.
+#
+# Two evidence-based rules, both real OSM places:
+#   a) every place=city/town in those three districts -- where people,
+#      roads and pilgrim traffic concentrate;
+#   b) every smaller settlement those IMD records name, with the record
+#      dates as provenance (matched against the records' full text,
+#      whole-word, and checked by hand).
+
+FLOOD_RECORD_DISTRICTS = ("Chamoli", "Rudraprayag", "Udham Singh Nagar")
+
+NAMED_IN_FLOOD_RECORDS = {
+    # OSM name: (district, IMD record dates naming it)
+    "Gaurikund": ("Rudraprayag", ["2000-05-14", "2001-07-16", "2001-07-18"]),
+    "Guptkashi": ("Rudraprayag", ["2001-07-16", "2001-07-18"]),
+    "Lambagad": ("Chamoli", ["2019-06-08"]),
+    "Lam Bagar": ("Chamoli", ["2004-07-06", "2019-02-06"]),
+    "Tharali": ("Chamoli", ["2019-06-09"]),
+}
+
+print("\nPass 3 — flood-record districts (" + ", ".join(FLOOD_RECORD_DISTRICTS) + ")...")
+record_places = osm.get_pois(custom_filter={"place": ["city", "town", "village", "hamlet"]})
+has_name_column_3 = "name" in record_places.columns
+
+pass3_count = 0
+
+for _, row in record_places.iterrows():
+
+    name = _get_name(row, has_name_column_3)
+    if not name:
+        continue
+
+    latlon = _row_latlon(row)
+    if latlon is None:
+        continue
+    lat, lon = latlon
+
+    district_name = _district_for_point(lat, lon, districts)
+    if not district_name:
+        continue
+    district_name = district_name[:-len(" district")] if district_name.endswith(" district") else district_name
+    if district_name not in FLOOD_RECORD_DISTRICTS:
+        continue
+
+    is_town = row.get("place") in ("city", "town")
+    named = NAMED_IN_FLOOD_RECORDS.get(name)
+    # One node per record-named place: the village where OSM has both a
+    # village and a hamlet of the same name.
+    if named and named[0] == district_name and row.get("place") in ("village", "hamlet"):
+        already = any(loc["name"] == name and loc["source"] == "named_in_flood_record" for loc in localities)
+        if not already and _add(name, district_name + " district", lat, lon, 0.0, "named_in_flood_record"):
+            pass3_count += 1
+    elif is_town:
+        # The anchor towns are zones already. Compared without accents:
+        # OSM spells one "Joshīmath".
+        import unicodedata
+        def _plain(text):
+            return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)).lower()
+        if any(_plain(name) == _plain(town["name"]) for town in ANCHOR_TOWNS):
+            continue
+        if _add(name, district_name + " district", lat, lon, 0.0, "flood_record_district_town"):
+            pass3_count += 1
+
+print("Pass 3 localities:", pass3_count)
 
 
 print(f"\nTotal localities: {len(localities)}")

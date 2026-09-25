@@ -851,8 +851,12 @@ def guidance_for_point(lat, lon):
     ffpi = resolve_ffpi(lat, lon)
     effective_class, hazard_source = resolve_effective_class(hazard_class, ffpi)
 
-    thresholds = (GUIDANCE_HAZARD_THRESHOLDS_MM.get(effective_class)
-                  if effective_class else None)
+    # The same 1h/3h/24h thresholds /ffgs uses -- flood-calibrated
+    # (see CALIBRATED THRESHOLDS), the hand-set formula only outside the
+    # calibrated area. This panel used its own single hand-set pair per
+    # class against a "right now" reading, so the landing page and /ffgs
+    # could judge the same town differently.
+    ffgs = ffgs_guidance_for_point(lat, lon)
 
     return {
         "lat": lat,
@@ -863,8 +867,8 @@ def guidance_for_point(lat, lon):
         "ffpi": ffpi["ffpi"] if ffpi else None,
         "exact_match": exact,
         "distance_km": round(distance_km, 1) if distance_km is not None else None,
-        "watch_mm": thresholds["watch"] if thresholds else None,
-        "critical_mm": thresholds["critical"] if thresholds else None,
+        "thresholds_mm": ffgs["thresholds_mm"],
+        "threshold_source": ffgs["threshold_source"],
     }
 
 
@@ -2303,7 +2307,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
   <div class="wrap">
     <div class="section-label" data-i18n="guidanceLabel">Flood Guidance</div>
     <h2 data-i18n="guidanceTitle">How much more rain before it's dangerous, here?</h2>
-    <p class="guidance-intro" data-i18n="guidanceIntro">Pairs each location's static hazard classification with its live rainfall right now to show the remaining headroom before that location's flood risk escalates.</p>
+    <p class="guidance-intro" data-i18n="guidanceIntro">Live rain for each town against the same flood-calibrated 1h / 3h / 24h thresholds as the Flash Flood Guidance System, with the headroom left before the tightest window reaches CRITICAL.</p>
     <div style="margin-bottom:18px;">
       <a class="btn-official" href="/ffgs" data-i18n="guidanceOpenFfgs">Open full Flash Flood Guidance System →</a>
     </div>
@@ -2312,7 +2316,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
         <tr>
           <th data-i18n="guidanceColTown">Location</th>
           <th data-i18n="guidanceColHazard">Hazard Zone</th>
-          <th data-i18n="guidanceColRain">Live Rain Now</th>
+          <th data-i18n="guidanceColRain">Rain 1h / 24h</th>
           <th data-i18n="guidanceColHeadroom">Headroom</th>
           <th data-i18n="guidanceColStatus">Status</th>
         </tr>
@@ -2509,10 +2513,10 @@ const translations = {
     guidanceLabel: "Flood Guidance",
     guidanceOpenFfgs: "Open full Flash Flood Guidance System →",
     guidanceTitle: "How much more rain before it's dangerous, here?",
-    guidanceIntro: "Pairs each location's static hazard classification with its live rainfall right now to show the remaining headroom before that location's flood risk escalates.",
+    guidanceIntro: "Live rain for each town against the same flood-calibrated 1h / 3h / 24h thresholds as the Flash Flood Guidance System, with the headroom left before the tightest window reaches CRITICAL.",
     guidanceColTown: "Location",
     guidanceColHazard: "Hazard Zone",
-    guidanceColRain: "Live Rain Now",
+    guidanceColRain: "Rain 1h / 24h",
     guidanceColHeadroom: "Headroom",
     guidanceColStatus: "Status",
     guidanceLoading: "Loading…",
@@ -2619,10 +2623,10 @@ const translations = {
     guidanceLabel: "बाढ़ मार्गदर्शन",
     guidanceOpenFfgs: "पूर्ण फ्लैश फ्लड गाइडेंस सिस्टम खोलें →",
     guidanceTitle: "यहाँ खतरनाक होने से पहले और कितनी बारिश बाकी है?",
-    guidanceIntro: "प्रत्येक स्थान के स्थिर खतरा वर्गीकरण को उसकी वर्तमान लाइव वर्षा के साथ जोड़कर, यह दिखाता है कि उस स्थान का बाढ़ जोखिम बढ़ने से पहले कितनी गुंजाइश बची है।",
+    guidanceIntro: "हर शहर की लाइव वर्षा की तुलना फ्लैश फ्लड गाइडेंस सिस्टम वाली उन्हीं बाढ़-कैलिब्रेटेड 1 घंटे / 3 घंटे / 24 घंटे की सीमाओं से, और सबसे नज़दीकी अवधि के गंभीर स्तर तक पहुँचने से पहले बची गुंजाइश।",
     guidanceColTown: "स्थान",
     guidanceColHazard: "खतरा क्षेत्र",
-    guidanceColRain: "अभी लाइव वर्षा",
+    guidanceColRain: "वर्षा 1 घंटा / 24 घंटे",
     guidanceColHeadroom: "गुंजाइश",
     guidanceColStatus: "स्थिति",
     guidanceLoading: "लोड हो रहा है…",
@@ -2922,26 +2926,49 @@ loadLiveStrip();
 
 // ---- Flood Guidance panel ----
 //
-// Each zone from /flood-guidance-zones carries its hazard class plus
-// watch_mm/critical_mm thresholds. Rainfall is fetched directly from
-// Open-Meteo by the browser (same pattern as RAINFALL_STATIONS above),
-// then combined here into a status + headroom figure per row.
+// Each town from /flood-guidance-zones carries the same flood-calibrated
+// 1h/3h/24h thresholds and the same live rainfall as its zone on /ffgs,
+// so the two pages always agree about a town. Status is the worst of
+// the three windows (the /ffgs rule); headroom is how much more rain the
+// tightest window can take before CRITICAL.
 // (guidanceRows / guidanceLoading are declared earlier, alongside the
 // other dynamic-text state — see the comment there.)
 
-function computeGuidanceLevel(zoneOrPoint, rainMm) {
-    // effective_class, not hazard_class: a zone classified by FFPI has
-    // thresholds to breach just the same as a surveyed one.
-    if (!zoneOrPoint || !zoneOrPoint.effective_class || rainMm == null) return null;
-    if (zoneOrPoint.critical_mm == null || zoneOrPoint.watch_mm == null) return null;
-    if (rainMm >= zoneOrPoint.critical_mm) return 'CRITICAL';
-    if (rainMm >= zoneOrPoint.watch_mm) return 'WATCH';
-    return 'SAFE';
+const GUIDANCE_WINDOWS = ['1h', '3h', '24h'];
+const GUIDANCE_RANK = { SAFE: 0, WATCH: 1, CRITICAL: 2 };
+
+function computeGuidanceLevel(zoneOrPoint, rain) {
+    if (!zoneOrPoint || !zoneOrPoint.thresholds_mm || !rain) return null;
+    let worst = null;
+    GUIDANCE_WINDOWS.forEach(function(w) {
+        const th = zoneOrPoint.thresholds_mm[w];
+        const mm = rain[w];
+        if (!th || mm == null) return;
+        const level = mm >= th.critical ? 'CRITICAL' : (mm >= th.watch ? 'WATCH' : 'SAFE');
+        if (worst === null || GUIDANCE_RANK[level] > GUIDANCE_RANK[worst]) worst = level;
+    });
+    return worst;
 }
 
-function guidanceHeadroomMm(zoneOrPoint, rainMm) {
-    if (!zoneOrPoint || zoneOrPoint.critical_mm == null || rainMm == null) return null;
-    return Math.max(zoneOrPoint.critical_mm - rainMm, 0);
+// { mm, window } for the window closest to its critical level.
+function guidanceHeadroom(zoneOrPoint, rain) {
+    if (!zoneOrPoint || !zoneOrPoint.thresholds_mm || !rain) return null;
+    let best = null;
+    GUIDANCE_WINDOWS.forEach(function(w) {
+        const th = zoneOrPoint.thresholds_mm[w];
+        const mm = rain[w];
+        if (!th || mm == null) return;
+        const left = Math.max(th.critical - mm, 0);
+        if (best === null || left / th.critical < best.share) {
+            best = { mm: left, window: w, share: left / th.critical };
+        }
+    });
+    return best;
+}
+
+function guidanceRainText(rain) {
+    if (!rain || rain['1h'] == null) return '—';
+    return rain['1h'].toFixed(1) + ' / ' + (rain['24h'] == null ? '—' : rain['24h'].toFixed(1)) + ' mm';
 }
 
 function hazardI18nKey(hazardClass) {
@@ -2972,10 +2999,10 @@ function renderGuidanceTable() {
         const hazardLabel = zone.hazard_source === 'ffpi'
             ? hazardText + " <span class='modelled-note'>· " + t('guidanceModelled') + "</span>"
             : hazardText;
-        const rainText = rainMm == null ? '—' : rainMm.toFixed(1) + ' mm';
+        const rainText = guidanceRainText(rainMm);
         const level = computeGuidanceLevel(zone, rainMm);
-        const headroom = guidanceHeadroomMm(zone, rainMm);
-        const headroomText = headroom == null ? '—' : headroom.toFixed(0) + ' mm';
+        const headroom = guidanceHeadroom(zone, rainMm);
+        const headroomText = headroom == null ? '—' : headroom.mm.toFixed(0) + ' mm (' + headroom.window + ')';
         const levelClass = 'guidance-badge guidance-' + (level ? level.toLowerCase() : 'unmapped');
         const levelText = level ? t('guidanceLevel' + level) : t('guidanceUnmapped');
         return '<tr><td>' + townName(zone.name) + '</td>' +
@@ -2987,11 +3014,10 @@ function renderGuidanceTable() {
 }
 
 async function loadGuidancePanel() {
-    let zones = [];
+    let data;
 
     try {
-        const data = await (await fetch('/flood-guidance-zones')).json();
-        zones = (data && Array.isArray(data.zones)) ? data.zones : [];
+        data = await (await fetch('/flood-guidance-zones')).json();
     } catch (error) {
         guidanceLoading = false;
         guidanceRows = [];
@@ -2999,19 +3025,16 @@ async function loadGuidancePanel() {
         return;
     }
 
-    // Same cached server-side reading the live-stations strip uses.
-    // These are the same nine towns, so fetching them again here was
-    // doubling the page's Open-Meteo cost for no new information.
-    const townRain = await loadTownRainfall();
+    // Same browser fallback as /ffgs when the server has no rainfall.
+    if (window.FloodSafeRainfall) {
+        await window.FloodSafeRainfall.fillZones(data);
+    }
 
-    const rainResults = zones.map(function(zone) {
-        const mm = townRain[zone.name];
-        return mm == null ? null : Number(mm);
-    });
+    const zones = (data && Array.isArray(data.zones)) ? data.zones : [];
 
     guidanceLoading = false;
-    guidanceRows = zones.map(function(zone, i) {
-        return { zone: zone, rainMm: rainResults[i] };
+    guidanceRows = zones.map(function(zone) {
+        return { zone: zone, rainMm: zone.live_rainfall || null };
     });
 
     renderGuidanceTable();
@@ -3028,7 +3051,7 @@ function renderMyLocationGuidance() {
     const level = computeGuidanceLevel(point, rainMm);
     const hazardKey = hazardI18nKey(point.effective_class);
     const hazardText = hazardKey ? t(hazardKey) : t('guidanceUnmapped');
-    const rainText = rainMm == null ? '—' : rainMm.toFixed(1) + ' mm';
+    const rainText = guidanceRainText(rainMm);
     const levelText = level ? t('guidanceLevel' + level) : t('guidanceUnmapped');
 
     let approxNote = '';
@@ -3056,12 +3079,14 @@ document.getElementById('guidanceMyLocationBtn').addEventListener('click', funct
         try {
             const results = await Promise.all([
                 fetch('/flood-guidance?lat=' + lat + '&lon=' + lon).then(function(r) { return r.json(); }),
-                fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=precipitation&timezone=auto').then(function(r) { return r.json(); })
+                fetch('https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&current=precipitation&hourly=precipitation&past_days=2&forecast_days=1&timezone=auto').then(function(r) { return r.json(); })
             ]);
             const point = results[0];
             const weatherPayload = results[1];
 
-            const rainMm = (weatherPayload && weatherPayload.current) ? Number(weatherPayload.current.precipitation || 0) : null;
+            // 1h/3h/24h totals, parsed exactly as /ffgs and the server do.
+            const rainMm = (weatherPayload && weatherPayload.hourly && window.FloodSafeRainfall)
+                ? window.FloodSafeRainfall.parseDurations(weatherPayload) : null;
             myLocationData = { point: point, rainMm: rainMm };
             renderMyLocationGuidance();
         } catch (error) {
@@ -4244,10 +4269,31 @@ def rainfall_fallback_js():
 @app.route("/flood-guidance-zones")
 def flood_guidance_zones():
 
+    # The same cached zone rainfall /ffgs/zones serves, so the landing
+    # panel and /ffgs always agree about a town; and the same "rainfall"
+    # block, so the page's browser fallback (/rainfall-fallback.js) can
+    # fill it when the server has none.
+    rainfall_by_point = _fetch_ffgs_live_rainfall()
+    cache = _ffgs_rainfall_cache
+
+    zones = [
+        dict(zone,
+             live_rainfall=rainfall_by_point.get((zone["lat"], zone["lon"])),
+             rain_cell=FFGS_RAIN_CELL_BY_POINT.get((zone["lat"], zone["lon"])))
+        for zone in GUIDANCE_ZONES
+    ]
+
     return jsonify({
         "available": GUIDANCE_AVAILABLE,
         "error": None if GUIDANCE_AVAILABLE else GUIDANCE_ERROR,
-        "zones": GUIDANCE_ZONES
+        "durations": list(FFGS_DURATIONS),
+        "rainfall": {
+            "zones_with_data": sum(1 for z in zones if z.get("live_rainfall")),
+            "last_error": cache["last_error"],
+            "source": cache.get("source"),
+            "cells": [[z[0]["lat"], z[0]["lon"]] for z in FFGS_RAINFALL_CELLS],
+        },
+        "zones": zones,
     })
 
 

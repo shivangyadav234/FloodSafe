@@ -342,5 +342,19 @@ They are now calibrated against real floods:
 Limits: ERA5 is ~25 km and misses local cloudbursts; the inventory dates
 events by day and places them by district, and under-records remote areas;
 landslide-only events are not predictable this way and were excluded.
-The landing page's single-reading "headroom" panel still uses the older
-hand-set per-class values.
+The landing page's headroom panel uses the same calibrated 1h/3h/24h
+thresholds and the same live rainfall as `/ffgs`, so the two always agree
+about a town.
+
+### Zone coverage follows recorded floods
+
+Zones used to follow the hazard atlas, which covers ~10% of the state, so
+the districts with the most recorded floods were nearly empty: Chamoli (the
+most IMD-recorded floods) had one zone, Rudraprayag (Kedarnath 2013) one, and
+Udham Singh Nagar none. `extract_localities.py` Pass 3 adds, from
+OpenStreetMap, every town and city in those three districts plus each
+smaller settlement the IMD flood records name (Gaurikund, Guptkashi,
+Lambagad, Lam Bagar, Tharali), with the record dates as provenance. That is
+157 zones in all 13 districts. The rainfall grid grew from 34 to 60 cells,
+~9,900 Open-Meteo calls/day at a ten-minute refresh -- close to the free
+per-IP limit, so further zones would need a coarser rainfall grid.

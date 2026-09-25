@@ -1247,3 +1247,42 @@ class TestCalibratedThresholds:
         assert validation["flood_events_scored"] > 100
         assert validation["critical"]["POFD"] < validation["watch"]["POFD"]
         assert validation["critical"]["TSS"] > 0 and validation["watch"]["TSS"] > 0
+
+
+class TestLandingAgreesWithFfgs:
+    """The landing panel used its own hand-set pair per class against a
+    single reading, so it could judge a town differently from /ffgs."""
+
+    def test_same_thresholds_and_rain_for_every_town(self, client):
+        landing = {z["name"]: z for z in client.get("/flood-guidance-zones").get_json()["zones"]}
+        ffgs = {z["name"]: z for z in client.get("/ffgs/zones").get_json()["zones"] if z["kind"] == "town"}
+        assert set(landing) == set(ffgs)
+        for name, town in landing.items():
+            assert town["thresholds_mm"] == ffgs[name]["thresholds_mm"]
+            assert town["live_rainfall"] == ffgs[name]["live_rainfall"]
+
+    def test_panel_supports_the_browser_fallback(self, client):
+        data = client.get("/flood-guidance-zones").get_json()
+        assert data["rainfall"]["cells"] and all(z["rain_cell"] is not None for z in data["zones"])
+
+    def test_my_location_uses_calibrated_thresholds(self, client):
+        point = client.get("/flood-guidance?lat=30.4598&lon=78.0664").get_json()
+        assert point["threshold_source"] == "calibrated"
+        assert set(point["thresholds_mm"]) == {"1h", "3h", "24h"}
+
+
+class TestZoneCoverage:
+    """Zones followed the hazard atlas, not where floods are recorded."""
+
+    def test_every_district_has_zones(self, client):
+        import collections
+
+        zones = client.get("/ffgs/zones").get_json()["zones"]
+        per_district = collections.Counter(z["district"] for z in zones)
+        assert len(per_district) == 13
+        for district in ("Chamoli", "Rudraprayag", "Udham Singh Nagar"):
+            assert per_district[district] >= 7, district
+
+    def test_places_named_in_flood_records_are_zones(self, client):
+        names = {z["name"] for z in client.get("/ffgs/zones").get_json()["zones"]}
+        assert {"Kedarnath", "Gaurikund", "Guptkashi", "Tharali"} <= names

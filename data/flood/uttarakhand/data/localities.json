@@ -942,5 +942,245 @@
     "lon": 80.04392,
     "dist_km": 0.57,
     "source": "flood_prone_extreme"
+  },
+  {
+    "name": "Sitarganj",
+    "town": "Udham Singh Nagar district",
+    "lat": 28.92774,
+    "lon": 79.70289,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Pantnagar",
+    "town": "Udham Singh Nagar district",
+    "lat": 29.0284,
+    "lon": 79.48321,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Karnaprayag",
+    "town": "Chamoli district",
+    "lat": 30.25965,
+    "lon": 79.21707,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Nandaprayāg",
+    "town": "Chamoli district",
+    "lat": 30.33188,
+    "lon": 79.31992,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Ukhimath",
+    "town": "Rudraprayag district",
+    "lat": 30.51395,
+    "lon": 79.09476,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Badrinath",
+    "town": "Chamoli district",
+    "lat": 30.74233,
+    "lon": 79.49303,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Rudrapur",
+    "town": "Udham Singh Nagar district",
+    "lat": 28.97072,
+    "lon": 79.39728,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Rudraprayag",
+    "town": "Rudraprayag district",
+    "lat": 30.28656,
+    "lon": 78.98072,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Pokhri",
+    "town": "Chamoli district",
+    "lat": 30.34424,
+    "lon": 79.19907,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Gopeshwar",
+    "town": "Chamoli district",
+    "lat": 30.40878,
+    "lon": 79.31855,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Gadarpur",
+    "town": "Udham Singh Nagar district",
+    "lat": 29.04236,
+    "lon": 79.24851,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Gairsain",
+    "town": "Chamoli district",
+    "lat": 30.05462,
+    "lon": 79.28999,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Gauchar",
+    "town": "Chamoli district",
+    "lat": 30.2889,
+    "lon": 79.15708,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Guptkashi",
+    "town": "Rudraprayag district",
+    "lat": 30.52832,
+    "lon": 79.08178,
+    "dist_km": 0.0,
+    "source": "named_in_flood_record"
+  },
+  {
+    "name": "Gaurikund",
+    "town": "Rudraprayag district",
+    "lat": 30.6534,
+    "lon": 79.02682,
+    "dist_km": 0.0,
+    "source": "named_in_flood_record"
+  },
+  {
+    "name": "Narayn Bagar",
+    "town": "Chamoli district",
+    "lat": 30.14511,
+    "lon": 79.37348,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Ghāt",
+    "town": "Chamoli district",
+    "lat": 30.25848,
+    "lon": 79.44812,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Jaspur",
+    "town": "Udham Singh Nagar district",
+    "lat": 29.27872,
+    "lon": 78.82771,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Kedarnath",
+    "town": "Rudraprayag district",
+    "lat": 30.73389,
+    "lon": 79.06691,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Kichha",
+    "town": "Udham Singh Nagar district",
+    "lat": 28.91032,
+    "lon": 79.51894,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Kashipur",
+    "town": "Udham Singh Nagar district",
+    "lat": 29.21176,
+    "lon": 78.96173,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Tharali",
+    "town": "Chamoli district",
+    "lat": 30.07455,
+    "lon": 79.50003,
+    "dist_km": 0.0,
+    "source": "named_in_flood_record"
+  },
+  {
+    "name": "Lambagad",
+    "town": "Chamoli district",
+    "lat": 30.69264,
+    "lon": 79.51324,
+    "dist_km": 0.0,
+    "source": "named_in_flood_record"
+  },
+  {
+    "name": "Bajpur",
+    "town": "Udham Singh Nagar district",
+    "lat": 29.16128,
+    "lon": 79.15386,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Khatīma",
+    "town": "Udham Singh Nagar district",
+    "lat": 28.91972,
+    "lon": 79.97026,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Agastmuni",
+    "town": "Rudraprayag district",
+    "lat": 30.39196,
+    "lon": 79.02604,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Lam Bagar",
+    "town": "Chamoli district",
+    "lat": 29.94687,
+    "lon": 79.41849,
+    "dist_km": 0.0,
+    "source": "named_in_flood_record"
+  },
+  {
+    "name": "Sultanpur",
+    "town": "Udham Singh Nagar district",
+    "lat": 29.15749,
+    "lon": 79.05657,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Dineshpur",
+    "town": "Udham Singh Nagar district",
+    "lat": 29.04957,
+    "lon": 79.32193,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
+  },
+  {
+    "name": "Shaktigarh",
+    "town": "Udham Singh Nagar district",
+    "lat": 29.00872,
+    "lon": 79.65004,
+    "dist_km": 0.0,
+    "source": "flood_record_district_town"
   }
 ]
