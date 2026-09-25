@@ -35,7 +35,8 @@ OUT = os.path.join(REPO, "floodsafe", "models", "live_model_bias.json")
 API = "https://historical-forecast-api.open-meteo.com/v1/forecast"
 YEARS = (2022, 2023)
 SAMPLE = 20
-WINDOWS = {"1h": 1, "3h": 3, "24h": 24}
+# 72h and 168h are for the landslide thresholds (build_landslide_thresholds.py).
+WINDOWS = {"1h": 1, "3h": 3, "24h": 24, "72h": 72, "168h": 168}
 
 
 def sample_points():
