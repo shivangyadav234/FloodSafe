@@ -293,6 +293,13 @@ signing key are stored there; the key is generated on first use). The
 thresholds are FloodSafe's heuristic, and every alert says it is not an
 official IMD/CWC warning.
 
+FloodSafe can be installed to a phone's home screen (the web app manifest
+is at `/manifest.webmanifest`; icons in `static/icons/` are drawn by
+`make_app_icons.py`). On iPhone and iPad this is required for alerts:
+Safari offers push only to a site opened from its home-screen icon, on
+iOS 16.4 or later, and `/ffgs` tells iPhone visitors in a normal tab how
+to add it.
+
 ### Official warnings (NDMA SACHET)
 
 `/ffgs` shows the current official warnings for Uttarakhand from NDMA's

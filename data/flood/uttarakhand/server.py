@@ -1665,6 +1665,69 @@ SHELTERS_WITH_LOCALITY = [
 
 
 # ============================================================
+# WEB APP MANIFEST
+#
+# Lets phones install FloodSafe to the home screen as an app. On an
+# iPhone that is also the only way to get push alerts: Safari gives
+# Web Push only to sites opened from a home-screen icon (iOS 16.4+),
+# and the icon needs this manifest to open as an app rather than a
+# browser tab. The icons in static/icons/ come from make_app_icons.py.
+#
+# Every page links it through APP_HEAD_TAGS; the map page gets the
+# same tags from map_app.py.
+# ============================================================
+
+APP_THEME_COLOR = "#0b3558"
+
+APP_HEAD_TAGS = f"""<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="{APP_THEME_COLOR}">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="FloodSafe">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+"""
+
+
+def _with_app_head(html):
+    return html.replace("</head>", APP_HEAD_TAGS + "</head>", 1)
+
+
+WEB_APP_MANIFEST = {
+    "id": "/",
+    "name": "FloodSafe — Uttarakhand",
+    "short_name": "FloodSafe",
+    "description": "Flood-aware road routes, flash-flood guidance and push alerts for Uttarakhand.",
+    "lang": "en",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#f3f5f6",
+    "theme_color": APP_THEME_COLOR,
+    "icons": [
+        {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+        {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+        {"src": "/static/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png",
+         "purpose": "maskable"},
+    ],
+    # Long-press menu on Android's home-screen icon.
+    "shortcuts": [
+        {"name": "Road map", "short_name": "Map", "url": "/app"},
+        {"name": "Flash flood guidance", "short_name": "Flood guidance", "url": "/ffgs"},
+    ],
+}
+
+
+@app.route("/manifest.webmanifest")
+def web_app_manifest():
+
+    response = Response(json.dumps(WEB_APP_MANIFEST, ensure_ascii=False),
+                        mimetype="application/manifest+json")
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+# ============================================================
 # LANDING PAGE
 #
 # The site's front door. Pulls live numbers from this same
@@ -3193,6 +3256,7 @@ initHeroTracing();
 </body>
 </html>
 """
+LANDING_PAGE_HTML = _with_app_head(LANDING_PAGE_HTML)
 
 
 @app.route("/")
@@ -3745,6 +3809,7 @@ setInterval(loadReportsView, 30000);
 </body>
 </html>
 """
+REPORTS_VIEW_HTML = _with_app_head(REPORTS_VIEW_HTML)
 
 
 @app.route("/reports-view")
@@ -4901,6 +4966,7 @@ const translations = {
     pushOnNote: "You'll get a notification if this zone reaches Critical, even with this page closed.",
     pushNoRainNote: "The server has no live rainfall right now, so alerts can't fire until it does.",
     pushUnsupported: "This browser doesn't support push notifications.",
+    pushInstallIos: "On iPhone and iPad, alerts work only from the home screen: tap Share, then “Add to Home Screen”, and open FloodSafe from its icon. Needs iOS 16.4 or later.",
     pushDenied: "Notifications are blocked for this site. Allow them in your browser settings.",
     pushTestSent: "Test sent. It should appear in a few seconds.",
     pushError: "Couldn't update alerts: ",
@@ -4997,6 +5063,7 @@ const translations = {
     pushOnNote: "यह क्षेत्र गंभीर स्तर पर पहुँचने पर आपको सूचना मिलेगी, भले ही यह पेज बंद हो।",
     pushNoRainNote: "सर्वर के पास अभी लाइव वर्षा डेटा नहीं है, इसलिए डेटा मिलने तक सूचनाएँ नहीं भेजी जा सकतीं।",
     pushUnsupported: "यह ब्राउज़र पुश सूचनाओं का समर्थन नहीं करता।",
+    pushInstallIos: "iPhone और iPad पर सूचनाएँ केवल होम स्क्रीन से काम करती हैं: Share पर टैप करें, फिर “Add to Home Screen” चुनें, और FloodSafe को उसके आइकन से खोलें। iOS 16.4 या नया आवश्यक है।",
     pushDenied: "इस साइट के लिए सूचनाएँ अवरुद्ध हैं। ब्राउज़र सेटिंग्स में इन्हें अनुमति दें।",
     pushTestSent: "परीक्षण भेजा गया। कुछ सेकंड में दिखना चाहिए।",
     pushError: "सूचनाएँ अपडेट नहीं हो सकीं: ",
@@ -5771,6 +5838,17 @@ function pushSupported() {
     return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+// Safari on iOS only offers push to a site opened from its home-screen
+// icon, so in a normal tab it looks like no push support at all.
+// iPadOS reports itself as a Mac, hence the touch check.
+function iosOutsideHomeScreen() {
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const standalone = navigator.standalone === true ||
+        window.matchMedia("(display-mode: standalone)").matches;
+    return ios && !standalone;
+}
+
 function urlBase64ToUint8Array(base64) {
     const padded = (base64 + "===".slice((base64.length + 3) % 4)).replace(/-/g, "+").replace(/_/g, "/");
     const raw = atob(padded);
@@ -5858,7 +5936,7 @@ function renderZoneAlerts() {
     if (!el || !selectedZoneKey) return;
 
     if (!pushSupported()) {
-        el.innerHTML = '<p class="za-note">' + t("pushUnsupported") + "</p>";
+        el.innerHTML = '<p class="za-note">' + t(iosOutsideHomeScreen() ? "pushInstallIos" : "pushUnsupported") + "</p>";
         return;
     }
     if (!pushConfig) {
@@ -6207,6 +6285,7 @@ document.getElementById("ffgsMyLocationBtn").addEventListener("click", function(
 </body>
 </html>
 """
+FFGS_PAGE_HTML = _with_app_head(FFGS_PAGE_HTML)
 
 
 @app.route("/ffgs")

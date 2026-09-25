@@ -894,6 +894,47 @@ class TestOfflineCache:
             assert f'saveRouteForOffline("{kind}"' in page
 
 
+class TestWebAppManifest:
+    """Installable to the home screen -- which on an iPhone is the only
+    way to get push alerts at all."""
+
+    def test_manifest_is_installable(self, client):
+        response = client.get("/manifest.webmanifest")
+        assert response.mimetype == "application/manifest+json"
+        manifest = json.loads(response.get_data(as_text=True))
+
+        assert manifest["display"] == "standalone"
+        assert manifest["start_url"] == "/" and manifest["short_name"]
+        # Chrome's install prompt wants a 192 and a 512 icon.
+        sizes = {icon["sizes"] for icon in manifest["icons"] if icon["purpose"] == "any"}
+        assert {"192x192", "512x512"} <= sizes
+
+    def test_every_icon_is_served_at_its_size(self, client, server):
+        import struct
+
+        paths = [(icon["src"], icon["sizes"]) for icon in server.WEB_APP_MANIFEST["icons"]]
+        paths.append(("/static/icons/apple-touch-icon.png", "180x180"))
+        for src, sizes in paths:
+            response = client.get(src)
+            assert response.status_code == 200, src
+            body = response.get_data()
+            assert body[:8] == b"\x89PNG\r\n\x1a\n", src
+            width, height = struct.unpack(">II", body[16:24])
+            assert f"{width}x{height}" == sizes, src
+
+    @pytest.mark.parametrize("path", ["/", "/ffgs", "/app", "/reports-view"])
+    def test_every_page_links_the_manifest(self, client, server, path):
+        head = client.get(path).get_data(as_text=True).split("</head>")[0]
+        # The map page is built by map_app.py, which repeats these tags.
+        for tag in server.APP_HEAD_TAGS.strip().splitlines():
+            assert tag in head, f"{path} is missing {tag}"
+
+    def test_iphone_visitors_are_told_how_to_get_alerts(self, client):
+        page = client.get("/ffgs").get_data(as_text=True)
+        assert page.count("pushInstallIos:") == 2
+        assert 't(iosOutsideHomeScreen() ? "pushInstallIos" : "pushUnsupported")' in page
+
+
 # ============================================================
 # Official warnings (NDMA SACHET)
 # ============================================================

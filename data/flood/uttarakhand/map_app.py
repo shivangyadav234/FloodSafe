@@ -478,6 +478,20 @@ m.get_root().header.add_child(
     folium.Element('<script src="/rainfall-fallback.js"></script>')
 )
 
+# Home-screen install and iPhone push -- the same tags as APP_HEAD_TAGS
+# in server.py (WEB APP MANIFEST), which a test keeps in step.
+m.get_root().header.add_child(
+    folium.Element(
+        '<link rel="manifest" href="/manifest.webmanifest">\n'
+        '<meta name="theme-color" content="#0b3558">\n'
+        '<link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">\n'
+        '<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">\n'
+        '<meta name="apple-mobile-web-app-title" content="FloodSafe">\n'
+        '<meta name="mobile-web-app-capable" content="yes">\n'
+        '<meta name="apple-mobile-web-app-capable" content="yes">'
+    )
+)
+
 m.get_root().html.add_child(
     folium.Element(
         legend_html
