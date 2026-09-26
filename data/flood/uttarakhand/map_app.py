@@ -225,7 +225,8 @@ m = folium.Map(
         79.0193
     ],
     zoom_start=8,
-    tiles="OpenStreetMap",
+    # Named, so the layer list reads "Street map", not "openstreetmap".
+    tiles=folium.TileLayer("OpenStreetMap", name="Street map"),
     control_scale=True
 )
 
