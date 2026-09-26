@@ -1435,6 +1435,9 @@ css = """
 }
 
 
+/* Report text is free text: a long unbroken word wraps inside the popup. */
+.leaflet-popup-content { overflow-wrap: anywhere; }
+
 .fs-report-popup input[type="text"] {
     width: 200px;
     font-size: 13px;

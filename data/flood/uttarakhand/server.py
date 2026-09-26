@@ -3505,6 +3505,9 @@ header a.back-link:hover {
 }
 
 .report-card {
+    /* Reports are free text: one long word (a pasted link, "aaaa...")
+       must wrap inside the card, not widen the whole page. */
+    overflow-wrap: anywhere;
     background: white;
     border-radius: 10px;
     padding: 14px 16px;
@@ -3512,6 +3515,8 @@ header a.back-link:hover {
     cursor: pointer;
     border-left: 4px solid #c62828;
 }
+
+.leaflet-popup-content { overflow-wrap: anywhere; }
 
 .report-card:hover {
     box-shadow: 0 2px 10px rgba(0,0,0,0.15);
@@ -3953,7 +3958,10 @@ def post_report():
             )
         }), 422
 
-    description = str(data.get("description", "")).strip()
+    # Only text counts: str() of a JSON null, list or boolean would store
+    # "None", "[]" or "True" as the report's description.
+    description = data.get("description")
+    description = description.strip() if isinstance(description, str) else ""
 
     if len(description) > REPORT_DESCRIPTION_MAX_LENGTH:
 
@@ -4813,6 +4821,7 @@ table.ffgs-table thead th {
 .official-note { margin: 0; padding: 10px 18px 0; font-size: 12.5px; color: var(--muted); }
 .official-list { padding: 10px 18px 16px; }
 .official-empty { font-size: 13px; color: var(--muted); }
+.official-alert, .leaflet-popup-content { overflow-wrap: anywhere; }
 .official-alert {
     border: 1px solid var(--border);
     border-left: 4px solid var(--watch);

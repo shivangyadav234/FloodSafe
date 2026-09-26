@@ -1604,3 +1604,75 @@ print("RESULT " + json.dumps({
         # A week of relayed hourly data is accepted, not rejected as oversized.
         assert result["relay_status"] == 200
         assert result["week_totals"] == [252.0]
+
+
+class TestReportTextHandling:
+
+    BODY = {"lat": 30.3165, "lon": 78.0322}
+
+    @pytest.mark.parametrize("value", [None, ["a"], {"a": 1}, True, 12])
+    def test_non_text_description_gets_the_default(self, client, value):
+        """str() of these stored "None", "['a']" or "True" as the description."""
+        response = client.post("/report", json=dict(self.BODY, description=value))
+        assert response.status_code == 201
+        assert response.get_json()["description"] == "Flooded / blocked road reported"
+
+    @pytest.mark.parametrize("path", ["/reports-view", "/ffgs", "/app"])
+    def test_long_unbroken_words_wrap(self, client, path):
+        """A pasted link in a report or alert widened the whole page on phones."""
+        assert "overflow-wrap: anywhere" in client.get(path).get_data(as_text=True)
+
+
+class TestHospitalTargets:
+    """OpenStreetMap tags eye, dental, ENT, IVF and veterinary practices as
+    hospitals; "nearest hospital" must not send a flood casualty there."""
+
+    @pytest.mark.parametrize("name, emergency", [
+        ("Garg ENT and Dental Clinic", False),
+        ("Vishal Eye Hospital, Dehradun", False),
+        ("Government Veterinary Hospital", False),
+        ("Sunrise Diagnostics", False),
+        ("Government Doon Hospital", True),
+        ("Raj Hospital And Diagnostic Centre", True),
+        ("ENT and Maternity Hospital", True),
+        ("Bhatt Skin Allergy and General Hospital", True),
+    ])
+    def test_specialist_practices_are_not_targets(self, name, emergency):
+        import routing_engine
+        assert routing_engine.is_emergency_hospital(name) is emergency
+
+    def test_nearest_hospital_from_central_dehradun_is_not_a_clinic(self, client):
+        body = client.post("/nearest-hospital", json={"lat": 30.3165, "lon": 78.0322}).get_json()
+        assert body["status"] == "ok"
+        import routing_engine
+        name = body["hospital"]["name"]
+        assert routing_engine.is_emergency_hospital(name) and name != "wedding by fourth munky", name
+
+
+class TestEvacuationTargets:
+    """OpenStreetMap "shelter" also covers caves, gazebos, rain shelters on
+    trekking trails and private homes; evacuation must go somewhere people
+    can actually stay."""
+
+    @pytest.mark.parametrize("name, suitable", [
+        ("Vashishta Cave", False),
+        ("Park Gazebo", False),
+        ("Shepherd hut", False),
+        ("Anand Senior Living", False),
+        ("Himalayan Villas", False),
+        ("IRDT Auditorium", True),
+        ("Mahakali Municipality office", True),
+        ("", True),
+    ])
+    def test_unsuitable_shelters_are_filtered(self, name, suitable):
+        import routing_engine
+        assert routing_engine.is_evacuation_shelter({"kind": "shelter", "name": name}) is suitable
+
+    def test_hospitals_are_not_evacuation_targets(self):
+        import routing_engine
+        assert not routing_engine.is_evacuation_shelter({"kind": "hospital", "name": "Doon Hospital"})
+
+    def test_every_evacuation_target_passes_the_filter(self):
+        import routing_engine
+        assert routing_engine._evacuation_targets
+        assert all(routing_engine.is_evacuation_shelter(s) for s in routing_engine._evacuation_targets)

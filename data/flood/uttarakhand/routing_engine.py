@@ -1,6 +1,7 @@
 import os
 import json
 import math
+import re
 
 # ============================================================
 # PROJ CONFIGURATION
@@ -886,8 +887,58 @@ shelters = _load_shelters()
 # Only "shelter"-kind points (shelter/community_centre/social_facility)
 # are evacuation targets — hospitals are a separate target list used
 # for "route to nearest hospital" instead of flood evacuation.
-_evacuation_targets = [s for s in shelters if s.get("kind") == "shelter"]
-_hospital_targets = [s for s in shelters if s.get("kind") == "hospital"]
+# OpenStreetMap's "shelter" and "social_facility" also cover caves,
+# gazebos, shepherds' and trekkers' huts, nursing homes, retirement
+# villas and a boat club -- evacuation from central Dehradun was sent
+# to a nursing home, from Uttarkashi to a cave. Those stay on the map
+# but are not evacuation targets. Community halls, panchayat bhawans,
+# auditoriums, rain baseras and ashrams are kept.
+_UNSUITABLE_SHELTER = re.compile(
+    r"\b(caves?|gazebo|metal roof|shepherd|campsite|rain shelter|bugyal|nursing|senior living|"
+    r"villas?|apartments?|boat club|house|homeopathic|hospital|gaushala)\b",
+    re.IGNORECASE)
+
+
+def is_evacuation_shelter(point):
+    return point.get("kind") == "shelter" and not _UNSUITABLE_SHELTER.search(point.get("name") or "")
+
+
+_evacuation_targets = [s for s in shelters if is_evacuation_shelter(s)]
+
+# OpenStreetMap tags eye, dental, ENT, IVF and veterinary practices as
+# amenity=hospital too, so "nearest hospital" from central Dehradun was
+# an ENT and dental clinic. Those can't take a flood casualty; they stay
+# on the map but are not routing targets. A name that also says general
+# or maternity care, or a hospital with a diagnostic wing, is kept.
+_SPECIALIST_ONLY = re.compile(r"\b(dental|dentist|eye|eyes|ent|laser|ivf|fertility|veterinary|vet|optical)\b",
+                              re.IGNORECASE)
+_TESTS_ONLY = re.compile(r"\b(diagnostics?|pathology|labs?|laboratory|imaging|x-?ray)\b", re.IGNORECASE)
+_GENERAL_CARE = re.compile(r"\b(general|maternity|multi-?speciality|medical college|district|civil|combined)\b",
+                           re.IGNORECASE)
+
+
+def is_emergency_hospital(name):
+    name = name or ""
+    if _GENERAL_CARE.search(name):
+        return True
+    if _SPECIALIST_ONLY.search(name):
+        return False
+    # "X Diagnostics" is a test lab; "Raj Hospital and Diagnostic Centre"
+    # is a hospital with one.
+    return not (_TESTS_ONLY.search(name) and not re.search(r"\bhospital\b", name, re.IGNORECASE))
+
+
+# OpenStreetMap entries tagged amenity=hospital that are not hospitals
+# at all, found by listing every name with no healthcare word in it.
+# The rest of that list were real (CMI, DH Pauri, "... Chikitsalay").
+_NOT_HOSPITALS = {
+    "osm-4255814491",   # "wedding by fourth munky", central Dehradun
+    "osm-12593415466",  # "Tulas owner"
+}
+
+_hospital_targets = [s for s in shelters
+                     if s.get("kind") == "hospital" and s.get("id") not in _NOT_HOSPITALS
+                     and is_emergency_hospital(s.get("name"))]
 
 
 # A degree of longitude is only ~96-97 km at Uttarakhand's latitude

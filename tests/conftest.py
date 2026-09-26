@@ -51,3 +51,15 @@ def reset_rate_limits(server):
     server._rate_buckets.clear()
     yield
     server._rate_buckets.clear()
+
+
+@pytest.fixture(autouse=True)
+def reports_in_a_temp_file(server, monkeypatch, tmp_path):
+    """Keep test reports out of the app's real data/reports.json.
+
+    Tests that file reports without a database fall back to the JSON
+    file, and wrote their "xxxx..." reports into the real one -- which
+    then showed on the map of anyone who ran the server locally.
+    """
+    monkeypatch.setattr(server, "REPORTS_FILE", str(tmp_path / "reports.json"))
+    monkeypatch.setattr(server, "_reports", [])
