@@ -353,7 +353,8 @@ SDRF or 112, and the page says so. The button must be held for 2 seconds.
 The FFGS WATCH/CRITICAL thresholds used to be set by hand per hazard class.
 They are now calibrated against real floods:
 
-- **Events:** 97 IMD-recorded Uttarakhand flood events, 2000-2023, from the
+- **Events:** 71 rain-driven Uttarakhand monsoon floods, 2000-2023 (156
+  district-level cases; 12 landslide-only events were left out), from the
   India Flood Inventory v3 (Saharia et al. 2021, *Natural Hazards*; IIT Delhi
   with IMD; doi:10.5281/zenodo.4742142). **Licensed CC BY-NC 4.0: free with
   attribution, non-commercial use only.**

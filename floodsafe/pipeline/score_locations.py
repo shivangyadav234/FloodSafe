@@ -11,8 +11,9 @@ Three numbers per location, deliberately kept distinct:
     ffpi        1-10 physical susceptibility index, no labels involved,
                 available everywhere the input rasters are
     event_prob  P(rainfall-triggered mass movement) from the model
-                trained on 206 real recorded disasters (NASA Global
-                Landslide Catalog). Spatially blocked CV ROC-AUC 0.82.
+                trained on the 109 of 206 NASA Global Landslide Catalog
+                events located to within 10 km. Spatially blocked CV
+                ROC-AUC 0.82.
     model_prob  P(elevated hazard) from the older model trained on the
                 hazard atlas. Spatial-CV ROC-AUC 0.66 and dominated by
                 elevation -- kept for continuity, but event_prob is the
@@ -300,8 +301,9 @@ def main():
         "resolution_m": args.res,
         "ffpi_scale": "1-10, higher = greater flash-flood potential (not a probability)",
         "event_prob_note": "P(rainfall-triggered mass movement) from XGBoost trained "
-                           "on 206 real recorded disasters (NASA Global Landslide "
-                           "Catalog, 1970-2019). Spatially blocked CV ROC-AUC 0.82. "
+                           "on the 109 recorded events located to within 10 km (of "
+                           "206 in the NASA Global Landslide Catalog, 1970-2019). "
+                           "Spatially blocked CV ROC-AUC 0.82. "
                            "Landslides overlap flash floods without being identical.",
         "model_note": "Legacy: P(elevated hazard) from XGBoost trained on the state "
                       "hazard atlas; spatial-CV ROC-AUC 0.66, dominated by elevation. "

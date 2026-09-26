@@ -1559,8 +1559,8 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
         "ffpi": ffpi["ffpi"] if ffpi else None,
         "ffpi_band": ffpi["band"] if ffpi else None,
         "ffpi_components": scores["ffpi_components"] if scores else None,
-        # Trained on 206 real recorded disasters (NASA Global Landslide
-        # Catalog); spatially blocked CV ROC-AUC 0.82. Supersedes
+        # Trained on the 109 of 206 NASA Global Landslide Catalog events
+        # located to within 10 km; spatially blocked CV ROC-AUC 0.82. Supersedes
         # model_prob, which was trained on the hazard atlas and reaches
         # only 0.66 because those labels separate on elevation and
         # little else. Both are kept so the improvement stays visible.
@@ -5160,7 +5160,7 @@ const translations = {
     colHazardZone: "Hazard zone",
     colFfpi: "FFPI",
     colEventRisk: "Event model",
-    eventRiskTitle: "Probability of rainfall-triggered mass movement, from a model trained on 206 real recorded disasters (NASA Global Landslide Catalog, 1970-2019). Spatially blocked cross-validation ROC-AUC 0.82. Not a forecast.",
+    eventRiskTitle: "Probability of rainfall-triggered mass movement, from a model trained on 109 recorded events located to within 10 km (of 206 in the NASA Global Landslide Catalog, 1970-2019). Spatially blocked cross-validation ROC-AUC 0.82. Not a forecast.",
     ffpiModelledNote: "modelled",
     ffpiTitleAtlas: "Hazard class from the state flash-flood hazard atlas (surveyed).",
     ffpiTitleModelled: "No atlas coverage here. Class derived from the Flash Flood Potential Index — a 1-10 terrain/soil/land-cover susceptibility index, not a surveyed class.",
@@ -5274,7 +5274,7 @@ const translations = {
     colHazardZone: "खतरा क्षेत्र",
     colFfpi: "FFPI",
     colEventRisk: "घटना मॉडल",
-    eventRiskTitle: "वर्षा-जनित भूस्खलन की संभावना — 206 वास्तविक दर्ज आपदाओं (NASA Global Landslide Catalog, 1970-2019) पर प्रशिक्षित मॉडल से। स्थानिक रूप से विभाजित क्रॉस-वैलिडेशन ROC-AUC 0.82। यह पूर्वानुमान नहीं है।",
+    eventRiskTitle: "वर्षा-जनित भूस्खलन की संभावना — 10 किमी के भीतर स्थान वाली 109 दर्ज घटनाओं (NASA Global Landslide Catalog की 206 में से, 1970-2019) पर प्रशिक्षित मॉडल से। स्थानिक रूप से विभाजित क्रॉस-वैलिडेशन ROC-AUC 0.82। यह पूर्वानुमान नहीं है।",
     ffpiModelledNote: "अनुमानित",
     ffpiTitleAtlas: "खतरा श्रेणी राज्य फ्लैश फ्लड हैज़र्ड एटलस से (सर्वेक्षित)।",
     ffpiTitleModelled: "यहाँ एटलस कवरेज नहीं है। श्रेणी फ्लैश फ्लड पोटेंशियल इंडेक्स से ली गई है — भूभाग/मिट्टी/भू-आवरण पर आधारित 1-10 संवेदनशीलता सूचकांक, सर्वेक्षित श्रेणी नहीं।",

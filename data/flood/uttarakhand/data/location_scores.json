@@ -2,7 +2,7 @@
   "generated_utc": "2026-09-22T17:25:13.276640+00:00",
   "resolution_m": 90,
   "ffpi_scale": "1-10, higher = greater flash-flood potential (not a probability)",
-  "event_prob_note": "P(rainfall-triggered mass movement) from XGBoost trained on 206 real recorded disasters (NASA Global Landslide Catalog, 1970-2019). Spatially blocked CV ROC-AUC 0.82. Landslides overlap flash floods without being identical.",
+  "event_prob_note": "P(rainfall-triggered mass movement) from XGBoost trained on the 109 recorded events located to within 10 km (of 206 in the NASA Global Landslide Catalog, 1970-2019). Spatially blocked CV ROC-AUC 0.82. Landslides overlap flash floods without being identical.",
   "model_note": "Legacy: P(elevated hazard) from XGBoost trained on the state hazard atlas; spatial-CV ROC-AUC 0.66, dominated by elevation. Superseded by event_prob.",
   "locations": [
     {
