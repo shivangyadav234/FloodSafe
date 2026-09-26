@@ -1738,6 +1738,11 @@ class TestSos:
         assert 'class="fs-sos-fab" href="/sos"' in app_html and "openSosLocation();" in app_html
         assert '"/sos"]' in client.get("/sw.js").get_data(as_text=True)
 
+    def test_send_buttons_stay_hidden_until_there_is_a_message(self, client):
+        html = client.get("/sos").get_data(as_text=True)
+        assert '<div class="fallback" id="fallback" hidden>' in html
+        assert ".fallback[hidden], .fallback [hidden] { display: none; }" in html
+
     def test_app_icon_shortcut_opens_sos_first(self, client):
         shortcut = client.get("/manifest.webmanifest").get_json()["shortcuts"][0]
         assert shortcut["url"] == "/sos"

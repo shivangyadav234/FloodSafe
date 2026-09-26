@@ -8073,6 +8073,8 @@ main { max-width: 620px; margin: 0 auto; padding: 18px 16px 40px; }
 #status.err { background: var(--risk-bg); color: var(--risk); }
 #status.busy { background: #eef2f6; color: var(--navy); }
 .fallback { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+/* display:flex above would otherwise override the hidden attribute. */
+.fallback[hidden], .fallback [hidden] { display: none; }
 .fallback a, .fallback button { flex: 1 1 200px; text-align: center; padding: 12px 14px; border-radius: 8px; font: inherit; font-weight: 700;
   font-size: 15px; text-decoration: none; cursor: pointer; border: 2px solid var(--navy); color: var(--navy); background: #fff; }
 .fallback .primary { background: var(--navy); color: #fff; }
