@@ -1003,6 +1003,9 @@ def sachet(server, monkeypatch):
     monkeypatch.setattr(server, "_ndma_state",
                         {"alerts": [], "checked_at": None, "last_error": None, "last_attempt": 0.0})
     monkeypatch.setattr(server, "_ndma_cap_cache", {})
+    # Refreshes run in a background thread; run them inline here so a
+    # request sees its own refresh's result.
+    monkeypatch.setattr(server, "_run_in_background", lambda fn: fn())
     return calls
 
 
@@ -1057,11 +1060,43 @@ class TestOfficialWarnings:
         monkeypatch.setattr(server.requests, "get", down)
         monkeypatch.setattr(server, "_ndma_state",
                             {"alerts": [], "checked_at": None, "last_error": None, "last_attempt": 0.0})
+        monkeypatch.setattr(server, "_run_in_background", lambda fn: fn())
 
         for _ in range(3):
             body = client.get("/official-warnings").get_json()
         assert body["last_error"] and body["alerts"] == []
         assert len(attempts) == 1
+
+    def test_a_page_request_never_waits_for_sachet(self, client, server, sachet, monkeypatch):
+        """A slow SACHET once held /official-warnings for 30 s."""
+        queued = []
+        monkeypatch.setattr(server, "_run_in_background", queued.append)
+
+        body = client.get("/official-warnings").get_json()
+        assert sachet == [], "the request itself must not contact SACHET"
+        assert body["refreshing"] and body["alerts"] == [] and body["checked_at"] is None
+
+        client.get("/official-warnings")
+        assert len(queued) == 1, "one refresh per TTL, however many requests"
+
+        queued.pop()()
+        body = client.get("/official-warnings").get_json()
+        assert not body["refreshing"] and len(body["alerts"]) == 4
+
+    def test_the_last_list_is_served_while_a_refresh_runs(self, client, server, sachet, monkeypatch):
+        client.get("/official-warnings")
+        queued = []
+        monkeypatch.setattr(server, "_run_in_background", queued.append)
+        server._ndma_state["last_attempt"] = 0.0
+
+        body = client.get("/official-warnings").get_json()
+        assert len(queued) == 1
+        assert body["refreshing"] and len(body["alerts"]) == 4
+
+    def test_the_page_waits_for_the_first_read_and_asks_again(self, client):
+        page = client.get("/ffgs").get_data(as_text=True)
+        assert "officialData.refreshing && !officialData.checked_at" in page
+        assert "setTimeout(loadOfficialWarnings" in page
 
 
 class TestZoneDistricts:

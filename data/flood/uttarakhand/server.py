@@ -4907,6 +4907,7 @@ let ffgsZones = [];
 // before its line has executed throws and stops the whole script.
 let officialData = null;
 let officialFailed = false;
+let officialRetry = null;
 let ffgsDurations = ["1h", "3h", "24h"];
 let ffgsLoadFailed = false;
 let zoneMarkerLayer = null;
@@ -5780,6 +5781,13 @@ function renderOfficialWarnings() {
         return;
     }
 
+    // The server's first read of SACHET after a restart is still
+    // running: nothing checked yet is not the same as "no warnings".
+    if (officialData.refreshing && !officialData.checked_at && !officialData.alerts.length) {
+        el.innerHTML = '<p class="official-empty">' + t("loading") + "</p>";
+        return;
+    }
+
     const checked = officialData.checked_at
         ? " " + t("officialChecked") + " " + formatIst(new Date(officialData.checked_at * 1000).toISOString())
         : "";
@@ -5816,6 +5824,10 @@ async function loadOfficialWarnings() {
     } catch (error) {
         officialFailed = true;
     }
+    // The server re-reads SACHET in the background; ask again once it
+    // has had time to finish rather than at the next ten-minute poll.
+    clearTimeout(officialRetry);
+    if (officialData && officialData.refreshing) officialRetry = setTimeout(loadOfficialWarnings, 15000);
     renderOfficialWarnings();
     const selected = ffgsZones.filter(function(z) { return zoneKey(z) === selectedZoneKey; })[0];
     if (selected) renderZoneOfficial(selected);
@@ -7430,6 +7442,7 @@ _ndma_state = {
     "checked_at": None,
     "last_error": None,
     "last_attempt": 0.0,
+    "refreshing": False,
 }
 _ndma_cap_cache = {}   # guid -> parsed CAP (documents never change)
 
@@ -7616,12 +7629,37 @@ def _refresh_ndma_alerts():
           f"from {len(candidates)} candidate item(s)", flush=True)
 
 
+def _run_in_background(fn):
+    threading.Thread(target=fn, daemon=True).start()
+
+
+_ndma_refresh_lock = threading.Lock()
+
+
+def _ndma_refresh_job():
+    try:
+        _refresh_ndma_alerts()
+    finally:
+        _ndma_state["refreshing"] = False
+
+
 def _official_alerts():
     now = time.time()
+
     # One attempt per TTL whether it succeeds or fails, so a SACHET
-    # outage can't turn every page view into a request to it.
-    if now - _ndma_state["last_attempt"] >= NDMA_CACHE_TTL_SECONDS:
-        _refresh_ndma_alerts()
+    # outage can't turn every page view into a request to it. The
+    # attempt runs in the background: reading the feed and its CAP
+    # documents took 30 s on a slow SACHET day, and a page view waited
+    # for all of it. Callers get the last list at once; /ffgs asks
+    # again shortly while "refreshing" is set.
+    with _ndma_refresh_lock:
+        due = now - _ndma_state["last_attempt"] >= NDMA_CACHE_TTL_SECONDS
+        if due:
+            _ndma_state["last_attempt"] = now
+            _ndma_state["refreshing"] = True
+
+    if due:
+        _run_in_background(_ndma_refresh_job)
 
     alerts = [a for a in _ndma_state["alerts"] if _still_valid(a["expires"], now)]
     return alerts
@@ -7637,6 +7675,7 @@ def official_warnings():
         "source_url": "https://sachet.ndma.gov.in/",
         "checked_at": _ndma_state["checked_at"],
         "last_error": _ndma_state["last_error"],
+        "refreshing": bool(_ndma_state.get("refreshing")),
         "alerts": [
             {key: alert[key] for key in (
                 "identifier", "office", "sender", "event", "severity", "urgency", "certainty",
