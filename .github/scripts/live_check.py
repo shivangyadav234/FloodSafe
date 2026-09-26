@@ -117,6 +117,10 @@ def check_api():
         record("FFGS rainfall on server", level,
                f"{with_data}/{total} zones have rainfall, {age_text}, source={rain.get('source')}, "
                f"last_error={rain.get('last_error')}")
+        horizons = [len((z.get("live_rainfall") or {}).get("forecast") or []) for z in zones["zones"]]
+        full = sum(1 for h in horizons if h >= 6)
+        record("FFGS forecast outlook", "PASS" if full == total else ("WARN" if full else "FAIL"),
+               f"{full}/{total} zones have 6 forecast hours")
         districts = {z.get("district") for z in zones["zones"] if z.get("district")}
         record("FFGS districts covered", "PASS" if len(districts) >= 13 else "WARN",
                f"{len(districts)} districts")
@@ -231,6 +235,9 @@ def check_browser():
             snippet = " ".join(text.split())[:400]
             print(f"    text: {snippet}", flush=True)
             if path == "/ffgs":
+                outlooks = page.locator("#ffgsTableBody .ffgs-outlook").count()
+                record("browser /ffgs: forecast column", "PASS" if outlooks else "FAIL",
+                       f"{outlooks} zone rows show a Next 6 h outlook")
                 panel = " ".join(page.inner_text("#officialWarnings").split())
                 shown = page.locator("#officialWarnings .official-alert").count()
                 record("browser /ffgs: official warnings panel", "PASS" if shown or "No current" in panel else "FAIL",
