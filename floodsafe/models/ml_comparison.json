@@ -1,0 +1,191 @@
+{
+  "method": "Compare machine-learning flood-day models with the calibrated rainfall\nrule, on exactly the same data and the same test.",
+  "built": "2026-09-26",
+  "validation": {
+    "scheme": "leave-one-year-out; district-days; June-September 2000-2023",
+    "flood_rows": 156,
+    "dry_district_days": 36794,
+    "operating_points_share_of_dry_days": {
+      "critical": 0.1,
+      "watch": 0.2
+    },
+    "model_cut": "from out-of-fold training scores, 5 year groups",
+    "bootstrap_resamples": 2000
+  },
+  "results": {
+    "rule": {
+      "description": "Calibrated rainfall rule used live: rarity against local climate, any of 1h/3h/24h",
+      "roc_auc": 0.75,
+      "critical": {
+        "hits": 67,
+        "misses": 89,
+        "false_alarms": 3701,
+        "correct_negatives": 33093,
+        "POD": 0.429,
+        "POFD": 0.1006,
+        "FAR": 0.982,
+        "TSS": 0.329
+      },
+      "watch": {
+        "hits": 89,
+        "misses": 67,
+        "false_alarms": 7361,
+        "correct_negatives": 29433,
+        "POD": 0.571,
+        "POFD": 0.2001,
+        "FAR": 0.988,
+        "TSS": 0.37
+      }
+    },
+    "xgb_rain_only": {
+      "description": "Gradient-boosted trees on 6 features",
+      "features": [
+        "1h",
+        "3h",
+        "24h",
+        "1h_rel",
+        "3h_rel",
+        "24h_rel"
+      ],
+      "roc_auc": 0.708,
+      "critical": {
+        "hits": 54,
+        "misses": 102,
+        "false_alarms": 3607,
+        "correct_negatives": 33187,
+        "POD": 0.346,
+        "POFD": 0.098,
+        "FAR": 0.985,
+        "TSS": 0.248,
+        "POD_minus_rule": -0.083,
+        "POD_minus_rule_95ci": [
+          -0.141,
+          -0.026
+        ],
+        "verdict": "catches 8.3 points fewer floods; the loss is larger than the sampling noise"
+      },
+      "watch": {
+        "hits": 81,
+        "misses": 75,
+        "false_alarms": 7444,
+        "correct_negatives": 29350,
+        "POD": 0.519,
+        "POFD": 0.2023,
+        "FAR": 0.989,
+        "TSS": 0.317,
+        "POD_minus_rule": -0.052,
+        "POD_minus_rule_95ci": [
+          -0.122,
+          0.019
+        ],
+        "verdict": "within the sampling noise of the rule (-5.2 points)"
+      }
+    },
+    "xgb_all": {
+      "description": "Gradient-boosted trees on 21 features",
+      "features": [
+        "1h",
+        "3h",
+        "24h",
+        "1h_rel",
+        "3h_rel",
+        "24h_rel",
+        "antecedent_5d",
+        "day_of_season",
+        "district one-hot ..."
+      ],
+      "roc_auc": 0.734,
+      "critical": {
+        "hits": 62,
+        "misses": 94,
+        "false_alarms": 3884,
+        "correct_negatives": 32910,
+        "POD": 0.397,
+        "POFD": 0.1056,
+        "FAR": 0.984,
+        "TSS": 0.292,
+        "POD_minus_rule": -0.032,
+        "POD_minus_rule_95ci": [
+          -0.109,
+          0.045
+        ],
+        "verdict": "within the sampling noise of the rule (-3.2 points)"
+      },
+      "watch": {
+        "hits": 93,
+        "misses": 63,
+        "false_alarms": 7683,
+        "correct_negatives": 29111,
+        "POD": 0.596,
+        "POFD": 0.2088,
+        "FAR": 0.988,
+        "TSS": 0.387,
+        "POD_minus_rule": 0.025,
+        "POD_minus_rule_95ci": [
+          -0.045,
+          0.103
+        ],
+        "verdict": "within the sampling noise of the rule (+2.5 points)"
+      }
+    },
+    "linear_all": {
+      "description": "Linear logistic on 21 features",
+      "features": [
+        "1h",
+        "3h",
+        "24h",
+        "1h_rel",
+        "3h_rel",
+        "24h_rel",
+        "antecedent_5d",
+        "day_of_season",
+        "district one-hot ..."
+      ],
+      "roc_auc": 0.747,
+      "critical": {
+        "hits": 63,
+        "misses": 93,
+        "false_alarms": 3687,
+        "correct_negatives": 33107,
+        "POD": 0.404,
+        "POFD": 0.1002,
+        "FAR": 0.983,
+        "TSS": 0.304,
+        "POD_minus_rule": -0.025,
+        "POD_minus_rule_95ci": [
+          -0.071,
+          0.019
+        ],
+        "verdict": "within the sampling noise of the rule (-2.5 points)"
+      },
+      "watch": {
+        "hits": 87,
+        "misses": 69,
+        "false_alarms": 7224,
+        "correct_negatives": 29570,
+        "POD": 0.558,
+        "POFD": 0.1963,
+        "FAR": 0.988,
+        "TSS": 0.361,
+        "POD_minus_rule": -0.013,
+        "POD_minus_rule_95ci": [
+          -0.064,
+          0.032
+        ],
+        "verdict": "within the sampling noise of the rule (-1.3 points)"
+      }
+    },
+    "xgb_all_feature_importance_share": {
+      "3h_rel": 0.131,
+      "day_of_season": 0.092,
+      "24h_rel": 0.081,
+      "1h_rel": 0.076,
+      "24h": 0.067,
+      "3h": 0.064,
+      "antecedent_5d": 0.059,
+      "1h": 0.054,
+      "district_Dehradun": 0.045,
+      "district_Almora": 0.045
+    }
+  }
+}
