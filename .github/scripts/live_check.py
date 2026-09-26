@@ -146,7 +146,8 @@ def check_api():
                      validate=lambda w: None if "alerts" in w else "no alerts key")
     if warnings is not None:
         record("official warnings: active alerts", "PASS",
-               f"{len(warnings['alerts'])} active, error={warnings.get('error') or warnings.get('last_error')}")
+               f"{len(warnings['alerts'])} active, refreshing={warnings.get('refreshing')}, "
+               f"checked_at={warnings.get('checked_at')}, error={warnings.get('last_error')}")
 
     check("shelters", "/shelters", validate=lambda s: None if len(s) > 0 else "no shelters")
     reports = check("hazard reports", "/reports", validate=lambda r: None if isinstance(r, list) else "not a list")
@@ -229,6 +230,11 @@ def check_browser():
                 record(name, "PASS", detail + ", no script errors")
             snippet = " ".join(text.split())[:400]
             print(f"    text: {snippet}", flush=True)
+            if path == "/ffgs":
+                panel = " ".join(page.inner_text("#officialWarnings").split())
+                shown = page.locator("#officialWarnings .official-alert").count()
+                record("browser /ffgs: official warnings panel", "PASS" if shown or "No current" in panel else "FAIL",
+                       f"{shown} alert(s) shown: {panel[:300]}")
             context.close()
         browser.close()
 
