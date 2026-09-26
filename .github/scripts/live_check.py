@@ -91,13 +91,13 @@ def check_api():
                f"{status.get('report_storage')}, error={status.get('report_storage_error')}")
         record("status: client IP source", "PASS", str(status.get("client_ip_source")))
 
-    for path in ("/", "/app", "/ffgs", "/reports-view"):
+    for path in ("/", "/app", "/ffgs", "/reports-view", "/sos"):
         check(f"page {path}", path, validate=lambda raw: (
             None if b"</html>" in raw.lower() else "response is not a complete HTML page"))
 
     check("manifest", "/manifest.webmanifest", validate=lambda m: (
         None if m.get("icons") and m.get("start_url") else "manifest missing icons/start_url"))
-    for icon in ("icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"):
+    for icon in ("icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png", "sos-96.png"):
         check(f"icon {icon}", f"/static/icons/{icon}", validate=lambda raw: (
             None if raw[:8] == b"\x89PNG\r\n\x1a\n" else "not a PNG"))
     check("service worker", "/sw.js", validate=lambda raw: None if len(raw) > 100 else "empty")
@@ -202,7 +202,7 @@ def check_browser():
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        for path, wait_s in (("/", 12), ("/app", 15), ("/ffgs", 15), ("/reports-view", 8)):
+        for path, wait_s in (("/", 12), ("/app", 15), ("/ffgs", 15), ("/reports-view", 8), ("/sos", 8)):
             context = browser.new_context(viewport={"width": 1280, "height": 900})
             page = context.new_page()
             errors, failed = [], []

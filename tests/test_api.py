@@ -1708,3 +1708,96 @@ class TestEvacuationTargets:
         import routing_engine
         assert routing_engine._evacuation_targets
         assert all(routing_engine.is_evacuation_shelter(s) for s in routing_engine._evacuation_targets)
+
+
+class TestSos:
+    """SOS texts the sender's own contacts through the textbee gateway."""
+
+    @pytest.fixture
+    def gateway(self, server, monkeypatch):
+        sent = []
+        monkeypatch.setattr(server, "TEXTBEE_API_KEY", "test-key")
+        monkeypatch.setattr(server, "_textbee_send", lambda recipients, message: sent.append((recipients, message)) or True)
+        monkeypatch.setattr(server, "_sos_recipient_hits", {})
+        monkeypatch.setattr(server, "_sos_sent_times", [])
+        return sent
+
+    def post(self, client, **body):
+        base = {"contacts": ["98765 43210"], "lat": 30.3165, "lon": 78.0322, "name": "Asha"}
+        base.update(body)
+        return client.post("/sos", json=base)
+
+    def test_page_and_entry_points(self, client):
+        page = client.get("/sos")
+        assert page.status_code == 200
+        html = page.get_data(as_text=True)
+        assert 'id="holdBtn"' in html and "It does not alert police, SDRF or 112." in html
+        assert 'class="btn-sos" href="/sos"' in client.get("/").get_data(as_text=True)
+        assert 'class="sos-fab" href="/sos"' in client.get("/ffgs").get_data(as_text=True)
+        app_html = client.get("/app").get_data(as_text=True)
+        assert 'class="fs-sos-fab" href="/sos"' in app_html and "openSosLocation();" in app_html
+        assert '"/sos"]' in client.get("/sw.js").get_data(as_text=True)
+
+    def test_app_icon_shortcut_opens_sos_first(self, client):
+        shortcut = client.get("/manifest.webmanifest").get_json()["shortcuts"][0]
+        assert shortcut["url"] == "/sos"
+        assert client.get(shortcut["icons"][0]["src"]).status_code == 200
+
+    def test_without_a_gateway_the_page_is_told_to_use_the_sms_app(self, client, server, monkeypatch):
+        monkeypatch.setattr(server, "TEXTBEE_API_KEY", "")
+        response = self.post(client)
+        assert response.status_code == 503 and response.get_json()["fallback"] == "sms"
+
+    def test_sends_location_and_a_route_link_to_normalized_numbers(self, client, gateway):
+        response = self.post(client, contacts=["98765 43210", "+91-91234-56789", "09876543210"])
+        assert response.status_code == 200 and response.get_json() == {"status": "sent", "sent_to": 2}
+        recipients, message = gateway[0]
+        assert recipients == ["+919876543210", "+919123456789"]
+        assert message.startswith("SOS from Asha: I need help")
+        assert "https://maps.google.com/?q=30.31650,78.03220" in message
+        assert "app?sos=30.31650,78.03220" in message
+
+    def test_a_forged_host_cannot_change_the_link(self, client, server, gateway):
+        self.post(client, contacts=["9876543210"]).get_json()
+        client.post("/sos", json={"contacts": ["9123456789"], "lat": 30.3, "lon": 78.0},
+                    headers={"Host": "evil.example"})
+        assert "evil.example" not in gateway[-1][1]
+        assert server.PUBLIC_BASE_URL + "app?sos=" in gateway[-1][1]
+
+    def test_hindi_message_and_missing_location(self, client, gateway):
+        self.post(client, lang="hi", lat=None, lon=None, name="आशा")
+        message = gateway[0][1]
+        assert message.startswith("SOS: आशा को मदद चाहिए") and "मेरी लोकेशन नहीं मिल सकी" in message
+
+    def test_name_cannot_carry_a_link(self, client, gateway):
+        self.post(client, name="Ravi http://x.co/win 99")
+        assert "http://x.co" not in gateway[0][1] and "x.co" not in gateway[0][1]
+
+    @pytest.mark.parametrize("body, error", [
+        ({"contacts": []}, "at least one"),
+        ({"contacts": ["12345"]}, "Not an Indian mobile"),
+        ({"contacts": ["9876543210"] * 6}, "At most 5"),
+        ({"lat": 51.5, "lon": -0.1}, "outside India"),
+        ({"lat": "north", "lon": 78}, "must be numbers"),
+    ])
+    def test_rejects_bad_requests(self, client, gateway, body, error):
+        response = self.post(client, **body)
+        assert response.status_code == 400 and error in response.get_json()["error"]
+        assert gateway == []
+
+    def test_caller_rate_limit(self, client, gateway):
+        codes = [self.post(client, contacts=[f"98765{i:05d}"]).status_code for i in range(4)]
+        assert codes == [200, 200, 200, 429]
+
+    def test_per_recipient_and_daily_caps(self, server, gateway, monkeypatch):
+        for _ in range(5):
+            assert server._sos_quota_problem(["+919876543210"]) is None
+        assert "last hour" in server._sos_quota_problem(["+919876543210"])
+        monkeypatch.setattr(server, "SOS_DAILY_MESSAGES", 7)
+        assert server._sos_quota_problem(["+919000000001", "+919000000002"]) is None
+        assert "today's message limit" in server._sos_quota_problem(["+919000000003"])
+
+    def test_gateway_failure_falls_back_to_the_sms_app(self, client, server, gateway, monkeypatch):
+        monkeypatch.setattr(server, "_textbee_send", lambda recipients, message: False)
+        response = self.post(client)
+        assert response.status_code == 502 and response.get_json()["fallback"] == "sms"

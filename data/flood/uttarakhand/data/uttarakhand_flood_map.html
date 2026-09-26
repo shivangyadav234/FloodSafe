@@ -1234,7 +1234,32 @@ Locality Hazard Status (live)
 .fs-offline-list li { margin: 3px 0; }
 .fs-offline-list a { cursor: pointer; text-decoration: underline; }
 
+/* SOS: a small round button in the map's corner, above the panel. */
+.fs-sos-fab {
+    position: fixed;
+    right: 16px;
+    bottom: 34px;
+    z-index: 1000000;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: #c62828;
+    color: #fff;
+    font: 800 16px/58px Arial, Helvetica, sans-serif;
+    letter-spacing: 1px;
+    text-align: center;
+    text-decoration: none;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+}
+.fs-sos-fab:hover, .fs-sos-fab:focus-visible { background: #8e1b1b; color: #fff; }
+@media (max-width: 600px) {
+    /* The panel fills a phone: leave room so its last button clears SOS. */
+    #floodsafePanelBody { padding-bottom: 64px; }
+    .fs-sos-fab { width: 50px; height: 50px; font-size: 14px; line-height: 50px; right: 10px; bottom: 30px; }
+}
+
 </style>
+<a class="fs-sos-fab" href="/sos" title="SOS: text your family your location" aria-label="SOS: text your family your location">SOS</a>
     
 <script>
 
@@ -4231,6 +4256,23 @@ function registerOfflineSupport() {
     });
 }
 
+// A FloodSafe SOS text links here as /app?sos=lat,lon: the sender's
+// location becomes the destination, so whoever opens it can route there.
+function openSosLocation() {
+    const match = /^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(
+        new URLSearchParams(location.search).get("sos") || "");
+    if (!match) return;
+    const lat = Number(match[1]);
+    const lon = Number(match[2]);
+    if (!(lat >= 6 && lat <= 37.5 && lon >= 68 && lon <= 97.5)) return;
+    selectDestination({ lat: lat, lon: lon, name: "SOS location" });
+    if (destinationMarker) {
+        destinationMarker.bindPopup(
+            "<b>SOS sent from here</b><br>Set your own location, then Calculate Route."
+        ).openPopup();
+    }
+}
+
 document.addEventListener("DOMContentLoaded", function() {
 
     registerOfflineSupport();
@@ -4242,6 +4284,7 @@ document.addEventListener("DOMContentLoaded", function() {
     loadReports();
     loadShelters();
     loadLocalityZones();
+    openSosLocation();
 
     // Rainfall itself now comes from /ffgs/zones (server-cached, see
     // _fetch_ffgs_live_rainfall in server.py) rather than a client-side

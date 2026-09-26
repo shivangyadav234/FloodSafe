@@ -318,6 +318,32 @@ Rishikesh's localities fall in three districts. SACHET also publishes
 alert polygons but refuses automated requests for them, so alerts are
 matched to districts by the names in their area description.
 
+### SOS to family (textbee)
+
+`/sos` — also on the landing page, a round SOS button on `/app` and
+`/ffgs`, and the app icon's long-press menu — texts the user's own
+emergency contacts their location and a FloodSafe link
+(`/app?sos=lat,lon`) that opens with that spot as the destination, so
+they can take a flood-aware route to it. It does **not** alert police,
+SDRF or 112, and the page says so. The button must be held for 2 seconds.
+
+- Contacts (up to 5 Indian mobiles) and the name are kept only in the
+  phone's browser storage; the server never stores them.
+- SMS goes out through [textbee.dev](https://textbee.dev): an Android
+  phone with a SIM runs the textbee app and acts as the gateway. It must
+  stay on, charged and online.
+- Render environment: `TEXTBEE_API_KEY` (from the textbee dashboard);
+  optional `TEXTBEE_DEVICE_ID` to pin one phone, `SOS_DAILY_MESSAGES`
+  (default 100) and `PUBLIC_BASE_URL` (default
+  `https://floodsafe-u207.onrender.com`, used for the link in the text).
+- The server writes the message itself (the caller sends only a name,
+  location and numbers), and caps it at 3 SOS per caller per 10 minutes,
+  5 texts per number per hour and `SOS_DAILY_MESSAGES` a day, so the
+  gateway can't be used to spam.
+- Without the key, with the gateway down, or with no data, the page
+  offers the sender's own SMS app with the same message — that needs
+  only phone signal — and a share button.
+
 ### Flood-calibrated thresholds
 
 The FFGS WATCH/CRITICAL thresholds used to be set by hand per hazard class.

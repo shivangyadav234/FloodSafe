@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import math
 import time
@@ -480,6 +481,8 @@ RATE_LIMITS = {
     "routing": (30, 60),
     # subscribe / unsubscribe / test notification
     "push": (10, 300),
+    # SOS texts to family: sends real SMS from the gateway SIM
+    "sos": (3, 600),
 }
 
 _rate_buckets = {}
@@ -1792,6 +1795,8 @@ WEB_APP_MANIFEST = {
     ],
     # Long-press menu on Android's home-screen icon.
     "shortcuts": [
+        {"name": "SOS — alert my family", "short_name": "SOS", "url": "/sos",
+         "icons": [{"src": "/static/icons/sos-96.png", "sizes": "96x96", "type": "image/png"}]},
         {"name": "Road map", "short_name": "Map", "url": "/app"},
         {"name": "Flash flood guidance", "short_name": "Flood guidance", "url": "/ffgs"},
     ],
@@ -2061,6 +2066,16 @@ main section {
 }
 
 .hero-ctas { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn-sos {
+  display: flex; align-items: center; gap: 14px; margin-top: 18px; max-width: 460px;
+  padding: 12px 18px 12px 12px; border-radius: 6px; background: #c62828; color: #fff !important;
+  font-size: 0.96875rem; font-weight: 700; text-decoration: none; box-shadow: 0 4px 14px rgba(198,40,40,0.28);
+}
+.btn-sos:hover { background: #8e1b1b; }
+.btn-sos-badge {
+  flex: none; width: 54px; height: 54px; border-radius: 50%; background: #fff; color: #c62828;
+  display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 800; letter-spacing: 1px;
+}
 
 /* ---------------- DIAGRAM PANEL ---------------- */
 
@@ -2389,6 +2404,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
           <a class="btn-official" href="/app" data-i18n="heroCta1">Open the Map Tool →</a>
           <a class="btn-outline" href="#status" data-i18n="heroCta2">View Live Status</a>
         </div>
+        <a class="btn-sos" href="/sos"><span class="btn-sos-badge">SOS</span><span data-i18n="heroSos">In danger? Text your family your location</span></a>
       </div>
       <div class="panel diagram-panel">
         <div class="diagram-caption" data-i18n="diagramCaption">Illustrative example — hover or tap a route below</div>
@@ -2602,6 +2618,7 @@ const translations = {
     heroSub: "FloodSafe advises road routes across Uttarakhand using a georeferenced flash-flood hazard classification, live rainfall data, and citizen-reported hazards — instead of distance alone.",
     heroCta1: "Open the Map Tool →",
     heroCta2: "View Live Status",
+    heroSos: "In danger? Text your family your location",
     diagramCaption: "Illustrative example — hover or tap a route below",
     legendSafe: "Safest route",
     legendRisk: "Fastest route",
@@ -2717,6 +2734,7 @@ const translations = {
     heroSub: "FloodSafe केवल दूरी के बजाय, भू-संदर्भित बाढ़ खतरा वर्गीकरण, लाइव वर्षा डेटा, और नागरिकों द्वारा रिपोर्ट किए गए खतरों का उपयोग करके उत्तराखंड में सड़क मार्गों की सलाह देता है।",
     heroCta1: "मानचित्र खोलें →",
     heroCta2: "लाइव स्थिति देखें",
+    heroSos: "खतरे में हैं? परिवार को अपनी लोकेशन SMS करें",
     diagramCaption: "उदाहरण — नीचे किसी मार्ग पर कर्सर ले जाएं या टैप करें",
     legendSafe: "सबसे सुरक्षित मार्ग",
     legendRisk: "सबसे तेज़ मार्ग",
@@ -4655,6 +4673,13 @@ header nav a:hover { background: rgba(255,255,255,0.28); }
 .notice-more { margin-top: 8px; }
 .notice-more summary { cursor: pointer; font-weight: 600; color: #5c4400; }
 .notice-more p { margin: 8px 0 0; }
+.sos-fab {
+    position: fixed; right: 16px; bottom: 20px; z-index: 2000; width: 58px; height: 58px; border-radius: 50%;
+    background: #c62828; color: #fff; font: 800 16px/58px Arial, Helvetica, sans-serif; letter-spacing: 1px;
+    text-align: center; text-decoration: none; box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+}
+.sos-fab:hover, .sos-fab:focus-visible { background: #8e1b1b; }
+body { padding-bottom: 70px; }
 
 #ffgsAlert, #ffgsForecastAlert {
     display: none;
@@ -5046,6 +5071,7 @@ footer {
 <footer data-i18n="footerText">
     Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, fetched by the server every 10 minutes (your browser fetches it only if the server can't). This page refreshes every 60 seconds.
 </footer>
+<a class="sos-fab" href="/sos" title="SOS: text your family your location" aria-label="SOS: text your family your location">SOS</a>
 
 <script>
 
@@ -7745,7 +7771,7 @@ var TILE_CACHE = "floodsafe-tiles-v1";
 var MAX_TILES = 400;
 var NETWORK_TIMEOUT_MS = 8000;
 var CDN_HOSTS = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "code.jquery.com", "netdna.bootstrapcdn.com"];
-var OFFLINE_PATHS = ["/app", "/ffgs", "/", "/shelters"];
+var OFFLINE_PATHS = ["/app", "/ffgs", "/", "/shelters", "/sos"];
 
 self.addEventListener("install", function (event) {
     // Small and shared by every page; the map page itself is cached on
@@ -7890,6 +7916,479 @@ def service_worker():
     response = Response(SERVICE_WORKER_JS, mimetype="application/javascript")
     response.headers["Cache-Control"] = "no-cache"
     return response
+
+
+# ============================================================
+# SOS TO FAMILY
+#
+# One held button on /sos texts the person's own emergency contacts
+# their location and a FloodSafe link that routes to them. It is not
+# an alert to police, SDRF or 112 -- the page says so.
+#
+# SMS goes out through textbee.dev: the team's Android phone, with the
+# textbee app and a SIM, acts as the gateway (TEXTBEE_API_KEY, and
+# optionally TEXTBEE_DEVICE_ID, in the environment). That phone must be
+# on and online; when it isn't, or the sender has no data, the page
+# falls back to the sender's own SMS app, which needs only signal.
+#
+# The server writes the message itself -- the caller sends only a name,
+# a location and up to five Indian mobile numbers -- so the gateway
+# can't be used to send arbitrary text, and it is capped per caller,
+# per recipient and per day so a script can't drain the SIM.
+# Contacts are kept on the sender's phone, never stored here.
+# ============================================================
+
+TEXTBEE_API_KEY = os.environ.get("TEXTBEE_API_KEY", "").strip()
+TEXTBEE_DEVICE_ID = os.environ.get("TEXTBEE_DEVICE_ID", "").strip()
+TEXTBEE_BASE_URL = os.environ.get("TEXTBEE_BASE_URL", "https://api.textbee.dev/api/v1").rstrip("/")
+
+# The link in an SOS text. Fixed, not taken from the request: a forged
+# Host header must not be able to put someone else's link in an SMS sent
+# from the gateway SIM. Local runs (127.0.0.1 / localhost) link to themselves.
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://floodsafe-u207.onrender.com").rstrip("/") + "/"
+
+SOS_MAX_CONTACTS = 5
+SOS_NAME_MAX_LENGTH = 30
+SOS_PER_RECIPIENT = (5, 3600)          # texts to one number per hour
+SOS_DAILY_MESSAGES = int(os.environ.get("SOS_DAILY_MESSAGES", "100"))
+
+_sos_lock = threading.Lock()
+_sos_recipient_hits = {}
+_sos_sent_times = []
+
+_INDIAN_MOBILE = re.compile(r"^(?:\+?91|0)?([6-9]\d{9})$")
+
+
+def _normalize_indian_mobile(value):
+    if not isinstance(value, str):
+        return None
+    match = _INDIAN_MOBILE.match(re.sub(r"[\s\-().]", "", value))
+    return "+91" + match.group(1) if match else None
+
+
+def _clean_sos_name(value):
+    # Letters (Latin or Devanagari, with its vowel signs), spaces,
+    # apostrophes and hyphens only: a name, never a link or a message
+    # smuggled into the SMS.
+    if not isinstance(value, str):
+        return ""
+    name = re.sub(r"[^A-Za-z\u0900-\u097F\s'-]", "", value)
+    return " ".join(name.split())[:SOS_NAME_MAX_LENGTH]
+
+
+def _sos_message(name, lat, lon, lang, base_url):
+    ist = time.strftime("%H:%M", time.gmtime(time.time() + 5.5 * 3600))
+    if lat is None:
+        where_en = "My location could not be found. Please call me."
+        where_hi = "मेरी लोकेशन नहीं मिल सकी। कृपया मुझे कॉल करें।"
+        link = base_url + "app"
+    else:
+        maps = f"https://maps.google.com/?q={lat:.5f},{lon:.5f}"
+        where_en = f"My location: {maps}"
+        where_hi = f"मेरी लोकेशन: {maps}"
+        link = f"{base_url}app?sos={lat:.5f},{lon:.5f}"
+
+    if lang == "hi":
+        who = f"{name} को" if name else "मुझे"
+        return (f"SOS: {who} मदद चाहिए (बाढ़ का खतरा)। {where_hi} "
+                f"FloodSafe पर सुरक्षित रास्ता: {link} — {ist} IST")
+    who = f" from {name}" if name else ""
+    return (f"SOS{who}: I need help (flood danger). {where_en} "
+            f"Safe route to me on FloodSafe: {link} — {ist} IST")
+
+
+def _sos_link_base():
+    host = request.host.split(":")[0]
+    return request.url_root if host in ("127.0.0.1", "localhost") else PUBLIC_BASE_URL
+
+
+def _textbee_send(recipients, message):
+    """Send one SMS to each recipient through textbee. True on success."""
+    body = {"recipients": recipients, "message": message}
+    if TEXTBEE_DEVICE_ID:
+        body["deviceId"] = TEXTBEE_DEVICE_ID
+    response = requests.post(f"{TEXTBEE_BASE_URL}/gateway/send-sms", json=body,
+                             headers={"x-api-key": TEXTBEE_API_KEY}, timeout=15)
+    return 200 <= response.status_code < 300
+
+
+def _sos_quota_problem(recipients):
+    """Why this send would break a cap, or None. Records the send if not."""
+    now = time.time()
+    max_per_number, window = SOS_PER_RECIPIENT
+
+    with _sos_lock:
+        _sos_sent_times[:] = [t for t in _sos_sent_times if now - t < 86400]
+        if len(_sos_sent_times) + len(recipients) > SOS_DAILY_MESSAGES:
+            return "The SOS service has reached today's message limit."
+
+        for number in recipients:
+            hits = [t for t in _sos_recipient_hits.get(number, []) if now - t < window]
+            _sos_recipient_hits[number] = hits
+            if len(hits) >= max_per_number:
+                return f"{number} has already been sent {max_per_number} SOS messages in the last hour."
+
+        for number in recipients:
+            _sos_recipient_hits[number].append(now)
+        _sos_sent_times.extend([now] * len(recipients))
+
+    return None
+
+
+SOS_PAGE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOS — FloodSafe</title>
+<style>
+:root {
+  --navy: #0b3558; --navy-dark: #062338; --ink: #1a1f24; --muted: #4a5560; --faint: #6b7680;
+  --border: #c9d2d9; --bg: #f3f5f6; --panel: #ffffff; --sos: #c62828; --sos-dark: #8e1b1b;
+  --safe: #14532d; --safe-bg: #eaf3ec; --risk: #7a1f1f; --risk-bg: #f7eceb;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, "Segoe UI", Arial, Helvetica, sans-serif; background: var(--bg); color: var(--ink); }
+.topbar { background: var(--navy-dark); color: #c9d2d9; font-size: 13px; padding: 6px 16px; display: flex; justify-content: flex-end; gap: 8px; }
+.topbar button { background: none; border: 0; color: #c9d2d9; font: inherit; cursor: pointer; padding: 2px 4px; }
+.topbar button[aria-pressed="true"] { color: #fff; font-weight: 700; text-decoration: underline; }
+header { background: var(--navy); color: #fff; padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+header h1 { margin: 0; font-size: 20px; }
+header p { margin: 2px 0 0; font-size: 13px; color: #c9d2d9; }
+header a { color: #fff; text-decoration: none; font-size: 14px; padding: 7px 12px; border-radius: 6px; background: rgba(255,255,255,0.14); }
+main { max-width: 620px; margin: 0 auto; padding: 18px 16px 40px; }
+.hold-wrap { display: flex; flex-direction: column; align-items: center; padding: 16px 0 8px; }
+.hold { position: relative; width: 210px; height: 210px; border-radius: 50%; border: 0; cursor: pointer;
+  background: conic-gradient(#ffcdd2 calc(var(--p, 0) * 1%), var(--sos) 0); color: #fff; padding: 0;
+  box-shadow: 0 10px 30px rgba(198,40,40,0.35); touch-action: none; user-select: none; -webkit-user-select: none; }
+.hold span { position: absolute; inset: 12px; border-radius: 50%; background: var(--sos); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; font-weight: 800; }
+.hold .big { font-size: 54px; letter-spacing: 2px; line-height: 1; }
+.hold .small { font-size: 14px; font-weight: 600; margin-top: 8px; opacity: 0.95; }
+.hold:disabled { filter: grayscale(0.5); opacity: 0.7; cursor: default; }
+.hold:focus-visible { outline: 4px solid var(--navy); outline-offset: 4px; }
+.who { margin-top: 12px; font-size: 14px; color: var(--muted); text-align: center; }
+#status { margin: 16px 0 0; padding: 12px 14px; border-radius: 8px; font-size: 15px; line-height: 1.45; }
+#status.ok { background: var(--safe-bg); color: var(--safe); }
+#status.err { background: var(--risk-bg); color: var(--risk); }
+#status.busy { background: #eef2f6; color: var(--navy); }
+.fallback { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+.fallback a, .fallback button { flex: 1 1 200px; text-align: center; padding: 12px 14px; border-radius: 8px; font: inherit; font-weight: 700;
+  font-size: 15px; text-decoration: none; cursor: pointer; border: 2px solid var(--navy); color: var(--navy); background: #fff; }
+.fallback .primary { background: var(--navy); color: #fff; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-top: 22px; }
+.card h2 { margin: 0; padding: 14px 16px; font-size: 16px; border-bottom: 1px solid var(--border); }
+.card .body { padding: 14px 16px; }
+label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 10px 0 4px; }
+input { width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+input.bad { border-color: var(--sos); background: #fff7f7; }
+.hint { font-size: 13px; color: var(--faint); margin: 10px 0 0; }
+.note { margin-top: 18px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="topbar"><button type="button" data-lang="en">English</button><span>|</span><button type="button" data-lang="hi">हिंदी</button></div>
+<header>
+  <div><h1 data-t="title">SOS — alert your family</h1><p data-t="subtitle">Sends your location to your emergency contacts by SMS</p></div>
+  <a href="/" data-t="back">← FloodSafe</a>
+</header>
+<main>
+  <div class="hold-wrap">
+    <button type="button" class="hold" id="holdBtn" aria-describedby="whoLine">
+      <span><b class="big">SOS</b><b class="small" data-t="hold">Hold for 2 seconds</b></span>
+    </button>
+    <div class="who" id="whoLine"></div>
+  </div>
+  <div id="status" hidden></div>
+  <div class="fallback" id="fallback" hidden>
+    <a id="smsLink" href="#" data-t="viaSms">Send from my SMS app</a>
+    <button type="button" id="shareBtn" data-t="share">Share another way</button>
+  </div>
+
+  <section class="card">
+    <h2 data-t="contactsTitle">Your emergency contacts</h2>
+    <div class="body">
+      <label for="sosName" data-t="nameLabel">Your name (shown in the message)</label>
+      <input id="sosName" type="text" maxlength="30" autocomplete="name">
+      <div id="contactFields"></div>
+      <p class="hint" data-t="savedHint">Saved only on this phone. Up to 5 Indian mobile numbers.</p>
+    </div>
+  </section>
+
+  <p class="note" data-t="note">This texts only the people above. It does not alert police, SDRF or 112.</p>
+</main>
+<script>
+const STRINGS = {
+  en: {
+    title: "SOS — alert your family", subtitle: "Sends your location to your emergency contacts by SMS", back: "← FloodSafe",
+    hold: "Hold for 2 seconds", contactsTitle: "Your emergency contacts", nameLabel: "Your name (shown in the message)",
+    contactLabel: "Contact", savedHint: "Saved only on this phone. Up to 5 Indian mobile numbers.",
+    note: "This texts only the people above. It does not alert police, SDRF or 112.",
+    viaSms: "Send from my SMS app", share: "Share another way",
+    who: function (n) { return n ? "Will text " + n + " contact" + (n > 1 ? "s" : "") : "Add a contact below first"; },
+    needContact: "Add at least one mobile number below first.", badNumber: "Check the highlighted number: 10 digits, starting 6–9.",
+    locating: "Finding your location…", sending: "Sending SOS…",
+    sent: function (n, t, noLoc) { return "✓ SOS sent to " + n + " contact" + (n > 1 ? "s" : "") + " at " + t + ". Stay where it is safe; " + (noLoc ? "they will call you." : "they have your location."); },
+    failed: "The SOS could not be sent from here. Send it from your SMS app now:",
+    offline: "No internet. Send the SOS from your SMS app now — it needs only phone signal:",
+    msg: function (name, lat, lon, t) {
+      const who = name ? " from " + name : "";
+      const where = lat == null ? "My location could not be found. Please call me."
+        : "My location: https://maps.google.com/?q=" + lat.toFixed(5) + "," + lon.toFixed(5);
+      const link = location.origin + "/app" + (lat == null ? "" : "?sos=" + lat.toFixed(5) + "," + lon.toFixed(5));
+      return "SOS" + who + ": I need help (flood danger). " + where + " Safe route to me on FloodSafe: " + link + " — " + t + " IST";
+    }
+  },
+  hi: {
+    title: "SOS — परिवार को सूचित करें", subtitle: "आपकी लोकेशन SMS से आपके आपातकालीन संपर्कों को भेजता है", back: "← FloodSafe",
+    hold: "2 सेकंड दबाए रखें", contactsTitle: "आपके आपातकालीन संपर्क", nameLabel: "आपका नाम (संदेश में दिखेगा)",
+    contactLabel: "संपर्क", savedHint: "केवल इसी फ़ोन में सहेजे जाते हैं। अधिकतम 5 भारतीय मोबाइल नंबर।",
+    note: "यह केवल ऊपर दिए लोगों को SMS भेजता है। यह पुलिस, SDRF या 112 को सूचित नहीं करता।",
+    viaSms: "मेरे SMS ऐप से भेजें", share: "किसी और तरीके से भेजें",
+    who: function (n) { return n ? n + " संपर्कों को SMS जाएगा" : "पहले नीचे कोई संपर्क जोड़ें"; },
+    needContact: "पहले नीचे कम से कम एक मोबाइल नंबर जोड़ें।", badNumber: "चिह्नित नंबर जांचें: 10 अंक, 6–9 से शुरू।",
+    locating: "आपकी लोकेशन ढूंढी जा रही है…", sending: "SOS भेजा जा रहा है…",
+    sent: function (n, t, noLoc) { return "✓ SOS " + t + " बजे " + n + " संपर्कों को भेजा गया। सुरक्षित जगह पर रहें; " + (noLoc ? "वे आपको कॉल करेंगे।" : "उनके पास आपकी लोकेशन है।"); },
+    failed: "SOS यहाँ से नहीं भेजा जा सका। अभी अपने SMS ऐप से भेजें:",
+    offline: "इंटरनेट नहीं है। अभी अपने SMS ऐप से SOS भेजें — इसके लिए सिर्फ़ नेटवर्क चाहिए:",
+    msg: function (name, lat, lon, t) {
+      const who = name ? name + " को" : "मुझे";
+      const where = lat == null ? "मेरी लोकेशन नहीं मिल सकी। कृपया मुझे कॉल करें।"
+        : "मेरी लोकेशन: https://maps.google.com/?q=" + lat.toFixed(5) + "," + lon.toFixed(5);
+      const link = location.origin + "/app" + (lat == null ? "" : "?sos=" + lat.toFixed(5) + "," + lon.toFixed(5));
+      return "SOS: " + who + " मदद चाहिए (बाढ़ का खतरा)। " + where + " FloodSafe पर सुरक्षित रास्ता: " + link + " — " + t + " IST";
+    }
+  }
+};
+
+const STORE_KEY = "floodsafeSosContacts";
+const HOLD_MS = 2000;
+let lang = "en";
+try { lang = localStorage.getItem("floodsafeLang") === "hi" ? "hi" : "en"; } catch (e) {}
+const T = function () { return STRINGS[lang]; };
+
+function loadSaved() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { return {}; }
+}
+function save() {
+  const data = { name: document.getElementById("sosName").value, contacts: rawContacts() };
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) {}
+  updateWho();
+}
+function rawContacts() {
+  return Array.from(document.querySelectorAll(".contact-input")).map(function (i) { return i.value.trim(); });
+}
+function normalize(value) {
+  const m = value.replace(/[\\s\\-().]/g, "").match(/^(?:\\+?91|0)?([6-9]\\d{9})$/);
+  return m ? "+91" + m[1] : null;
+}
+function validContacts() {
+  return rawContacts().map(normalize).filter(Boolean).filter(function (n, i, all) { return all.indexOf(n) === i; });
+}
+
+function render() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach(function (el) { el.textContent = T()[el.getAttribute("data-t")]; });
+  document.querySelectorAll("[data-lang]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === lang)); });
+  document.querySelectorAll(".contact-label").forEach(function (l, i) { l.textContent = T().contactLabel + " " + (i + 1); });
+  updateWho();
+  paintStatus();
+}
+function updateWho() {
+  document.getElementById("whoLine").textContent = T().who(validContacts().length);
+}
+
+function buildFields() {
+  const saved = loadSaved();
+  const holder = document.getElementById("contactFields");
+  for (let i = 0; i < 5; i++) {
+    const label = document.createElement("label");
+    label.className = "contact-label"; label.htmlFor = "contact" + i;
+    const input = document.createElement("input");
+    input.className = "contact-input"; input.id = "contact" + i; input.type = "tel"; input.inputMode = "tel";
+    input.autocomplete = "tel"; input.placeholder = "98765 43210";
+    input.value = (saved.contacts || [])[i] || "";
+    input.addEventListener("input", function () { input.classList.remove("bad"); save(); });
+    holder.appendChild(label); holder.appendChild(input);
+  }
+  document.getElementById("sosName").value = saved.name || "";
+  document.getElementById("sosName").addEventListener("input", save);
+}
+
+// Kept as a key, not text, so switching language re-words it.
+let lastStatus = null;
+function setStatus(kind, key, args) {
+  lastStatus = { kind: kind, key: key, args: args || [] };
+  paintStatus();
+}
+function paintStatus() {
+  if (!lastStatus) return;
+  const el = document.getElementById("status");
+  const value = T()[lastStatus.key];
+  el.hidden = false; el.className = lastStatus.kind;
+  el.textContent = typeof value === "function" ? value.apply(null, lastStatus.args) : value;
+}
+function istTime() {
+  const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+  return String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0");
+}
+function showFallback(message, numbers, primary) {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const link = document.getElementById("smsLink");
+  link.href = "sms:" + numbers.join(",") + (ios ? "&" : "?") + "body=" + encodeURIComponent(message);
+  link.className = primary ? "primary" : "";
+  const share = document.getElementById("shareBtn");
+  share.hidden = !navigator.share;
+  share.onclick = function () { navigator.share({ text: message }).catch(function () {}); };
+  document.getElementById("fallback").hidden = false;
+}
+
+function getLocation() {
+  return new Promise(function (resolve) {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      function (p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude }); },
+      function () { resolve(null); },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  });
+}
+
+async function sendSos() {
+  const numbers = validContacts();
+  const bad = rawContacts().map(function (v, i) { return v && !normalize(v) ? i : -1; }).filter(function (i) { return i >= 0; });
+  bad.forEach(function (i) { document.getElementById("contact" + i).classList.add("bad"); });
+  if (bad.length) return setStatus("err", "badNumber");
+  if (!numbers.length) return setStatus("err", "needContact");
+
+  if (navigator.vibrate) navigator.vibrate(200);
+  const btn = document.getElementById("holdBtn");
+  btn.disabled = true;
+  setStatus("busy", "locating");
+  const where = await getLocation();
+  const name = document.getElementById("sosName").value.trim();
+  const message = T().msg(name, where && where.lat, where && where.lon, istTime());
+
+  setStatus("busy", "sending");
+  try {
+    if (!navigator.onLine) throw new Error("offline");
+    const response = await fetch("/sos", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contacts: numbers, name: name, lang: lang,
+                             lat: where ? where.lat : null, lon: where ? where.lon : null })
+    });
+    const data = await response.json().catch(function () { return {}; });
+    if (!response.ok || data.status !== "sent") throw new Error(data.error || "failed");
+    setStatus("ok", "sent", [data.sent_to, istTime(), !where]);
+    showFallback(message, numbers, false);
+  } catch (error) {
+    setStatus("err", navigator.onLine ? "failed" : "offline");
+    showFallback(message, numbers, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Press and hold, so a pocket tap can't send it.
+(function () {
+  const btn = document.getElementById("holdBtn");
+  let started = 0, frame = 0;
+  function tick() {
+    const p = Math.min(100, (Date.now() - started) / HOLD_MS * 100);
+    btn.style.setProperty("--p", p);
+    if (p >= 100) { stop(); sendSos(); return; }
+    frame = requestAnimationFrame(tick);
+  }
+  function start(e) {
+    if (btn.disabled || started) return;
+    if (e) e.preventDefault();
+    started = Date.now(); frame = requestAnimationFrame(tick);
+  }
+  function stop() { started = 0; cancelAnimationFrame(frame); btn.style.setProperty("--p", 0); }
+  btn.addEventListener("pointerdown", start);
+  ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) { btn.addEventListener(ev, stop); });
+  btn.addEventListener("keydown", function (e) { if ((e.key === " " || e.key === "Enter") && !e.repeat) start(e); });
+  btn.addEventListener("keyup", function (e) { if (e.key === " " || e.key === "Enter") stop(); });
+  btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+})();
+
+document.querySelectorAll("[data-lang]").forEach(function (b) {
+  b.addEventListener("click", function () {
+    lang = b.dataset.lang;
+    try { localStorage.setItem("floodsafeLang", lang); } catch (e) {}
+    render();
+  });
+});
+buildFields();
+render();
+</script>
+</body>
+</html>
+"""
+SOS_PAGE_HTML = _with_app_head(SOS_PAGE_HTML)
+
+
+@app.route("/sos", methods=["GET"])
+def sos_page():
+    return SOS_PAGE_HTML
+
+
+@app.route("/sos", methods=["POST"])
+def send_sos():
+
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"status": "error", "error": "Request body must be valid JSON."}), 400
+
+    contacts = data.get("contacts")
+    if not isinstance(contacts, list) or not contacts:
+        return jsonify({"status": "error", "error": "Add at least one emergency contact."}), 400
+    if len(contacts) > SOS_MAX_CONTACTS:
+        return jsonify({"status": "error", "error": f"At most {SOS_MAX_CONTACTS} contacts."}), 400
+
+    recipients = []
+    for value in contacts:
+        number = _normalize_indian_mobile(value)
+        if not number:
+            return jsonify({"status": "error",
+                            "error": f"Not an Indian mobile number: {str(value)[:20]}"}), 400
+        if number not in recipients:
+            recipients.append(number)
+
+    lat, lon = data.get("lat"), data.get("lon")
+    if lat is None and lon is None:
+        lat = lon = None
+    else:
+        try:
+            lat, lon = float(lat), float(lon)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "error": "lat and lon must be numbers."}), 400
+        if not (6.0 <= lat <= 37.5 and 68.0 <= lon <= 97.5):
+            return jsonify({"status": "error", "error": "Location is outside India."}), 400
+
+    if not (TEXTBEE_API_KEY):
+        return jsonify({"status": "error", "fallback": "sms",
+                        "error": "SOS texting isn't set up on this server. Send it from your phone's SMS app."}), 503
+
+    if _rate_limited("sos"):
+        return _rate_limit_response("sos")
+
+    problem = _sos_quota_problem(recipients)
+    if problem:
+        return jsonify({"status": "error", "fallback": "sms", "error": problem}), 429
+
+    message = _sos_message(_clean_sos_name(data.get("name")), lat, lon,
+                           "hi" if data.get("lang") == "hi" else "en", _sos_link_base())
+    try:
+        sent = _textbee_send(recipients, message)
+    except requests.RequestException as error:
+        print(f"WARNING: SOS gateway request failed: {type(error).__name__}", flush=True)
+        sent = False
+
+    if not sent:
+        return jsonify({"status": "error", "fallback": "sms",
+                        "error": "The SMS gateway didn't take the message. Send it from your phone's SMS app."}), 502
+
+    return jsonify({"status": "sent", "sent_to": len(recipients)})
 
 
 # ============================================================
