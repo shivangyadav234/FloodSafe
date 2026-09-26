@@ -1743,6 +1743,12 @@ class TestSos:
         assert shortcut["url"] == "/sos"
         assert client.get(shortcut["icons"][0]["src"]).status_code == 200
 
+    def test_page_knows_whether_the_gateway_is_set_up(self, client, server, monkeypatch):
+        monkeypatch.setattr(server, "TEXTBEE_API_KEY", "")
+        assert "const GATEWAY = false;" in client.get("/sos").get_data(as_text=True)
+        monkeypatch.setattr(server, "TEXTBEE_API_KEY", "test-key")
+        assert "const GATEWAY = true;" in client.get("/sos").get_data(as_text=True)
+
     def test_without_a_gateway_the_page_is_told_to_use_the_sms_app(self, client, server, monkeypatch):
         monkeypatch.setattr(server, "TEXTBEE_API_KEY", "")
         response = self.post(client)

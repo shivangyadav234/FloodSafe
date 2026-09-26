@@ -329,9 +329,14 @@ SDRF or 112, and the page says so. The button must be held for 2 seconds.
 
 - Contacts (up to 5 Indian mobiles) and the name are kept only in the
   phone's browser storage; the server never stores them.
-- SMS goes out through [textbee.dev](https://textbee.dev): an Android
-  phone with a SIM runs the textbee app and acts as the gateway. It must
-  stay on, charged and online.
+- By default (no textbee key set) holding and releasing SOS opens the
+  phone's own SMS app with the message and numbers filled in; the user
+  just presses Send. That needs only phone signal, not data. Location is
+  asked for while contacts are set up, and fetched as the hold starts.
+- Optionally, SMS can go out automatically through
+  [textbee.dev](https://textbee.dev): an Android phone with a SIM runs
+  the textbee app and acts as the gateway. It must stay on, charged and
+  online.
 - Render environment: `TEXTBEE_API_KEY` (from the textbee dashboard);
   optional `TEXTBEE_DEVICE_ID` to pin one phone, `SOS_DAILY_MESSAGES`
   (default 100) and `PUBLIC_BASE_URL` (default
@@ -340,9 +345,8 @@ SDRF or 112, and the page says so. The button must be held for 2 seconds.
   location and numbers), and caps it at 3 SOS per caller per 10 minutes,
   5 texts per number per hour and `SOS_DAILY_MESSAGES` a day, so the
   gateway can't be used to spam.
-- Without the key, with the gateway down, or with no data, the page
-  offers the sender's own SMS app with the same message — that needs
-  only phone signal — and a share button.
+- With textbee set up but down, or with no data, the page falls back to
+  the sender's own SMS app with the same message, and a share button.
 
 ### Flood-calibrated thresholds
 

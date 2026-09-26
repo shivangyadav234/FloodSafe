@@ -8095,7 +8095,7 @@ input.bad { border-color: var(--sos); background: #fff7f7; }
 <main>
   <div class="hold-wrap">
     <button type="button" class="hold" id="holdBtn" aria-describedby="whoLine">
-      <span><b class="big">SOS</b><b class="small" data-t="hold">Hold for 2 seconds</b></span>
+      <span><b class="big">SOS</b><b class="small">Hold for 2 seconds</b></span>
     </button>
     <div class="who" id="whoLine"></div>
   </div>
@@ -8121,7 +8121,7 @@ input.bad { border-color: var(--sos); background: #fff7f7; }
 const STRINGS = {
   en: {
     title: "SOS — alert your family", subtitle: "Sends your location to your emergency contacts by SMS", back: "← FloodSafe",
-    hold: "Hold for 2 seconds", contactsTitle: "Your emergency contacts", nameLabel: "Your name (shown in the message)",
+    hold: "Hold for 2 seconds", release: "Let go to send", contactsTitle: "Your emergency contacts", nameLabel: "Your name (shown in the message)",
     contactLabel: "Contact", savedHint: "Saved only on this phone. Up to 5 Indian mobile numbers.",
     note: "This texts only the people above. It does not alert police, SDRF or 112.",
     viaSms: "Send from my SMS app", share: "Share another way",
@@ -8130,6 +8130,8 @@ const STRINGS = {
     locating: "Finding your location…", sending: "Sending SOS…",
     sent: function (n, t, noLoc) { return "✓ SOS sent to " + n + " contact" + (n > 1 ? "s" : "") + " at " + t + ". Stay where it is safe; " + (noLoc ? "they will call you." : "they have your location."); },
     failed: "The SOS could not be sent from here. Send it from your SMS app now:",
+    readySms: "Your SOS is ready. Tap “Send from my SMS app” below, then press Send.",
+    openingSms: "Opening your SMS app with the SOS typed in — just press Send. If it didn't open, tap the button below.",
     offline: "No internet. Send the SOS from your SMS app now — it needs only phone signal:",
     msg: function (name, lat, lon, t) {
       const who = name ? " from " + name : "";
@@ -8141,7 +8143,7 @@ const STRINGS = {
   },
   hi: {
     title: "SOS — परिवार को सूचित करें", subtitle: "आपकी लोकेशन SMS से आपके आपातकालीन संपर्कों को भेजता है", back: "← FloodSafe",
-    hold: "2 सेकंड दबाए रखें", contactsTitle: "आपके आपातकालीन संपर्क", nameLabel: "आपका नाम (संदेश में दिखेगा)",
+    hold: "2 सेकंड दबाए रखें", release: "भेजने के लिए छोड़ें", contactsTitle: "आपके आपातकालीन संपर्क", nameLabel: "आपका नाम (संदेश में दिखेगा)",
     contactLabel: "संपर्क", savedHint: "केवल इसी फ़ोन में सहेजे जाते हैं। अधिकतम 5 भारतीय मोबाइल नंबर।",
     note: "यह केवल ऊपर दिए लोगों को SMS भेजता है। यह पुलिस, SDRF या 112 को सूचित नहीं करता।",
     viaSms: "मेरे SMS ऐप से भेजें", share: "किसी और तरीके से भेजें",
@@ -8150,6 +8152,8 @@ const STRINGS = {
     locating: "आपकी लोकेशन ढूंढी जा रही है…", sending: "SOS भेजा जा रहा है…",
     sent: function (n, t, noLoc) { return "✓ SOS " + t + " बजे " + n + " संपर्कों को भेजा गया। सुरक्षित जगह पर रहें; " + (noLoc ? "वे आपको कॉल करेंगे।" : "उनके पास आपकी लोकेशन है।"); },
     failed: "SOS यहाँ से नहीं भेजा जा सका। अभी अपने SMS ऐप से भेजें:",
+    readySms: "आपका SOS तैयार है। नीचे “मेरे SMS ऐप से भेजें” दबाएँ, फिर Send दबाएँ।",
+    openingSms: "आपका SMS ऐप SOS लिखा हुआ खुल रहा है — बस Send दबाएँ। अगर नहीं खुला, तो नीचे का बटन दबाएँ।",
     offline: "इंटरनेट नहीं है। अभी अपने SMS ऐप से SOS भेजें — इसके लिए सिर्फ़ नेटवर्क चाहिए:",
     msg: function (name, lat, lon, t) {
       const who = name ? name + " को" : "मुझे";
@@ -8162,6 +8166,9 @@ const STRINGS = {
 };
 
 const STORE_KEY = "floodsafeSosContacts";
+// Filled in by the server: without the textbee gateway the SMS app is
+// the way to send, not a fallback after an error.
+const GATEWAY = __SOS_GATEWAY__;
 const HOLD_MS = 2000;
 let lang = "en";
 try { lang = localStorage.getItem("floodsafeLang") === "hi" ? "hi" : "en"; } catch (e) {}
@@ -8191,6 +8198,7 @@ function render() {
   document.querySelectorAll("[data-t]").forEach(function (el) { el.textContent = T()[el.getAttribute("data-t")]; });
   document.querySelectorAll("[data-lang]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === lang)); });
   document.querySelectorAll(".contact-label").forEach(function (l, i) { l.textContent = T().contactLabel + " " + (i + 1); });
+  document.querySelector("#holdBtn .small").textContent = T().hold;
   updateWho();
   paintStatus();
 }
@@ -8233,9 +8241,8 @@ function istTime() {
   return String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0");
 }
 function showFallback(message, numbers, primary) {
-  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const link = document.getElementById("smsLink");
-  link.href = "sms:" + numbers.join(",") + (ios ? "&" : "?") + "body=" + encodeURIComponent(message);
+  link.href = smsHref(message, numbers);
   link.className = primary ? "primary" : "";
   const share = document.getElementById("shareBtn");
   share.hidden = !navigator.share;
@@ -8243,31 +8250,62 @@ function showFallback(message, numbers, primary) {
   document.getElementById("fallback").hidden = false;
 }
 
-function getLocation() {
-  return new Promise(function (resolve) {
+// Location is requested as the hold starts, so it's usually ready by release.
+let locationRequest = null;
+function requestLocation() {
+  locationRequest = new Promise(function (resolve) {
     if (!navigator.geolocation) return resolve(null);
     navigator.geolocation.getCurrentPosition(
       function (p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude }); },
       function () { resolve(null); },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 300000 });
   });
+  return locationRequest;
+}
+// Settles to the location, null (none), or undefined if still waiting after ms.
+function locationWithin(ms) {
+  return Promise.race([locationRequest || requestLocation(),
+                       new Promise(function (resolve) { setTimeout(resolve, ms); })]);
 }
 
-async function sendSos() {
-  const numbers = validContacts();
+function smsHref(message, numbers) {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  return "sms:" + numbers.join(",") + (ios ? "&" : "?") + "body=" + encodeURIComponent(message);
+}
+
+function checkContacts() {
   const bad = rawContacts().map(function (v, i) { return v && !normalize(v) ? i : -1; }).filter(function (i) { return i >= 0; });
   bad.forEach(function (i) { document.getElementById("contact" + i).classList.add("bad"); });
-  if (bad.length) return setStatus("err", "badNumber");
-  if (!numbers.length) return setStatus("err", "needContact");
+  if (bad.length) { setStatus("err", "badNumber"); return null; }
+  const numbers = validContacts();
+  if (!numbers.length) { setStatus("err", "needContact"); return null; }
+  return numbers;
+}
 
+async function sendSos(numbers) {
   if (navigator.vibrate) navigator.vibrate(200);
   const btn = document.getElementById("holdBtn");
+  const name = document.getElementById("sosName").value.trim();
   btn.disabled = true;
   setStatus("busy", "locating");
-  const where = await getLocation();
-  const name = document.getElementById("sosName").value.trim();
-  const message = T().msg(name, where && where.lat, where && where.lon, istTime());
 
+  if (!GATEWAY) {
+    // The phone's SMS app sends it: open it, message and numbers filled in.
+    // Browsers only allow that right after a touch, so wait briefly for the
+    // location; if it's slower, the button below opens the app instead.
+    let where = await locationWithin(3000);
+    const quick = where !== undefined;
+    if (!quick) where = await locationRequest;
+    const message = T().msg(name, where && where.lat, where && where.lon, istTime());
+    showFallback(message, numbers, true);
+    setStatus("ok", quick ? "openingSms" : "readySms");
+    btn.disabled = false;
+    if (quick) window.location.href = smsHref(message, numbers);
+    return;
+  }
+
+  const where = await (locationRequest || requestLocation());
+  const message = T().msg(name, where && where.lat, where && where.lon, istTime());
   setStatus("busy", "sending");
   try {
     if (!navigator.onLine) throw new Error("offline");
@@ -8288,27 +8326,62 @@ async function sendSos() {
   }
 }
 
-// Press and hold, so a pocket tap can't send it.
+// Press and hold for 2 seconds, then let go: a pocket tap can't send it,
+// and letting go is the touch that lets the page open the SMS app.
 (function () {
   const btn = document.getElementById("holdBtn");
-  let started = 0, frame = 0;
+  const label = btn.querySelector(".small");
+  let started = 0, frame = 0, armed = false, numbers = null;
+  function paint(p) { btn.style.setProperty("--p", p); }
   function tick() {
     const p = Math.min(100, (Date.now() - started) / HOLD_MS * 100);
-    btn.style.setProperty("--p", p);
-    if (p >= 100) { stop(); sendSos(); return; }
+    paint(p);
+    if (p >= 100) {
+      armed = true;
+      label.textContent = T().release;
+      if (navigator.vibrate) navigator.vibrate(60);
+      return;
+    }
     frame = requestAnimationFrame(tick);
   }
   function start(e) {
     if (btn.disabled || started) return;
     if (e) e.preventDefault();
-    started = Date.now(); frame = requestAnimationFrame(tick);
+    numbers = checkContacts();
+    if (!numbers) return;
+    requestLocation();
+    armed = false; started = Date.now(); frame = requestAnimationFrame(tick);
   }
-  function stop() { started = 0; cancelAnimationFrame(frame); btn.style.setProperty("--p", 0); }
+  function reset() {
+    started = 0; armed = false; cancelAnimationFrame(frame); paint(0);
+    label.textContent = T().hold;
+  }
+  function release() {
+    const send = armed;
+    reset();
+    if (send) sendSos(numbers);
+  }
   btn.addEventListener("pointerdown", start);
-  ["pointerup", "pointerleave", "pointercancel"].forEach(function (ev) { btn.addEventListener(ev, stop); });
+  btn.addEventListener("pointerup", release);
+  ["pointerleave", "pointercancel"].forEach(function (ev) { btn.addEventListener(ev, reset); });
   btn.addEventListener("keydown", function (e) { if ((e.key === " " || e.key === "Enter") && !e.repeat) start(e); });
-  btn.addEventListener("keyup", function (e) { if (e.key === " " || e.key === "Enter") stop(); });
+  btn.addEventListener("keyup", function (e) { if (e.key === " " || e.key === "Enter") release(); });
   btn.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+})();
+
+// Ask for location while setting up contacts, not in the emergency, and
+// warm it up on later visits when it's already allowed.
+(function () {
+  let asked = false;
+  function warm() { if (!asked) { asked = true; requestLocation(); } }
+  document.getElementById("contactFields").addEventListener("change", function () {
+    if (validContacts().length) warm();
+  });
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: "geolocation" }).then(function (r) {
+      if (r.state === "granted") warm();
+    }).catch(function () {});
+  }
 })();
 
 document.querySelectorAll("[data-lang]").forEach(function (b) {
@@ -8329,7 +8402,7 @@ SOS_PAGE_HTML = _with_app_head(SOS_PAGE_HTML)
 
 @app.route("/sos", methods=["GET"])
 def sos_page():
-    return SOS_PAGE_HTML
+    return SOS_PAGE_HTML.replace("__SOS_GATEWAY__", "true" if TEXTBEE_API_KEY else "false")
 
 
 @app.route("/sos", methods=["POST"])
