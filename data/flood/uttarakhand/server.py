@@ -921,6 +921,11 @@ FFGS_DURATION_THRESHOLDS_MM = {
 }
 
 FFGS_DURATIONS = ("1h", "3h", "24h")
+FFGS_WINDOW_HOURS = {"1h": 1, "3h": 3, "24h": 24}
+
+# How far ahead the forecast outlook looks. Convective rain forecasts
+# lose skill quickly, so this stays short.
+FFGS_FORECAST_HOURS = 6
 
 # Antecedent-rainfall adjustment: heuristic only — this repo has no
 # soil-moisture model, so 48h antecedent rainfall is used as a rough
@@ -4218,6 +4223,7 @@ RAINFALL_FALLBACK_JS = r"""
     "use strict";
 
     var TTL_MS = 10 * 60 * 1000;
+    var FORECAST_HOURS = __FORECAST_HOURS__;
     var cache = {};
 
     // One request per key per TTL, shared by every caller on the page.
@@ -4263,14 +4269,23 @@ RAINFALL_FALLBACK_JS = r"""
         var idx = currentTime ? times.indexOf(currentTime) : -1;
         if (idx === -1) idx = times.length - 1;
 
-        function sumLast(n) {
-            if (idx < 0) return null;
+        function sumEnding(end, n) {
+            if (end < 0) return null;
             var total = 0;
-            for (var i = Math.max(0, idx - n + 1); i <= idx; i++) total += Number(precip[i]) || 0;
+            for (var i = Math.max(0, end - n + 1); i <= end; i++) total += Number(precip[i]) || 0;
             return Math.round(total * 100) / 100;
         }
 
-        return { "1h": sumLast(1), "3h": sumLast(3), "24h": sumLast(24), antecedent_48h: sumLast(48) };
+        var forecast = [];
+        if (idx >= 0) {
+            for (var ahead = 1; ahead <= FORECAST_HOURS && idx + ahead < precip.length; ahead++) {
+                forecast.push({ "1h": sumEnding(idx + ahead, 1), "3h": sumEnding(idx + ahead, 3),
+                                "24h": sumEnding(idx + ahead, 24) });
+            }
+        }
+
+        return { "1h": sumEnding(idx, 1), "3h": sumEnding(idx, 3), "24h": sumEnding(idx, 24),
+                 antecedent_48h: sumEnding(idx, 48), forecast: forecast };
     }
 
     window.FloodSafeRainfall = {
@@ -4288,7 +4303,7 @@ RAINFALL_FALLBACK_JS = r"""
 
             return once("zones:" + JSON.stringify(rainfall.cells), function () {
                 return forecast(rainfall.cells,
-                    "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=1"
+                    "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=2"
                 ).then(function (locations) { return locations.map(parseDurations); });
             }).then(function (readings) {
                 if (!readings) return false;
@@ -4324,7 +4339,8 @@ RAINFALL_FALLBACK_JS = r"""
 @app.route("/rainfall-fallback.js")
 def rainfall_fallback_js():
 
-    return Response(RAINFALL_FALLBACK_JS, mimetype="application/javascript")
+    return Response(RAINFALL_FALLBACK_JS.replace("__FORECAST_HOURS__", str(FFGS_FORECAST_HOURS)),
+                    mimetype="application/javascript")
 
 
 # ============================================================
@@ -4515,7 +4531,7 @@ header nav a:hover { background: rgba(255,255,255,0.28); }
     border-radius: 4px;
 }
 
-#ffgsAlert {
+#ffgsAlert, #ffgsForecastAlert {
     display: none;
     margin: 0 0 18px;
     padding: 12px 16px;
@@ -4681,6 +4697,10 @@ table.ffgs-table thead th {
 }
 .zone-card:hover, .zone-card:focus-visible { border-color: var(--muted); }
 .zone-card.ffgs-card-critical { border-left-color: var(--risk); }
+.ffgs-outlook { font-size: 12.5px; font-weight: 600; }
+.zd-outlook { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.ffgs-outlook-critical { color: var(--risk); }
+.ffgs-outlook-watch { color: var(--watch); }
 .zone-card.ffgs-card-watch { border-left-color: var(--watch); }
 .zone-card.ffgs-card-safe { border-left-color: var(--safe); }
 .zone-card.ffgs-card-unmapped { border-left-color: var(--faint); }
@@ -4810,6 +4830,7 @@ footer {
     </div>
 
     <div id="ffgsAlert"></div>
+    <div id="ffgsForecastAlert"></div>
 
     <div class="panel">
         <h2><span data-i18n="officialHeading">Official warnings for Uttarakhand</span>
@@ -4875,10 +4896,11 @@ footer {
                         <th class="num" data-i18n="col3h">3h rain</th>
                         <th class="num" data-i18n="col24h">24h rain</th>
                         <th data-i18n="colStatus">Status</th>
+                        <th data-i18n="colOutlook">Next 6 h</th>
                     </tr>
                 </thead>
                 <tbody id="ffgsTableBody">
-                    <tr><td colspan="10" data-i18n="loading">Loading…</td></tr>
+                    <tr><td colspan="11" data-i18n="loading">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -4923,7 +4945,7 @@ const translations = {
     pageSubtitle: "Duration-based rainfall guidance for Uttarakhand",
     navMapTool: "Map tool →",
     navBackDashboard: "← Back to dashboard",
-    noticeHtml: "This page compares live rainfall over three windows (1h / 3h / 24h) with each zone's thresholds to show whether it is SAFE, in WATCH, or CRITICAL right now. The thresholds are <b>calibrated against real floods</b>: 24 monsoons (2000-2023) of IMD-recorded flood events from the India Flood Inventory, matched with hourly ERA5 rainfall across the state, judging each place by how rare the rain is <i>for that place</i>. Tested on years it had not seen, CRITICAL caught __CRIT_POD__ of recorded floods while firing on about __CRIT_POFD__ of dry monsoon days per district, and WATCH caught __WATCH_POD__ at about __WATCH_POFD__. So many floods still come with no CRITICAL: rainfall data at ~25 km cannot see every cloudburst. Read SAFE as “no alert”, not “no risk”. This is <b>not</b> an official CWC/IMD warning; official warnings appear in their own panel above. Each zone's hazard class and <b>Flash Flood Potential Index</b> (FFPI) describe how susceptible its terrain is, from the state hazard atlas (about 9.7% of Uttarakhand) or, outside it, from real terrain, soil and land cover; they are context, and a surveyed atlas class takes precedence over FFPI.",
+    noticeHtml: "This page compares live rainfall over three windows (1h / 3h / 24h) with each zone's thresholds to show whether it is SAFE, in WATCH, or CRITICAL right now. The thresholds are <b>calibrated against real floods</b>: 24 monsoons (2000-2023) of IMD-recorded flood events from the India Flood Inventory, matched with hourly ERA5 rainfall across the state, judging each place by how rare the rain is <i>for that place</i>. Tested on years it had not seen, CRITICAL caught __CRIT_POD__ of recorded floods while firing on about __CRIT_POFD__ of dry monsoon days per district, and WATCH caught __WATCH_POD__ at about __WATCH_POFD__. So many floods still come with no CRITICAL: rainfall data at ~25 km cannot see every cloudburst. Read SAFE as “no alert”, not “no risk”. This is <b>not</b> an official CWC/IMD warning; official warnings appear in their own panel above. Each zone's hazard class and <b>Flash Flood Potential Index</b> (FFPI) describe how susceptible its terrain is, from the state hazard atlas (about 9.7% of Uttarakhand) or, outside it, from real terrain, soil and land cover; they are context, and a surveyed atlas class takes precedence over FFPI. The <b>Next 6 h</b> outlook applies the same thresholds to the hourly rainfall forecast, to warn hours ahead; forecast rain is less certain than rain that has fallen, and this lead time has not yet been tested against past floods.",
     myLocationHeading: "Check guidance at my location",
     myLocationBtn: "Use my current location",
     zoneMapHeading: "Zone map — live status",
@@ -4986,6 +5008,13 @@ const translations = {
     col3h: "3h rain",
     col24h: "24h rain",
     colStatus: "Status",
+    colOutlook: "Next 6 h",
+    outlookIn: "{status} in ~{h} h",
+    outlookNone: "No change expected",
+    outlookLabel: "Forecast, next 6 h",
+    outlookDetail: "{window} window would reach {rain} mm (level {th} mm)",
+    forecastAlertPrefix: "Forecast: ",
+    forecastAlertSuffix: " expected to turn CRITICAL within 6 hours. Based on forecast rain, less certain than rain already fallen.",
     soilLabel: "Soil group:",
     soilSand: "sand",
     soilClay: "clay",
@@ -5020,7 +5049,7 @@ const translations = {
     pageSubtitle: "उत्तराखंड के लिए अवधि-आधारित वर्षा मार्गदर्शन",
     navMapTool: "मानचित्र टूल →",
     navBackDashboard: "← डैशबोर्ड पर वापस जाएं",
-    noticeHtml: "यह पृष्ठ तीन अवधियों (1 घंटा / 3 घंटे / 24 घंटे) की लाइव वर्षा की तुलना हर क्षेत्र की सीमाओं से करके बताता है कि वह अभी सुरक्षित, सतर्क या गंभीर स्थिति में है। ये सीमाएँ <b>असली बाढ़ों पर कैलिब्रेट</b> की गई हैं: India Flood Inventory में IMD द्वारा दर्ज 24 मानसूनों (2000-2023) की बाढ़ की घटनाएँ, पूरे राज्य की घंटेवार ERA5 वर्षा के साथ, और हर जगह को इस आधार पर आँका गया है कि वहाँ के लिए वह वर्षा कितनी असामान्य है। जिन वर्षों को मॉडल ने नहीं देखा था, उन पर परखने पर गंभीर स्तर ने दर्ज बाढ़ों में से __CRIT_POD__ पकड़ीं और हर ज़िले में मानसून के लगभग __CRIT_POFD__ सूखे दिनों पर चेतावनी दी; सतर्क स्तर ने __WATCH_POD__ पकड़ीं, लगभग __WATCH_POFD__ दिनों पर। इसलिए कई बाढ़ें बिना गंभीर चेतावनी के भी आती हैं: ~25 किमी के वर्षा डेटा में हर बादल फटना दिखाई नहीं देता। सुरक्षित का अर्थ “कोई चेतावनी नहीं” है, “कोई खतरा नहीं” नहीं। यह CWC/IMD की आधिकारिक चेतावनी <b>नहीं</b> है; आधिकारिक चेतावनियाँ ऊपर अपने अलग पैनल में दिखती हैं। हर क्षेत्र का खतरा वर्ग और <b>Flash Flood Potential Index</b> (FFPI) बताते हैं कि उसका भूभाग कितना संवेदनशील है — राज्य खतरा एटलस (उत्तराखंड का लगभग 9.7%) से, या उसके बाहर असली भू-आकृति, मिट्टी और भूमि आवरण से; ये संदर्भ हैं, और सर्वेक्षित एटलस वर्ग FFPI से ऊपर रहता है।",
+    noticeHtml: "यह पृष्ठ तीन अवधियों (1 घंटा / 3 घंटे / 24 घंटे) की लाइव वर्षा की तुलना हर क्षेत्र की सीमाओं से करके बताता है कि वह अभी सुरक्षित, सतर्क या गंभीर स्थिति में है। ये सीमाएँ <b>असली बाढ़ों पर कैलिब्रेट</b> की गई हैं: India Flood Inventory में IMD द्वारा दर्ज 24 मानसूनों (2000-2023) की बाढ़ की घटनाएँ, पूरे राज्य की घंटेवार ERA5 वर्षा के साथ, और हर जगह को इस आधार पर आँका गया है कि वहाँ के लिए वह वर्षा कितनी असामान्य है। जिन वर्षों को मॉडल ने नहीं देखा था, उन पर परखने पर गंभीर स्तर ने दर्ज बाढ़ों में से __CRIT_POD__ पकड़ीं और हर ज़िले में मानसून के लगभग __CRIT_POFD__ सूखे दिनों पर चेतावनी दी; सतर्क स्तर ने __WATCH_POD__ पकड़ीं, लगभग __WATCH_POFD__ दिनों पर। इसलिए कई बाढ़ें बिना गंभीर चेतावनी के भी आती हैं: ~25 किमी के वर्षा डेटा में हर बादल फटना दिखाई नहीं देता। सुरक्षित का अर्थ “कोई चेतावनी नहीं” है, “कोई खतरा नहीं” नहीं। यह CWC/IMD की आधिकारिक चेतावनी <b>नहीं</b> है; आधिकारिक चेतावनियाँ ऊपर अपने अलग पैनल में दिखती हैं। हर क्षेत्र का खतरा वर्ग और <b>Flash Flood Potential Index</b> (FFPI) बताते हैं कि उसका भूभाग कितना संवेदनशील है — राज्य खतरा एटलस (उत्तराखंड का लगभग 9.7%) से, या उसके बाहर असली भू-आकृति, मिट्टी और भूमि आवरण से; ये संदर्भ हैं, और सर्वेक्षित एटलस वर्ग FFPI से ऊपर रहता है। <b>अगले 6 घंटे</b> का पूर्वानुमान इन्हीं सीमाओं को घंटेवार वर्षा पूर्वानुमान पर लागू करता है, ताकि कुछ घंटे पहले चेतावनी मिल सके; पूर्वानुमानित वर्षा हो चुकी वर्षा से कम निश्चित होती है, और इस पूर्व-चेतावनी को अभी पिछली बाढ़ों पर परखा नहीं गया है।",
     myLocationHeading: "मेरे स्थान पर मार्गदर्शन जांचें",
     myLocationBtn: "मेरा वर्तमान स्थान उपयोग करें",
     zoneMapHeading: "क्षेत्र मानचित्र — लाइव स्थिति",
@@ -5083,6 +5112,13 @@ const translations = {
     col3h: "3 घंटे की वर्षा",
     col24h: "24 घंटे की वर्षा",
     colStatus: "स्थिति",
+    colOutlook: "अगले 6 घंटे",
+    outlookIn: "~{h} घंटे में {status}",
+    outlookNone: "कोई बदलाव अपेक्षित नहीं",
+    outlookLabel: "पूर्वानुमान, अगले 6 घंटे",
+    outlookDetail: "{window} अवधि {rain} मिमी तक पहुँच सकती है (स्तर {th} मिमी)",
+    forecastAlertPrefix: "पूर्वानुमान: ",
+    forecastAlertSuffix: " के अगले 6 घंटों में गंभीर होने की आशंका। यह पूर्वानुमानित वर्षा पर आधारित है, जो हो चुकी वर्षा से कम निश्चित है।",
     soilLabel: "मिट्टी समूह:",
     soilSand: "रेत",
     soilClay: "चिकनी मिट्टी",
@@ -5283,6 +5319,68 @@ function statusForDuration(rainMm, thresholds) {
     return "SAFE";
 }
 
+// Mirrors _forecast_outlook in server.py: the worst status the
+// forecast windows reach within the next hours, if worse than now,
+// with the first hour it is reached.
+function forecastOutlook(rain, thresholdsByDuration) {
+    if (!rain || !thresholdsByDuration) return null;
+
+    function worstOf(windows) {
+        let worst = null;
+        ffgsDurations.forEach(function(d) {
+            const mm = windows ? windows[d] : null;
+            const th = thresholdsByDuration[d];
+            const status = statusForDuration(mm, th);
+            if (!status) return;
+            const level = status === "CRITICAL" ? th.critical : th.watch;
+            if (!worst || FFGS_STATUS_ORDER[status] > FFGS_STATUS_ORDER[worst.status] ||
+                (status === worst.status && mm / level > worst.rainMm / worst.thresholdMm)) {
+                worst = { status: status, window: d, rainMm: mm, thresholdMm: level };
+            }
+        });
+        return worst;
+    }
+
+    const now = worstOf(rain);
+    let best = null;
+    (rain.forecast || []).forEach(function(windows, i) {
+        const worst = worstOf(windows);
+        if (worst && (!best || FFGS_STATUS_ORDER[worst.status] > FFGS_STATUS_ORDER[best.status])) {
+            best = Object.assign({ inHours: i + 1 }, worst);
+        }
+    });
+
+    if (!best || best.status === "SAFE" ||
+        (now && FFGS_STATUS_ORDER[best.status] <= FFGS_STATUS_ORDER[now.status])) return null;
+    return best;
+}
+
+// Readings from before the forecast was fetched carry none: "—", not
+// a reassuring "no change".
+function hasForecast(rain) {
+    return !!(rain && rain.forecast && rain.forecast.length);
+}
+
+function outlookText(outlook, available) {
+    if (!available) return "—";
+    if (!outlook) return t("outlookNone");
+    return t("outlookIn").replace("{status}", statusLabel(outlook.status)).replace("{h}", outlook.inHours);
+}
+
+function outlookHtml(outlook, available) {
+    const cls = outlook ? " ffgs-outlook-" + outlook.status.toLowerCase() : "";
+    return '<span class="ffgs-outlook' + cls + '">' + escapeAttr(outlookText(outlook, available)) + "</span>";
+}
+
+function outlookDetailHtml(outlook, available) {
+    let html = "<div class='zd-outlook'><b>" + t("outlookLabel") + ":</b> " + outlookHtml(outlook, available);
+    if (outlook) {
+        html += " — " + escapeAttr(t("outlookDetail").replace("{window}", outlook.window)
+            .replace("{rain}", outlook.rainMm.toFixed(1)).replace("{th}", outlook.thresholdMm.toFixed(0)));
+    }
+    return html + "</div>";
+}
+
 function statusColor(status) {
     if (status === "CRITICAL") return "#7a1f1f";
     if (status === "WATCH") return "#b5860f";
@@ -5329,7 +5427,7 @@ async function fetchDurationRainfall(lat, lon) {
 
     const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
         "&longitude=" + lon +
-        "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=1&timezone=auto";
+        "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=2&timezone=auto";
 
     const payload = await (await fetch(url)).json();
 
@@ -5355,6 +5453,16 @@ function renderAlertBanner() {
         el.textContent = t("alertWatchPrefix") + watch.map(alertZoneLabel).join(", ") + t("alertWatchSuffix");
     } else {
         el.style.display = "none";
+    }
+
+    const forecastEl = document.getElementById("ffgsForecastAlert");
+    const expected = ffgsZones.filter(function(z) { return z.outlook && z.outlook.status === "CRITICAL"; });
+    if (expected.length) {
+        forecastEl.style.display = "block";
+        forecastEl.className = "ffgs-alert-watch";
+        forecastEl.textContent = t("forecastAlertPrefix") + expected.map(alertZoneLabel).join(", ") + t("forecastAlertSuffix");
+    } else {
+        forecastEl.style.display = "none";
     }
 }
 
@@ -5489,6 +5597,7 @@ function zoneCardHtml(z, index) {
         '<span><span class="ffgs-badge ffgs-' + status + '">' + statusLabel(z.overall) + "</span></span>" +
         '<span class="zone-card-meta">' + hazardCellText(z) + t("hazardZoneSuffix") + "</span>" +
         '<span class="zone-card-rain">' + t("popupRain") + " / " + t("popupCriticalAt") + ": " + rain + "</span>" +
+        "<span>" + t("colOutlook") + ": " + outlookHtml(z.outlook, z.forecastAvailable) + "</span>" +
         "</button>";
 }
 
@@ -5516,7 +5625,7 @@ function renderFfgsTable() {
 
     if (ffgsLoadFailed || ffgsZones.length === 0) {
         const message = ffgsLoadFailed ? t("guidanceUnavailable") : t("noZones");
-        tbody.innerHTML = '<tr><td colspan="10">' + message + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="11">' + message + "</td></tr>";
         cardsEl.textContent = message;
         document.getElementById("zoneCardsNote").hidden = true;
         summaryEl.textContent = "";
@@ -5550,7 +5659,8 @@ function renderFfgsTable() {
             '<td class="num">' + cell("1h") + "</td>" +
             '<td class="num">' + cell("3h") + "</td>" +
             '<td class="num">' + cell("24h") + "</td>" +
-            "<td><span class=\\"" + badgeClass + "\\">" + statusLabel(z.overall) + "</span></td></tr>";
+            "<td><span class=\\"" + badgeClass + "\\">" + statusLabel(z.overall) + "</span></td>" +
+            "<td>" + outlookHtml(z.outlook, z.forecastAvailable) + "</td></tr>";
     }).join("");
 
     const updatedEl = document.getElementById("ffgsUpdated");
@@ -5725,6 +5835,7 @@ function renderZoneDetail(z) {
         '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" +
         t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" +
         t("popupStatus") + "</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+        outlookDetailHtml(z.outlook, z.forecastAvailable) +
         '<div id="zoneOfficial" class="zone-official"></div>' +
         '<div id="zoneAlerts" class="zone-alerts"></div>';
     el.hidden = false;
@@ -6131,7 +6242,7 @@ function renderMarkers() {
             (z.ffpi != null ? " · FFPI " + z.ffpi.toFixed(1) : "") + "<br>" +
             (contextLine ? "<span style='color:#6b7680; font-size:12px;'>" + contextLine + "</span><br>" : "") +
             '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
-            rows + "</tbody></table>"
+            rows + "</tbody></table>" + outlookDetailHtml(z.outlook, z.forecastAvailable)
         );
     });
 }
@@ -6150,7 +6261,7 @@ async function loadFfgsZones() {
 
     if (!data.available) {
         ffgsLoadFailed = true;
-        tbody.innerHTML = '<tr><td colspan="10">' + (data.error || t("guidanceUnavailable")) + "</td></tr>";
+        tbody.innerHTML = '<tr><td colspan="11">' + (data.error || t("guidanceUnavailable")) + "</td></tr>";
         return;
     }
 
@@ -6201,7 +6312,9 @@ async function loadFfgsZones() {
             watershed: zone.watershed || null,
             district: zone.district || null,
             perDuration: perDuration,
-            overall: overall
+            overall: overall,
+            outlook: forecastOutlook(rain, zone.thresholds_mm),
+            forecastAvailable: hasForecast(rain)
         };
     });
 
@@ -6283,7 +6396,7 @@ document.getElementById("ffgsMyLocationBtn").addEventListener("click", function(
                 (point.ffpi != null ? " · FFPI " + point.ffpi.toFixed(1) : "") + approxNote +
                 (contextLine ? "<br><span style='color:#6b7680; font-size:12px;'>" + contextLine + "</span>" : "") +
                 '<table class="popup-table" style="margin-top:8px;"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
-                rows + "</tbody></table>";
+                rows + "</tbody></table>" + outlookDetailHtml(forecastOutlook(rain, point.thresholds_mm), hasForecast(rain));
         } catch (error) {
             resultEl.textContent = t("locationError");
         }
@@ -6451,18 +6564,70 @@ def _parse_open_meteo_durations(payload):
     except ValueError:
         idx = len(hourly_times) - 1
 
-    def sum_last(n):
-        if idx < 0:
+    def sum_ending(end, n):
+        if end < 0:
             return None
-        start = max(0, idx - n + 1)
-        return round(sum(float(v or 0.0) for v in hourly_precip[start:idx + 1]), 2)
+        start = max(0, end - n + 1)
+        return round(sum(float(v or 0.0) for v in hourly_precip[start:end + 1]), 2)
+
+    # The same three windows ending 1, 2, ... FFGS_FORECAST_HOURS hours
+    # from now, mixing rain already fallen with forecast rain -- what
+    # each window will read then if the forecast holds.
+    forecast = []
+    if idx >= 0:
+        for ahead in range(1, FFGS_FORECAST_HOURS + 1):
+            if idx + ahead >= len(hourly_precip):
+                break
+            forecast.append({d: sum_ending(idx + ahead, FFGS_WINDOW_HOURS[d]) for d in FFGS_DURATIONS})
 
     return {
-        "1h": sum_last(1),
-        "3h": sum_last(3),
-        "24h": sum_last(24),
-        "antecedent_48h": sum_last(48),
+        "1h": sum_ending(idx, 1),
+        "3h": sum_ending(idx, 3),
+        "24h": sum_ending(idx, 24),
+        "antecedent_48h": sum_ending(idx, 48),
+        "forecast": forecast,
     }
+
+
+def _forecast_outlook(zone, reading):
+    """
+    The worst status the forecast reaches within FFGS_FORECAST_HOURS, if
+    it is worse than the status now: {"status", "in_hours", "window",
+    "rain_mm", "threshold_mm"} for the first hour it is reached, else
+    None. Uses the zone's own calibrated thresholds, unchanged.
+    """
+
+    thresholds = zone.get("thresholds_mm") or {}
+    rank = {"SAFE": 0, "WATCH": 1, "CRITICAL": 2}
+
+    def status_of(windows):
+        worst = None
+        for window in FFGS_DURATIONS:
+            rain = (windows or {}).get(window)
+            th = thresholds.get(window)
+            if rain is None or not th:
+                continue
+            status = "CRITICAL" if rain >= th["critical"] else ("WATCH" if rain >= th["watch"] else "SAFE")
+            level = "critical" if status == "CRITICAL" else "watch"
+            if worst is None or rank[status] > rank[worst[0]] or (
+                    rank[status] == rank[worst[0]] and rain / th[level] > worst[2] / worst[3]):
+                worst = (status, window, rain, th[level])
+        return worst
+
+    now = status_of(reading)
+    best = None
+
+    for ahead, windows in enumerate((reading or {}).get("forecast") or [], start=1):
+        worst = status_of(windows)
+        if worst and (best is None or rank[worst[0]] > rank[best[1][0]]):
+            best = (ahead, worst)
+
+    if best is None or best[1][0] == "SAFE" or (now and rank[best[1][0]] <= rank[now[0]]):
+        return None
+
+    ahead, (status, window, rain, threshold) = best
+    return {"status": status, "in_hours": ahead, "window": window,
+            "rain_mm": rain, "threshold_mm": threshold}
 
 
 # Query parameters for the zone reading, shared with the rainfall relay.
@@ -6470,7 +6635,9 @@ FFGS_RAINFALL_QUERY = {
     "current": "precipitation",
     "hourly": "precipitation",
     "past_days": 2,
-    "forecast_days": 1,
+    # Two days so there are always FFGS_FORECAST_HOURS of forecast
+    # ahead, late in the evening too; one day ends at local midnight.
+    "forecast_days": 2,
     "timezone": "auto",
 }
 
@@ -6817,6 +6984,9 @@ PUSH_ALLOWED_HOST_SUFFIXES = (
 # stays critical -- repeating every ten minutes would train people to
 # ignore it.
 PUSH_ALERT_COOLDOWN_SECONDS = 6 * 60 * 60
+# A zone forecast to turn Critical within this many hours is alerted
+# ahead of time; further out the forecast is too uncertain to push.
+PUSH_FORECAST_HOURS = 3
 
 PUSH_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS push_vapid_key (
@@ -7012,10 +7182,27 @@ def _critical_alert_message(zone, hits):
     }
 
 
+def _forecast_alert_message(zone, outlook):
+    hours = outlook["in_hours"]
+    return {
+        "title": f"Flash-flood CRITICAL expected: {_zone_label(zone)}",
+        "body": (
+            f"Forecast rain would bring {outlook['rain_mm']:.1f} mm in the {outlook['window']} window "
+            f"within about {hours} hour{'s' if hours != 1 else ''}, at or above this "
+            f"{zone['effective_class']} hazard zone's critical level of {outlook['threshold_mm']:.0f} mm. "
+            "A forecast, less certain than rain already fallen; FloodSafe threshold, "
+            "not an official IMD/CWC warning."
+        ),
+        "url": f"/ffgs?zone={_zone_key(zone)}",
+        "tag": f"critical-{_zone_key(zone)}",
+    }
+
+
 def _schedule_push_alert_check(readings):
     """
     Called with every fresh set of zone readings. Returns at once when
-    no zone is critical -- the normal case, costing no database call --
+    no zone is critical or forecast to be within PUSH_FORECAST_HOURS --
+    the normal case, costing no database call --
     otherwise sends alerts on a background thread so the request that
     brought the rainfall isn't held up by push delivery.
     """
@@ -7026,9 +7213,16 @@ def _schedule_push_alert_check(readings):
     critical = {}
 
     for key, zone in FFGS_ZONE_BY_KEY.items():
-        hits = _critical_windows(zone, readings.get((zone["lat"], zone["lon"])))
+        reading = readings.get((zone["lat"], zone["lon"]))
+        hits = _critical_windows(zone, reading)
         if hits:
             critical[key] = _critical_alert_message(zone, hits)
+            continue
+        # The early warning: shares the per-zone cooldown, so a zone
+        # warned ahead is not alerted again when it does turn Critical.
+        outlook = _forecast_outlook(zone, reading)
+        if outlook and outlook["status"] == "CRITICAL" and outlook["in_hours"] <= PUSH_FORECAST_HOURS:
+            critical[key] = _forecast_alert_message(zone, outlook)
 
     _push_state["last_check"] = time.time()
 

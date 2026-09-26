@@ -720,6 +720,20 @@ def _critical_readings(server, zone):
             for z in server.FFGS_ZONE_BY_KEY.values()}
 
 
+def _forecast_readings(server, zone, critical_in):
+    """Dry now everywhere; this zone's 1h window reaches 1.5x critical
+    `critical_in` hours ahead in the forecast."""
+    critical = zone["thresholds_mm"]["1h"]["critical"] * 1.5
+    dry = {"1h": 0.0, "3h": 0.0, "24h": 0.0}
+    readings = {}
+    for z in server.FFGS_ZONE_BY_KEY.values():
+        forecast = [dict(dry) for _ in range(server.FFGS_FORECAST_HOURS)]
+        if z is zone:
+            forecast[critical_in - 1] = {"1h": critical, "3h": critical, "24h": critical}
+        readings[(z["lat"], z["lon"])] = dict(dry, antecedent_48h=0.0, forecast=forecast)
+    return readings
+
+
 class TestPushAlerts:
 
     ZONE_NAME = "Dehradun"
@@ -805,6 +819,25 @@ class TestPushAlerts:
         dry = {k: {"1h": 0.0, "3h": 0.0, "24h": 0.0, "antecedent_48h": 0.0}
                for k in _critical_readings(server, zone)}
         server._store_ffgs_readings(dry, time.time(), "relay")
+        assert push["sent"] == []
+
+    def test_zone_forecast_to_turn_critical_is_warned_ahead(self, client, server, push):
+        key, zone = self.zone_key(server)
+        _, _, sub = _browser_subscription()
+        client.post("/push/subscribe", json={"zone": key, "subscription": sub})
+
+        server._store_ffgs_readings(_forecast_readings(server, zone, critical_in=2), time.time(), "relay")
+
+        assert len(push["sent"]) == 1
+        assert push["sent"][0]["url"] == sub["endpoint"]
+
+    def test_forecast_beyond_the_push_horizon_is_not_pushed(self, client, server, push):
+        key, zone = self.zone_key(server)
+        _, _, sub = _browser_subscription()
+        client.post("/push/subscribe", json={"zone": key, "subscription": sub})
+
+        later = server.PUSH_FORECAST_HOURS + 1
+        server._store_ffgs_readings(_forecast_readings(server, zone, critical_in=later), time.time(), "relay")
         assert push["sent"] == []
 
     def test_expired_subscription_is_removed(self, client, server, push):
@@ -1362,3 +1395,78 @@ class TestZoneCoverage:
     def test_places_named_in_flood_records_are_zones(self, client):
         names = {z["name"] for z in client.get("/ffgs/zones").get_json()["zones"]}
         assert {"Kedarnath", "Gaurikund", "Guptkashi", "Tharali"} <= names
+
+
+def _hourly_payload(past_mm, future_mm):
+    """Open-Meteo shape with `past_mm` up to and including now, then
+    `future_mm` as the forecast hours."""
+    values = list(past_mm) + list(future_mm)
+    times = [f"2026-09-{21 + (h // 24):02d}T{h % 24:02d}:00" for h in range(len(values))]
+    return {"current": {"time": times[len(past_mm) - 1], "precipitation": past_mm[-1]},
+            "hourly": {"time": times, "precipitation": values}}
+
+
+class TestForecastOutlook:
+    """"Prediction" means warning before the rain has fallen: the same
+    calibrated thresholds, applied to the next hours of forecast rain."""
+
+    def zone(self, server):
+        return next(z for z in server.FFGS_ZONE_BY_KEY.values() if z["name"] == "Dehradun")
+
+    def test_forecast_windows_mix_fallen_and_forecast_rain(self, server):
+        reading = server._parse_open_meteo_durations(_hourly_payload([1.0] * 48, [2.0, 4.0, 0.0] + [0.0] * 30))
+
+        assert reading["1h"] == 1.0 and reading["3h"] == 3.0 and reading["24h"] == 24.0
+        assert len(reading["forecast"]) == server.FFGS_FORECAST_HOURS
+        first, second, third = reading["forecast"][:3]
+        assert first == {"1h": 2.0, "3h": 4.0, "24h": 25.0}
+        assert second == {"1h": 4.0, "3h": 7.0, "24h": 28.0}
+        assert third == {"1h": 0.0, "3h": 6.0, "24h": 27.0}
+
+    def test_no_forecast_hours_means_no_forecast(self, server):
+        assert server._parse_open_meteo_durations(_hourly_payload([1.0] * 48, []))["forecast"] == []
+
+    def test_first_hour_of_the_worst_status_is_reported(self, server):
+        zone = self.zone(server)
+        th = zone["thresholds_mm"]["1h"]
+        watch = (th["watch"] + th["critical"]) / 2
+        forecast = [{"1h": 0.0, "3h": 0.0, "24h": 0.0}, {"1h": watch, "3h": 0.0, "24h": 0.0},
+                    {"1h": th["critical"] * 2, "3h": 0.0, "24h": 0.0},
+                    {"1h": th["critical"] * 3, "3h": 0.0, "24h": 0.0}]
+        reading = {"1h": 0.0, "3h": 0.0, "24h": 0.0, "forecast": forecast}
+
+        outlook = server._forecast_outlook(zone, reading)
+        assert outlook["status"] == "CRITICAL" and outlook["in_hours"] == 3
+        assert outlook["window"] == "1h" and outlook["threshold_mm"] == th["critical"]
+
+    def test_nothing_to_report_when_it_is_already_that_bad(self, server):
+        zone = self.zone(server)
+        critical = zone["thresholds_mm"]["1h"]["critical"] * 2
+        windows = {"1h": critical, "3h": 0.0, "24h": 0.0}
+        assert server._forecast_outlook(zone, dict(windows, forecast=[windows] * 6)) is None
+
+    def test_dry_forecast_has_no_outlook(self, server):
+        dry = {"1h": 0.0, "3h": 0.0, "24h": 0.0}
+        assert server._forecast_outlook(self.zone(server), dict(dry, forecast=[dry] * 6)) is None
+
+    def test_two_days_are_fetched_so_the_evening_still_has_six_hours(self, server):
+        assert server.FFGS_RAINFALL_QUERY["forecast_days"] == 2
+
+    def test_relayed_forecast_reaches_the_zones(self, client, server, relay):
+        body = _relay_body(server, 0.5)
+        for loc in body["ffgs"]:
+            loc["hourly"]["precipitation"] += [0.5] * 47
+            loc["hourly"]["time"] = [f"2026-09-{21 + (h // 24):02d}T{h % 24:02d}:00" for h in range(96)]
+        assert client.post("/rainfall/relay", json=body, headers=relay).status_code == 200
+
+        zone = client.get("/ffgs/zones").get_json()["zones"][0]
+        assert len(zone["live_rainfall"]["forecast"]) == server.FFGS_FORECAST_HOURS
+
+    def test_page_and_browser_fallback_show_the_outlook(self, client, server):
+        page = client.get("/ffgs").get_data(as_text=True)
+        assert "function forecastOutlook" in page and 'data-i18n="colOutlook"' in page
+        assert 'id="ffgsForecastAlert"' in page
+
+        script = client.get("/rainfall-fallback.js").get_data(as_text=True)
+        assert f"var FORECAST_HOURS = {server.FFGS_FORECAST_HOURS};" in script
+        assert "forecast_days=2" in script

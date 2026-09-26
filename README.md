@@ -353,6 +353,23 @@ The landing page's headroom panel uses the same calibrated 1h/3h/24h
 thresholds and the same live rainfall as `/ffgs`, so the two always agree
 about a town.
 
+### Forecast outlook: warning before the rain falls
+
+The 1h / 3h / 24h windows above measure rain that has already fallen, so on
+their own they say "Critical now", never "Critical soon". Each zone reading
+also carries the same three windows ending 1 to 6 hours ahead, mixing rain
+already fallen with Open-Meteo's hourly forecast (`forecast_days` is 2, so an
+evening reading still has six hours ahead). `/ffgs` applies each zone's
+unchanged calibrated thresholds to them and shows the worst status the next
+six hours reach, and when ("CRITICAL in ~3 h"), in a "Next 6 h" column, on the
+zone cards, in the zone detail and map popup, and in a forecast banner. A
+subscribed zone forecast to turn Critical within 3 hours gets its push alert
+then, sharing the six-hour cooldown with the "Critical now" alert.
+
+Forecast rain is less certain than rain that has fallen, especially for
+convective storms, and this lead time has not yet been validated against the
+flood record; the page says both.
+
 ### Zone coverage follows recorded floods
 
 Zones used to follow the hazard atlas, which covers ~10% of the state, so
