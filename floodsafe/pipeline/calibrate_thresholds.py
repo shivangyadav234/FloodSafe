@@ -191,14 +191,14 @@ def rolling_max(values, hours):
     return np.array([np.convolve(row, kernel, mode="full")[:len(row)] for row in filled])
 
 
-def district_days(rainfall):
+def district_days(rainfall, windows=WINDOWS):
     """One row per district-day in season, with the predictors."""
     rows = []
 
     for district, years in rainfall.items():
         for year, (start, grid) in years.items():
             t0 = datetime.fromisoformat(start)
-            per_window = {w: rolling_max(grid, h).max(axis=0) for w, h in WINDOWS.items()}
+            per_window = {w: rolling_max(grid, h).max(axis=0) for w, h in windows.items()}
             hours = grid.shape[1]
 
             day = date(year, *SEASON[0])
@@ -222,7 +222,7 @@ def district_days(rainfall):
     return pd.DataFrame(rows)
 
 
-def add_relative_predictors(frame, rainfall):
+def add_relative_predictors(frame, rainfall, windows=WINDOWS):
     """
     Add, per window, how rare the day's rain was *for that grid cell*:
     the fraction of that cell's own hourly window totals, in the other
@@ -236,25 +236,25 @@ def add_relative_predictors(frame, rainfall):
     scored against a distribution that includes itself.
     """
     frame = frame.copy()
-    for window in WINDOWS:
+    for window in windows:
         frame[window + "_rel"] = np.nan
 
     for district, years in rainfall.items():
         runs = {}
         for year, (start, grid) in years.items():
-            runs[year] = (datetime.fromisoformat(start), {w: rolling_max(grid, h) for w, h in WINDOWS.items()})
+            runs[year] = (datetime.fromisoformat(start), {w: rolling_max(grid, h) for w, h in windows.items()})
 
         for year, (t0, arrays) in runs.items():
             others = [runs[y][1] for y in runs if y != year]
             if not others:
                 continue
-            climate = {w: np.sort(np.concatenate([o[w] for o in others], axis=1), axis=1) for w in WINDOWS}
+            climate = {w: np.sort(np.concatenate([o[w] for o in others], axis=1), axis=1) for w in windows}
 
             mask = (frame["district"] == district) & (frame["year"] == year)
             for index in frame.index[mask]:
                 day = frame.at[index, "day"]
                 begin = int((datetime.combine(day - timedelta(days=1), datetime.min.time()) - t0).total_seconds() // 3600)
-                for window in WINDOWS:
+                for window in windows:
                     peak = arrays[window][:, begin:begin + 48].max(axis=1)
                     clim = climate[window]
                     rarity = max(np.searchsorted(clim[i], peak[i], side="right") / clim.shape[1]
@@ -264,7 +264,7 @@ def add_relative_predictors(frame, rainfall):
     return frame
 
 
-def label(frame, events, positive_kinds=("rain",)):
+def label(frame, events, positive_kinds=("rain",), windows=WINDOWS):
     """
     One positive row per event-district, scored over the event's whole
     duration: caught if the rule would have fired on any of its days
@@ -277,7 +277,7 @@ def label(frame, events, positive_kinds=("rain",)):
     days = pd.to_datetime(frame["day"])
     # Antecedent rain stays the first day's: the max over the event would
     # count the event's own rain as "earlier" rain.
-    predictors = [c for c in frame.columns if c in WINDOWS or c.endswith("_rel")]
+    predictors = [c for c in frame.columns if c in windows or c.endswith("_rel")]
     positives = []
 
     for event in events:

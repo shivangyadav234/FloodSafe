@@ -1416,15 +1416,16 @@ CALIBRATED_THRESHOLDS = _load_calibrated_thresholds()
 CALIBRATED_MAX_DEG = 0.3
 
 
-def calibrated_thresholds_for_point(lat, lon):
+def _nearest_point_thresholds(table, lat, lon):
+    """The thresholds_mm of the table's nearest grid point, or None."""
 
-    if not CALIBRATED_THRESHOLDS:
+    if not table:
         return None
 
     lon_scale = math.cos(math.radians(lat))
     best, best_d2 = None, None
 
-    for point in CALIBRATED_THRESHOLDS["points"]:
+    for point in table["points"]:
         d2 = (point["lat"] - lat) ** 2 + ((point["lon"] - lon) * lon_scale) ** 2
         if best_d2 is None or d2 < best_d2:
             best, best_d2 = point, d2
@@ -1433,6 +1434,79 @@ def calibrated_thresholds_for_point(lat, lon):
         return None
 
     return {window: dict(levels) for window, levels in best["thresholds_mm"].items()}
+
+
+def calibrated_thresholds_for_point(lat, lon):
+
+    return _nearest_point_thresholds(CALIBRATED_THRESHOLDS, lat, lon)
+
+
+# ============================================================
+# LANDSLIDE THRESHOLDS
+#
+# Rain over 1, 3 and 7 days against each place's own climate, calibrated
+# on rain-triggered landslides from NASA's Global Landslide Catalog
+# (floodsafe/pipeline/calibrate_landslide_thresholds.py and
+# build_landslide_thresholds.py). Landslides follow soil saturation over
+# days, which the flood rule's 1h/3h/24h peaks miss.
+#
+# The whole layer hangs on data/landslide_thresholds.json: the builder
+# only writes it when the landslide rule catches more landslides than
+# the flood rule at the same false-alarm rate. Without the file nothing
+# changes -- no landslide status anywhere, and the rainfall feed keeps
+# its 2-day history instead of the 7 days the 168h window needs.
+# ============================================================
+
+LANDSLIDE_DURATIONS = ("24h", "72h", "168h")
+
+
+def _load_landslide_thresholds():
+    path = os.path.join(DATA_DIR, "landslide_thresholds.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            table = json.load(f)
+        for point in table["points"]:
+            for window in LANDSLIDE_DURATIONS:
+                pair = point["thresholds_mm"][window]
+                if not 0 < pair["watch"] < pair["critical"]:
+                    raise ValueError(f"bad {window} thresholds at {point['lat']},{point['lon']}")
+        return table
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        print("WARNING: landslide thresholds unreadable, landslide layer off:", repr(e), flush=True)
+        return None
+
+
+LANDSLIDE_THRESHOLDS = _load_landslide_thresholds()
+
+
+def landslide_thresholds_for_point(lat, lon):
+
+    return _nearest_point_thresholds(LANDSLIDE_THRESHOLDS, lat, lon)
+
+
+def _landslide_summary():
+    """What the page says about the layer, or {"available": False}."""
+
+    if not LANDSLIDE_THRESHOLDS:
+        return {"available": False}
+
+    validation = LANDSLIDE_THRESHOLDS.get("validation", {})
+
+    def pod(level):
+        try:
+            return validation[level]["POD"]
+        except (KeyError, TypeError):
+            return None
+
+    return {
+        "available": True,
+        "durations": list(LANDSLIDE_DURATIONS),
+        "episodes_scored": validation.get("landslide_episodes_scored"),
+        "critical_pod": pod("critical"),
+        "watch_pod": pod("watch"),
+    }
 
 
 def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
@@ -1475,6 +1549,7 @@ def ffgs_guidance_for_point(lat, lon, antecedent_48h_mm=None):
         "distance_km": round(distance_km, 1) if distance_km is not None else None,
         "thresholds_mm": thresholds,
         "threshold_source": threshold_source,
+        "landslide_thresholds_mm": landslide_thresholds_for_point(lat, lon),
         "watershed": physical["watershed"],
         "soil": physical["soil"],
         "static_multiplier": physical["static_multiplier"],
@@ -4269,10 +4344,12 @@ RAINFALL_FALLBACK_JS = r"""
         var idx = currentTime ? times.indexOf(currentTime) : -1;
         if (idx === -1) idx = times.length - 1;
 
+        // Null, not a short total, when the feed doesn't reach back far
+        // enough -- two days of rain must never read as a 7-day total.
         function sumEnding(end, n) {
-            if (end < 0) return null;
+            if (end < 0 || end - n + 1 < 0) return null;
             var total = 0;
-            for (var i = Math.max(0, end - n + 1); i <= end; i++) total += Number(precip[i]) || 0;
+            for (var i = end - n + 1; i <= end; i++) total += Number(precip[i]) || 0;
             return Math.round(total * 100) / 100;
         }
 
@@ -4284,8 +4361,11 @@ RAINFALL_FALLBACK_JS = r"""
             }
         }
 
-        return { "1h": sumEnding(idx, 1), "3h": sumEnding(idx, 3), "24h": sumEnding(idx, 24),
-                 antecedent_48h: sumEnding(idx, 48), forecast: forecast };
+        return {
+            "1h": sumEnding(idx, 1), "3h": sumEnding(idx, 3), "24h": sumEnding(idx, 24),
+            antecedent_48h: sumEnding(idx, 48), "72h": sumEnding(idx, 72), "168h": sumEnding(idx, 168),
+            forecast: forecast
+        };
     }
 
     window.FloodSafeRainfall = {
@@ -4301,9 +4381,12 @@ RAINFALL_FALLBACK_JS = r"""
                 return Promise.resolve(false);
             }
 
-            return once("zones:" + JSON.stringify(rainfall.cells), function () {
+            // The server's own history length: 7 days with the landslide
+            // layer on, 2 without.
+            var pastDays = rainfall.past_days || 2;
+            return once("zones:" + pastDays + JSON.stringify(rainfall.cells), function () {
                 return forecast(rainfall.cells,
-                    "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=2"
+                    "&current=precipitation&hourly=precipitation&past_days=" + pastDays + "&forecast_days=2"
                 ).then(function (locations) { return locations.map(parseDurations); });
             }).then(function (readings) {
                 if (!readings) return false;
@@ -4540,6 +4623,15 @@ header nav a:hover { background: rgba(255,255,255,0.28); }
     font-weight: 600;
 }
 
+#ffgsLandslideAlert {
+    display: none;
+    margin: 0 0 18px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
 .ffgs-alert-critical { background: var(--risk-bg); color: var(--risk); border: 1px solid var(--risk); }
 .ffgs-alert-watch { background: var(--watch-bg); color: var(--watch); border: 1px solid var(--watch); }
 
@@ -4611,6 +4703,8 @@ header nav a:hover { background: rgba(255,255,255,0.28); }
 }
 #zoneDetail h3 { margin: 0 0 4px; font-size: 16px; }
 #zoneDetail .zd-meta { color: var(--faint); font-size: 12px; margin-bottom: 8px; }
+#zoneDetail .zd-landslide h4 { margin: 14px 0 6px; font-size: 14px; }
+#zoneDetail .zd-note, .mylocation-body .zd-note { color: var(--faint); font-size: 12px; margin: 6px 0 0; }
 #mapWrap { margin-top: 14px; }
 
 .mylocation-body { padding: 16px 18px; }
@@ -4831,6 +4925,7 @@ footer {
 
     <div id="ffgsAlert"></div>
     <div id="ffgsForecastAlert"></div>
+    <div id="ffgsLandslideAlert" class="ffgs-alert-extra"></div>
 
     <div class="panel">
         <h2><span data-i18n="officialHeading">Official warnings for Uttarakhand</span>
@@ -4871,6 +4966,7 @@ footer {
             <span><span class="dot" style="background:#cf7a2a"></span><span data-i18n="hazardSignificant">SIGNIFICANT hazard</span></span>
             <span><span class="dot" style="background:#7a1f1f"></span><span data-i18n="hazardExtreme">EXTREME hazard</span></span>
             <span><span style="display:inline-block; width:14px; height:0; border-top:2px dashed #0b3558; margin-right:6px; vertical-align:middle;"></span><span data-i18n="watershedLegend">Watershed boundary (HydroBASINS)</span></span>
+            <span id="pastLandslidesLegend" hidden><span class="dot" style="background:#8b5a2b"></span><span data-i18n="pastLandslidesLegend">Past rain-triggered landslide (NASA)</span></span>
             <span style="margin-left:auto;" data-i18n="markerNote">Marker color = current worst status across all three windows</span>
         </div>
         </div>
@@ -4931,6 +5027,9 @@ let officialData = null;
 let officialFailed = false;
 let officialRetry = null;
 let ffgsDurations = ["1h", "3h", "24h"];
+// From /ffgs/zones; {available: false} unless the server has landslide
+// thresholds (see LANDSLIDE THRESHOLDS in server.py).
+let landslideInfo = { available: false };
 let ffgsLoadFailed = false;
 let zoneMarkerLayer = null;
 
@@ -5041,7 +5140,17 @@ const translations = {
     locationDenied: "Location access denied or unavailable.",
     townDehradun: "Dehradun", townRishikesh: "Rishikesh", townHaridwar: "Haridwar",
     townMussoorie: "Mussoorie", townNainital: "Nainital", townHaldwani: "Haldwani",
-    townAlmora: "Almora", townPithoragarh: "Pithoragarh", townJoshimath: "Joshimath"
+    townAlmora: "Almora", townPithoragarh: "Pithoragarh", townJoshimath: "Joshimath",
+    landslideHeading: "Landslide risk from rain",
+    landslideLabel: "Landslide",
+    landslideWin24h: "1 day", landslideWin72h: "3 days", landslideWin168h: "7 days",
+    landslideNote: "Rain over 1, 3 and 7 days compared with this area’s usual monsoon rain. In testing on past monsoons, Critical caught {pod} of recorded rain-triggered landslides. Rain is only one cause: slope, road cutting and earthquakes are not included.",
+    landslideNoRain: "Needs 7 days of rainfall, which isn’t available right now.",
+    landslideAlertCritical: "Landslide risk from rain is Critical for: ",
+    landslideAlertWatch: "Landslide risk from rain is at Watch for: ",
+    pastLandslide: "Recorded landslide",
+    pastLandslideDeaths: "deaths",
+    pastLandslidesLegend: "Past rain-triggered landslide (NASA)"
   },
   hi: {
     textSizeLabel: "टेक्स्ट आकार:",
@@ -5145,7 +5254,17 @@ const translations = {
     locationDenied: "स्थान की अनुमति अस्वीकृत या अनुपलब्ध।",
     townDehradun: "देहरादून", townRishikesh: "ऋषिकेश", townHaridwar: "हरिद्वार",
     townMussoorie: "मसूरी", townNainital: "नैनीताल", townHaldwani: "हल्द्वानी",
-    townAlmora: "अल्मोड़ा", townPithoragarh: "पिथौरागढ़", townJoshimath: "जोशीमठ"
+    townAlmora: "अल्मोड़ा", townPithoragarh: "पिथौरागढ़", townJoshimath: "जोशीमठ",
+    landslideHeading: "वर्षा से भूस्खलन जोखिम",
+    landslideLabel: "भूस्खलन",
+    landslideWin24h: "1 दिन", landslideWin72h: "3 दिन", landslideWin168h: "7 दिन",
+    landslideNote: "1, 3 और 7 दिनों की वर्षा की तुलना इस क्षेत्र की सामान्य मानसूनी वर्षा से। पिछले मानसूनों पर परीक्षण में, गंभीर स्तर ने दर्ज वर्षा-जनित भूस्खलनों में से {pod} पकड़े। वर्षा केवल एक कारण है: ढलान, सड़क कटान और भूकंप शामिल नहीं हैं।",
+    landslideNoRain: "इसके लिए 7 दिनों का वर्षा डेटा चाहिए, जो अभी उपलब्ध नहीं है।",
+    landslideAlertCritical: "इन स्थानों पर वर्षा से भूस्खलन जोखिम गंभीर है: ",
+    landslideAlertWatch: "इन स्थानों पर वर्षा से भूस्खलन जोखिम निगरानी स्तर पर है: ",
+    pastLandslide: "दर्ज भूस्खलन",
+    pastLandslideDeaths: "मौतें",
+    pastLandslidesLegend: "पिछला वर्षा-जनित भूस्खलन (NASA)"
   }
 };
 
@@ -5304,6 +5423,8 @@ function loadMapOverlays() {
             }).addTo(map);
         })
         .catch(function() {});
+
+    loadPastLandslides();
 }
 
 function worseStatus(a, b) {
@@ -5388,6 +5509,73 @@ function statusColor(status) {
     return "#6b7680";
 }
 
+// ---- Landslide layer ----------------------------------------------
+
+// {perDuration, overall} for rain against landslide thresholds, or null
+// when the layer is off or the place has none.
+function landslideStatus(rain, thresholds) {
+    if (!landslideInfo.available || !thresholds) return null;
+    const perDuration = {};
+    let overall = null;
+    landslideInfo.durations.forEach(function(d) {
+        const rainMm = rain ? rain[d] : null;
+        const status = statusForDuration(rainMm, thresholds[d]);
+        perDuration[d] = { rainMm: rainMm, status: status };
+        overall = worseStatus(overall, status);
+    });
+    return { perDuration: perDuration, overall: overall, thresholds: thresholds };
+}
+
+function landslideSectionHtml(landslide) {
+    if (!landslide) return "";
+    const rows = landslideInfo.durations.map(function(d) {
+        const info = landslide.perDuration[d];
+        const rainText = info.rainMm != null ? info.rainMm.toFixed(1) + " mm" : "—";
+        const critical = landslide.thresholds[d] ? landslide.thresholds[d].critical.toFixed(0) + " mm" : "—";
+        const badge = "ffgs-badge ffgs-" + (info.status || "unmapped").toLowerCase();
+        return "<tr><td>" + t("landslideWin" + d) + "</td><td>" + rainText + "</td><td>" + critical +
+            '</td><td><span class="' + badge + '">' + statusLabel(info.status) + "</span></td></tr>";
+    }).join("");
+    const pod = landslideInfo.critical_pod != null ? Math.round(landslideInfo.critical_pod * 100) + "%" : "—";
+    return '<div class="zd-landslide"><h4>' + t("landslideHeading") + "</h4>" +
+        '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" +
+        t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" +
+        t("popupStatus") + "</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+        (landslide.overall ? "" : '<p class="zd-note">' + t("landslideNoRain") + "</p>") +
+        '<p class="zd-note">' + t("landslideNote").replace("{pod}", pod) + "</p></div>";
+}
+
+function landslideLineHtml(landslide) {
+    if (!landslide) return "";
+    const status = (landslide.overall || "unmapped").toLowerCase();
+    return t("landslideLabel") + ': <span class="ffgs-badge ffgs-' + status + '">' +
+        statusLabel(landslide.overall) + "</span>";
+}
+
+function loadPastLandslides() {
+    fetch("/ffgs/landslides.geojson")
+        .then(function(r) { return r.json(); })
+        .then(function(geojson) {
+            if (!geojson.features || !geojson.features.length) return;
+            L.geoJSON(geojson, {
+                pointToLayer: function(feature, latlng) {
+                    return L.circleMarker(latlng, {
+                        radius: 4, color: "#6b4226", weight: 1, fillColor: "#8b5a2b", fillOpacity: 0.8
+                    });
+                },
+                onEachFeature: function(feature, layer) {
+                    const p = feature.properties || {};
+                    layer.bindPopup("<b>" + t("pastLandslide") + "</b> · " + escapeAttr(p.date) +
+                        (p.district ? " · " + escapeAttr(p.district) : "") +
+                        (p.title ? "<br>" + escapeAttr(p.title) : "") +
+                        (p.fatalities ? "<br>" + p.fatalities + " " + t("pastLandslideDeaths") : ""));
+                }
+            }).addTo(map);
+            document.getElementById("pastLandslidesLegend").hidden = false;
+        })
+        .catch(function() {});
+}
+
 function formatCatchmentKm2(km2) {
     if (km2 == null) return null;
     return (km2 >= 1000 ? (km2 / 1000).toFixed(1) + "k" : km2.toFixed(0)) + " km²";
@@ -5427,7 +5615,8 @@ async function fetchDurationRainfall(lat, lon) {
 
     const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
         "&longitude=" + lon +
-        "&current=precipitation&hourly=precipitation&past_days=2&forecast_days=2&timezone=auto";
+        "&current=precipitation&hourly=precipitation&past_days=" + (landslideInfo.available ? 7 : 2) +
+        "&forecast_days=2&timezone=auto";
 
     const payload = await (await fetch(url)).json();
 
@@ -5463,6 +5652,23 @@ function renderAlertBanner() {
         forecastEl.textContent = t("forecastAlertPrefix") + expected.map(alertZoneLabel).join(", ") + t("forecastAlertSuffix");
     } else {
         forecastEl.style.display = "none";
+    }
+
+    // Landslide status gets its own line, never folded into the flood one.
+    const slideEl = document.getElementById("ffgsLandslideAlert");
+    const slideCritical = ffgsZones.filter(function(z) { return z.landslide && z.landslide.overall === "CRITICAL"; });
+    const slideWatch = ffgsZones.filter(function(z) { return z.landslide && z.landslide.overall === "WATCH"; });
+
+    if (slideCritical.length) {
+        slideEl.style.display = "block";
+        slideEl.className = "ffgs-alert-critical";
+        slideEl.textContent = t("landslideAlertCritical") + slideCritical.map(alertZoneLabel).join(", ");
+    } else if (slideWatch.length) {
+        slideEl.style.display = "block";
+        slideEl.className = "ffgs-alert-watch";
+        slideEl.textContent = t("landslideAlertWatch") + slideWatch.map(alertZoneLabel).join(", ");
+    } else {
+        slideEl.style.display = "none";
     }
 }
 
@@ -5598,6 +5804,7 @@ function zoneCardHtml(z, index) {
         '<span class="zone-card-meta">' + hazardCellText(z) + t("hazardZoneSuffix") + "</span>" +
         '<span class="zone-card-rain">' + t("popupRain") + " / " + t("popupCriticalAt") + ": " + rain + "</span>" +
         "<span>" + t("colOutlook") + ": " + outlookHtml(z.outlook, z.forecastAvailable) + "</span>" +
+        (z.landslide ? '<span class="zone-card-meta">' + landslideLineHtml(z.landslide) + "</span>" : "") +
         "</button>";
 }
 
@@ -5836,6 +6043,7 @@ function renderZoneDetail(z) {
         t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" +
         t("popupStatus") + "</th></tr></thead><tbody>" + rows + "</tbody></table>" +
         outlookDetailHtml(z.outlook, z.forecastAvailable) +
+        landslideSectionHtml(z.landslide) +
         '<div id="zoneOfficial" class="zone-official"></div>' +
         '<div id="zoneAlerts" class="zone-alerts"></div>';
     el.hidden = false;
@@ -6242,7 +6450,8 @@ function renderMarkers() {
             (z.ffpi != null ? " · FFPI " + z.ffpi.toFixed(1) : "") + "<br>" +
             (contextLine ? "<span style='color:#6b7680; font-size:12px;'>" + contextLine + "</span><br>" : "") +
             '<table class="popup-table"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
-            rows + "</tbody></table>" + outlookDetailHtml(z.outlook, z.forecastAvailable)
+            rows + "</tbody></table>" + outlookDetailHtml(z.outlook, z.forecastAvailable) +
+            (z.landslide ? "<div style='margin-top:6px;'>" + landslideLineHtml(z.landslide) + "</div>" : "")
         );
     });
 }
@@ -6267,6 +6476,7 @@ async function loadFfgsZones() {
 
     ffgsLoadFailed = false;
     ffgsDurations = data.durations || ffgsDurations;
+    landslideInfo = data.landslide || { available: false };
 
     // No-op unless the server had no rainfall for any zone; then this
     // browser fetches the same cells itself (see /rainfall-fallback.js).
@@ -6314,7 +6524,8 @@ async function loadFfgsZones() {
             perDuration: perDuration,
             overall: overall,
             outlook: forecastOutlook(rain, zone.thresholds_mm),
-            forecastAvailable: hasForecast(rain)
+            forecastAvailable: hasForecast(rain),
+            landslide: landslideStatus(rain, zone.landslide_thresholds_mm)
         };
     });
 
@@ -6396,7 +6607,8 @@ document.getElementById("ffgsMyLocationBtn").addEventListener("click", function(
                 (point.ffpi != null ? " · FFPI " + point.ffpi.toFixed(1) : "") + approxNote +
                 (contextLine ? "<br><span style='color:#6b7680; font-size:12px;'>" + contextLine + "</span>" : "") +
                 '<table class="popup-table" style="margin-top:8px;"><thead><tr><th>' + t("popupWindow") + "</th><th>" + t("popupRain") + "</th><th>" + t("popupCriticalAt") + "</th><th>" + t("popupStatus") + "</th></tr></thead><tbody>" +
-                rows + "</tbody></table>" + outlookDetailHtml(forecastOutlook(rain, point.thresholds_mm), hasForecast(rain));
+                rows + "</tbody></table>" + outlookDetailHtml(forecastOutlook(rain, point.thresholds_mm), hasForecast(rain)) +
+                landslideSectionHtml(landslideStatus(rain, point.landslide_thresholds_mm));
         } catch (error) {
             resultEl.textContent = t("locationError");
         }
@@ -6455,6 +6667,19 @@ def ffgs_hazard_atlas():
         return jsonify({"type": "FeatureCollection", "features": []})
 
     return send_file(geojson_path, mimetype="application/geo+json")
+
+
+@app.route("/ffgs/landslides.geojson")
+def ffgs_landslides():
+
+    # Past rain-triggered landslides (fetch_landslide_catalog.py), shown
+    # for context whether or not the threshold layer is on.
+    path = os.path.join(DATA_DIR, "landslides_uttarakhand.geojson")
+
+    if not os.path.exists(path):
+        return jsonify({"type": "FeatureCollection", "features": []})
+
+    return send_file(path, mimetype="application/geo+json")
 
 
 @app.route("/ffgs/watersheds.geojson")
@@ -6565,10 +6790,11 @@ def _parse_open_meteo_durations(payload):
         idx = len(hourly_times) - 1
 
     def sum_ending(end, n):
-        if end < 0:
+        # None rather than a short total when the feed doesn't reach back
+        # far enough: two days of rain must never read as a 7-day total.
+        if end < 0 or end - n + 1 < 0:
             return None
-        start = max(0, end - n + 1)
-        return round(sum(float(v or 0.0) for v in hourly_precip[start:end + 1]), 2)
+        return round(sum(float(v or 0.0) for v in hourly_precip[end - n + 1:end + 1]), 2)
 
     # The same three windows ending 1, 2, ... FFGS_FORECAST_HOURS hours
     # from now, mixing rain already fallen with forecast rain -- what
@@ -6585,6 +6811,8 @@ def _parse_open_meteo_durations(payload):
         "3h": sum_ending(idx, 3),
         "24h": sum_ending(idx, 24),
         "antecedent_48h": sum_ending(idx, 48),
+        "72h": sum_ending(idx, 72),
+        "168h": sum_ending(idx, 168),
         "forecast": forecast,
     }
 
@@ -6630,11 +6858,15 @@ def _forecast_outlook(zone, reading):
             "rain_mm": rain, "threshold_mm": threshold}
 
 
-# Query parameters for the zone reading, shared with the rainfall relay.
+# Query parameters for the zone reading, shared with the rainfall relay
+# and the browser fallback. Seven past days only when the landslide
+# layer is on (its 168h window); Open-Meteo bills a location as one call
+# up to two weeks of data (7 past + 2 forecast days is 9), so this costs
+# no extra quota.
 FFGS_RAINFALL_QUERY = {
     "current": "precipitation",
     "hourly": "precipitation",
-    "past_days": 2,
+    "past_days": 7 if LANDSLIDE_THRESHOLDS else 2,
     # Two days so there are always FFGS_FORECAST_HOURS of forecast
     # ahead, late in the evening too; one day ends at local midnight.
     "forecast_days": 2,
@@ -6779,7 +7011,9 @@ def ffgs_zones():
             # For the browser fallback (/rainfall-fallback.js): the
             # points to fetch when this server has no reading at all.
             "cells": [[zones[0]["lat"], zones[0]["lon"]] for zones in FFGS_RAINFALL_CELLS],
+            "past_days": FFGS_RAINFALL_QUERY["past_days"],
         },
+        "landslide": _landslide_summary(),
         "zones": zones_with_rainfall,
     })
 
@@ -6862,6 +7096,10 @@ def _plausible_mm(value):
     return math.isfinite(number) and 0.0 <= number <= RAINFALL_MAX_PLAUSIBLE_MM
 
 
+# The zone query's days, plus a day's slack.
+FFGS_RELAY_MAX_HOURS = 24 * (FFGS_RAINFALL_QUERY["past_days"] + FFGS_RAINFALL_QUERY["forecast_days"] + 1)
+
+
 def _validated_relay_locations(locations, points, hourly):
     """
     The relayed Open-Meteo responses, checked to be one per requested
@@ -6890,7 +7128,7 @@ def _validated_relay_locations(locations, points, hourly):
 
         if hourly:
             values = (loc.get("hourly") or {}).get("precipitation")
-            if not isinstance(values, list) or len(values) > 24 * 4:
+            if not isinstance(values, list) or len(values) > FFGS_RELAY_MAX_HOURS:
                 raise ValueError("missing or oversized hourly series")
             if not all(v is None or _plausible_mm(v) for v in values):
                 raise ValueError("implausible hourly precipitation")

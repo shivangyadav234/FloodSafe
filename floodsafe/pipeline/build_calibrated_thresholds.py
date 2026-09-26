@@ -59,20 +59,12 @@ def to_live_units(era5_mm, window, bias):
     return float(np.interp(level, levels, live_q))
 
 
-def main():
-    events = C.load_events()
-    rainfall = C.load_district_rainfall()
-    data = C.label(C.add_relative_predictors(C.district_days(rainfall), rainfall), events)
-    truth = data["label"].to_numpy()
-    relative = [w + "_rel" for w in C.WINDOWS]
-
-    with open(BIAS, encoding="utf-8") as f:
-        bias = json.load(f)
-
-    rarity = {level: C.thresholds_at(data, relative, target) for level, target in LEVELS.items()}
-    validation = {level: C.scores(C.fixed_false_alarm_rule(data, relative, target), truth)
-                  for level, target in LEVELS.items()}
-
+def point_thresholds(rarity, windows, levels, bias):
+    """
+    Each grid point's own rainfall at the fitted rarity levels, in the
+    live feed's units: [{lat, lon, district, thresholds_mm: {window:
+    {level: mm}}}]. Shared with build_landslide_thresholds.py.
+    """
     points = []
 
     # Each point's full record: hourly running totals across all 24 years.
@@ -88,10 +80,10 @@ def main():
 
     for (lat, lon), info in sorted(by_point.items()):
         thresholds = {}
-        for window, hours in C.WINDOWS.items():
+        for window, hours in windows.items():
             running = np.concatenate([C.rolling_max(v[None, :], hours)[0] for v in info["series"]])
             thresholds[window] = {}
-            for level in LEVELS:
+            for level in levels:
                 era5_mm = float(np.quantile(running, rarity[level][window + "_rel"]))
                 thresholds[window][level] = round(to_live_units(era5_mm, window, bias), 1)
         points.append({"lat": lat, "lon": lon, "district": info["district"], "thresholds_mm": thresholds})
@@ -100,6 +92,25 @@ def main():
     for point in points:
         for window, pair in point["thresholds_mm"].items():
             assert pair["watch"] < pair["critical"], (point, window)
+
+    return points
+
+
+def main():
+    events = C.load_events()
+    rainfall = C.load_district_rainfall()
+    data = C.label(C.add_relative_predictors(C.district_days(rainfall), rainfall), events)
+    truth = data["label"].to_numpy()
+    relative = [w + "_rel" for w in C.WINDOWS]
+
+    with open(BIAS, encoding="utf-8") as f:
+        bias = json.load(f)
+
+    rarity = {level: C.thresholds_at(data, relative, target) for level, target in LEVELS.items()}
+    validation = {level: C.scores(C.fixed_false_alarm_rule(data, relative, target), truth)
+                  for level, target in LEVELS.items()}
+
+    points = point_thresholds(rarity, C.WINDOWS, LEVELS, bias)
 
     out = {
         "method": (

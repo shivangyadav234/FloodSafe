@@ -387,6 +387,42 @@ Forecast rain is less certain than rain that has fallen, especially for
 convective storms, and this lead time has not yet been validated against the
 flood record; the page says both.
 
+### Landslide thresholds (in progress)
+
+A landslide layer is being calibrated the same way, against rain-triggered
+landslides in NASA's Global Landslide Catalog, using 1-, 3- and 7-day rain.
+Landslides follow soil saturation over days rather than hour-long bursts,
+and the flood rule caught landslide-only events poorly. The layer only goes
+live if it catches more landslides than the flood rule already does at the
+same false-alarm rate. Run in `floodsafe/pipeline/`, with the ERA5 and
+live-model caches from the flood calibration in place:
+
+```
+python fetch_landslide_catalog.py          # or --csv <file> if the download has moved
+python check_live_model_bias.py            # adds the 72h/168h mappings; reuses cached data
+python calibrate_landslide_thresholds.py   # report -> floodsafe/models/landslide_rainfall_thresholds.json
+python build_landslide_thresholds.py       # -> data/landslide_thresholds.json, if it adds warning
+```
+
+`fetch_landslide_catalog.py` writes the selected landslides to
+`data/landslides_uttarakhand.geojson`.
+
+The live side is built and switches on by itself when
+`data/landslide_thresholds.json` exists (commit it and deploy):
+
+- the zone rainfall feed, the rainfall relay and the browser fallback ask
+  Open-Meteo for 7 past days instead of 2, for the 7-day total (still one
+  call per location: Open-Meteo counts up to two weeks of data as one);
+- `/ffgs/zones` gives each zone its landslide thresholds, and `/ffgs` shows
+  a "Landslide risk from rain" table (1, 3 and 7 days) under each zone's
+  flood table, a landslide line on zone cards and map popups, and its own
+  banner line -- never merged into the flood status;
+- `/ffgs/landslides.geojson` serves past landslides, drawn as brown dots on
+  the `/ffgs` map whenever the catalogue file is present.
+
+Totals the feed can't reach back far enough for are left blank rather than
+shown short. Push alerts are still flood-only.
+
 ### Zone coverage follows recorded floods
 
 Zones used to follow the hazard atlas, which covers ~10% of the state, so
