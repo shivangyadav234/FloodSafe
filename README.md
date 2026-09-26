@@ -353,6 +353,23 @@ The landing page's headroom panel uses the same calibrated 1h/3h/24h
 thresholds and the same live rainfall as `/ffgs`, so the two always agree
 about a town.
 
+### Machine-learning comparison
+
+`floodsafe/pipeline/compare_ml_model.py` asks whether a trained model would
+catch more floods than the calibrated rule, on the same district-days,
+labels and leave-one-year-out test as `calibrate_thresholds.py`, and at the
+same operating points (10% and 20% of dry monsoon days). Three models:
+gradient-boosted trees on the rule's own rain information, the same trees
+with 5-day antecedent rain, district and day of season added, and a linear
+logistic model on those features. A model's alert cut comes from
+out-of-fold scores on the training years, never in-sample ones, and each
+model's gain over the rule carries a bootstrap 95% interval over flood
+rows. It needs the same ERA5 cache and inventory (`floodsafe/data/`, not in
+git), takes a few tens of minutes, and writes
+`floodsafe/models/ml_comparison.json`. `tests/test_ml_comparison.py` checks
+on synthetic data that it finds no gain where there is none and a real
+one where a feature the rule ignores carries signal.
+
 ### Forecast outlook: warning before the rain falls
 
 The 1h / 3h / 24h windows above measure rain that has already fallen, so on
