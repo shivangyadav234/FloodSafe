@@ -1475,6 +1475,15 @@ class TestForecastOutlook:
         zone = client.get("/ffgs/zones").get_json()["zones"][0]
         assert len(zone["live_rainfall"]["forecast"]) == server.FFGS_FORECAST_HOURS
 
+    def test_the_alert_button_says_when_alerts_come(self, client, server):
+        """The early push must be promised in the words the page uses, with
+        the server's own horizon and cooldown."""
+        page = client.get("/ffgs").get_data(as_text=True)
+        hours = server.PUSH_FORECAST_HOURS
+        cooldown = server.PUSH_ALERT_COOLDOWN_SECONDS // 3600
+        assert f"up to {hours} hours earlier" in page and f"one alert per zone every {cooldown} hours" in page
+        assert f"{hours} घंटे पहले तक" in page and f"{cooldown} घंटे में अधिकतम एक सूचना" in page
+
     def test_page_and_browser_fallback_show_the_outlook(self, client, server):
         page = client.get("/ffgs").get_data(as_text=True)
         assert "function forecastOutlook" in page and 'data-i18n="colOutlook"' in page
