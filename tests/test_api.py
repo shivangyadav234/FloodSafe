@@ -1623,6 +1623,20 @@ class TestReportTextHandling:
         assert "overflow-wrap: anywhere" in client.get(path).get_data(as_text=True)
 
 
+class TestZoneMapPopups:
+    """On a phone the /ffgs zone popup sat under the zoom buttons and ran off
+    narrow screens; its table words broke mid-word ("SA|FE")."""
+
+    def test_popups_are_sized_to_the_map_and_kept_off_the_zoom_control(self, client):
+        html = client.get("/ffgs").get_data(as_text=True)
+        assert 'map.on("popupopen"' in html
+        assert "popup.options.maxWidth = maxWidth" in html
+        assert "popup.options.autoPanPaddingTopLeft = ZOOM_CONTROL_CLEARANCE" in html
+
+    def test_popup_table_cells_break_only_between_words(self, client):
+        html = client.get("/ffgs").get_data(as_text=True)
+        assert "table.popup-table th, table.popup-table td { padding: 5px 5px; overflow-wrap: normal; }" in html
+
 class TestHospitalTargets:
     """OpenStreetMap tags eye, dental, ENT, IVF and veterinary practices as
     hospitals; "nearest hospital" must not send a flood casualty there."""

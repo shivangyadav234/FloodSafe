@@ -4754,6 +4754,11 @@ table.popup-table th, table.popup-table td {
 
 table.ffgs-table td.num, table.popup-table td.num { text-align: right; }
 
+/* Popups wrap free text anywhere (a pasted link can't widen them), but a
+   table cell must break only between words, not "Win|dow" or "SA|FE". */
+table.popup-table { font-size: 12.5px; }
+table.popup-table th, table.popup-table td { padding: 5px 5px; overflow-wrap: normal; }
+
 table.ffgs-table thead th {
     background: #f8fafb;
     font-weight: 700;
@@ -5404,6 +5409,23 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap contributors",
     maxZoom: 19
 }).addTo(map);
+
+// A phone's map is barely wider than Leaflet's default 300 px popup, so a
+// zone popup sat under the zoom buttons and, on narrow phones, ran off the
+// right edge. Each popup is sized to the map as it opens and panned clear
+// of the zoom control (top-left).
+const POPUP_CHROME_PX = 47;   // the popup's own padding and border around its content
+const ZOOM_CONTROL_CLEARANCE = L.point(56, 10);
+map.on("popupopen", function(e) {
+    const popup = e.popup;
+    const maxWidth = Math.max(180, Math.min(300,
+        map.getSize().x - ZOOM_CONTROL_CLEARANCE.x - 8 - POPUP_CHROME_PX));
+    if (popup.options.maxWidth === maxWidth && popup.options.autoPanPaddingTopLeft) return;
+    popup.options.maxWidth = maxWidth;
+    popup.options.autoPanPaddingTopLeft = ZOOM_CONTROL_CLEARANCE;
+    popup.options.autoPanPaddingBottomRight = L.point(8, 10);
+    popup.update();
+});
 
 // The map starts hidden behind the zone picker, and Leaflet cannot
 // project onto a display:none container -- every layer added while it
