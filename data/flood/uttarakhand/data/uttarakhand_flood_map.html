@@ -1578,7 +1578,10 @@ async function fetchLiveConditions(lat, lon) {
         let next3hMm = 0;
 
         if (currentTime && hourlyTimes.length) {
-            let startIndex = hourlyTimes.indexOf(currentTime);
+            // current.time is 15-minutely ("13:30"), the hourly series on
+            // the hour; an exact lookup failed most of each hour and fell
+            // back to midnight. Take the current hour's entry instead.
+            let startIndex = hourlyTimes.indexOf(currentTime.slice(0, 13) + ":00");
             if (startIndex === -1) startIndex = 0;
             next3hMm = hourlyPrecip
                 .slice(startIndex + 1, startIndex + 4)

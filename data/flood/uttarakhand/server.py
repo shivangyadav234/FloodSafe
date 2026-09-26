@@ -4341,8 +4341,15 @@ RAINFALL_FALLBACK_JS = r"""
         var precip = hourly.precipitation || [];
         var currentTime = payload && payload.current && payload.current.time;
 
-        var idx = currentTime ? times.indexOf(currentTime) : -1;
-        if (idx === -1) idx = times.length - 1;
+        // current.time is 15-minutely, the hourly series on the hour:
+        // "now" is the hourly entry of the current hour (see
+        // _current_hour_index in server.py).
+        var idx = times.length - 1;
+        if (currentTime) {
+            var hour = currentTime.slice(0, 13) + ":00";
+            idx = -1;
+            for (var t = 0; t < times.length; t++) if (times[t] <= hour) idx = t;
+        }
 
         // Null, not a short total, when the feed doesn't reach back far
         // enough -- two days of rain must never read as a 7-day total.
@@ -6777,6 +6784,28 @@ FFGS_RAIN_CELL_BY_POINT = {
 }
 
 
+def _current_hour_index(hourly_times, current_time):
+    """
+    The hourly entry that ends the latest complete hour at current_time.
+
+    Open-Meteo's current.time is 15-minutely ("13:30") while the hourly
+    series is on the hour, and each hourly value is the rain of the hour
+    before its time stamp. Looking current.time up as-is failed three
+    quarters of every hour, and the fallback then read the last hour of
+    the whole series -- tomorrow night's forecast -- as "now".
+    """
+
+    if not current_time:
+        return len(hourly_times) - 1
+
+    hour = current_time[:13] + ":00"
+    try:
+        return hourly_times.index(hour)
+    except ValueError:
+        earlier = [i for i, t in enumerate(hourly_times) if t <= hour]
+        return earlier[-1] if earlier else -1
+
+
 def _parse_open_meteo_durations(payload):
 
     hourly = payload.get("hourly") or {}
@@ -6784,10 +6813,7 @@ def _parse_open_meteo_durations(payload):
     hourly_precip = hourly.get("precipitation") or []
     current_time = (payload.get("current") or {}).get("time")
 
-    try:
-        idx = hourly_times.index(current_time) if current_time else len(hourly_times) - 1
-    except ValueError:
-        idx = len(hourly_times) - 1
+    idx = _current_hour_index(hourly_times, current_time)
 
     def sum_ending(end, n):
         # None rather than a short total when the feed doesn't reach back

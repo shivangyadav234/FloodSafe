@@ -1423,6 +1423,19 @@ class TestForecastOutlook:
         assert second == {"1h": 4.0, "3h": 7.0, "24h": 28.0}
         assert third == {"1h": 0.0, "3h": 6.0, "24h": 27.0}
 
+    def test_a_quarter_hour_current_time_reads_the_current_hour(self, server):
+        """Open-Meteo's current.time is 15-minutely; the hourly series is
+        on the hour. "13:30" must read the 13:00 entry, not the last hour
+        of tomorrow's forecast."""
+        payload = _hourly_payload([1.0] * 48, [2.0, 4.0, 0.0] + [0.0] * 30)
+        on_the_hour = server._parse_open_meteo_durations(payload)
+        payload["current"]["time"] = payload["current"]["time"][:13] + ":30"
+
+        quarter = server._parse_open_meteo_durations(payload)
+        assert quarter == on_the_hour
+        assert quarter["1h"] == 1.0 and quarter["forecast"][0]["1h"] == 2.0
+        assert len(quarter["forecast"]) == server.FFGS_FORECAST_HOURS
+
     def test_no_forecast_hours_means_no_forecast(self, server):
         assert server._parse_open_meteo_durations(_hourly_payload([1.0] * 48, []))["forecast"] == []
 
