@@ -2233,8 +2233,8 @@ table.compare-table tr.row-risk td { background: var(--risk-bg); }
   font-size: 0.8125rem;
   color: var(--muted);
 }
-.sources-list dt { font-weight: 700; color: var(--ink); float: left; clear: left; width: 130px; }
-.sources-list dd { margin: 0 0 6px 140px; }
+.sources-list dt { font-weight: 700; color: var(--ink); float: left; clear: left; width: 170px; }
+.sources-list dd { margin: 0 0 6px 180px; }
 
 /* ---------------- FINAL CTA ---------------- */
 
@@ -2293,7 +2293,13 @@ table.guidance-table th {
   font-size: 0.71875rem;
   text-transform: uppercase;
 }
-table.guidance-table td.num { font-family: 'Consolas', monospace; text-align: right; }
+table.guidance-table td.num { font-family: 'Consolas', monospace; text-align: right; white-space: nowrap; }
+.guidance-badge { white-space: nowrap; }
+/* On a phone the table scrolls inside its box instead of widening the page. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 560px) {
+  table.guidance-table th, table.guidance-table td { padding: 7px 8px; }
+}
 table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
 
 .modelled-note { color: #6b7680; font-weight: normal; font-size: 11px; font-style: italic; }
@@ -2385,7 +2391,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
         </div>
       </div>
       <div class="panel diagram-panel">
-        <div class="diagram-caption" data-i18n="diagramCaption">Illustrative example — hover a route below</div>
+        <div class="diagram-caption" data-i18n="diagramCaption">Illustrative example — hover or tap a route below</div>
         <svg viewBox="0 0 340 280" xmlns="http://www.w3.org/2000/svg" id="heroSvg">
           <path id="riskPath" class="route-risk-line" d="M20 230 Q 90 160 140 180 T 260 110 Q 300 80 320 40" fill="none" stroke="#7a1f1f" stroke-width="2.5" stroke-linecap="round"/>
           <path id="safePath" class="route-safe-line" d="M20 230 Q 70 210 100 225 Q 150 250 180 210 Q 210 170 190 130 Q 170 85 210 65 Q 260 40 320 40" fill="none" stroke="#14532d" stroke-width="3" stroke-linecap="round"/>
@@ -2408,7 +2414,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
           <span><span class="sw" style="background:#14532d;"></span><span data-i18n="legendSafe">Safest route</span></span>
           <span><span class="sw" style="background:#7a1f1f;"></span><span data-i18n="legendRisk">Fastest route</span></span>
         </div>
-        <div class="diagram-hint" data-i18n="diagramHint">Hover either route to trace it live</div>
+        <div class="diagram-hint" data-i18n="diagramHint">Hover or tap either route to trace it live</div>
       </div>
     </div>
   </div>
@@ -2454,6 +2460,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
     <div style="margin-bottom:18px;">
       <a class="btn-official" href="/ffgs" data-i18n="guidanceOpenFfgs">Open full Flash Flood Guidance System →</a>
     </div>
+    <div class="table-scroll">
     <table class="guidance-table">
       <thead>
         <tr>
@@ -2468,6 +2475,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
         <tr><td colspan="5" data-i18n="guidanceLoading">Loading…</td></tr>
       </tbody>
     </table>
+    </div>
     <div class="guidance-mylocation">
       <button type="button" id="guidanceMyLocationBtn" class="btn-outline" data-i18n="guidanceCheckLocation">Check guidance at my location</button>
       <div id="guidanceMyLocationResult" class="guidance-my-result" hidden></div>
@@ -2537,6 +2545,11 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
       <dt data-i18n="src5dt">Routing engine</dt><dd data-i18n="src5dd">SciPy sparse-graph Dijkstra shortest-path algorithm</dd>
       <dt data-i18n="src6dt">Watershed data</dt><dd>HydroSHEDS / HydroBASINS (WWF)</dd>
       <dt data-i18n="src7dt">Soil data</dt><dd>SoilGrids v2.0 (ISRIC)</dd>
+      <dt data-i18n="src8dt">Terrain &amp; land cover</dt><dd>Copernicus DEM · ESA WorldCover</dd>
+      <dt data-i18n="src9dt">Rainfall history</dt><dd data-i18n="src9dd">ERA5 hourly reanalysis (ECMWF / Copernicus), 2000–2023</dd>
+      <dt data-i18n="src10dt">Recorded floods</dt><dd>India Flood Inventory v3 (IIT Delhi, IMD)</dd>
+      <dt data-i18n="src11dt">Past disasters</dt><dd>NASA Global Landslide Catalog</dd>
+      <dt data-i18n="src12dt">Official warnings</dt><dd data-i18n="src12dd">NDMA SACHET (IMD, CWC, state authority)</dd>
     </dl>
   </div>
 </section>
@@ -2589,10 +2602,10 @@ const translations = {
     heroSub: "FloodSafe advises road routes across Uttarakhand using a georeferenced flash-flood hazard classification, live rainfall data, and citizen-reported hazards — instead of distance alone.",
     heroCta1: "Open the Map Tool →",
     heroCta2: "View Live Status",
-    diagramCaption: "Illustrative example — hover a route below",
+    diagramCaption: "Illustrative example — hover or tap a route below",
     legendSafe: "Safest route",
     legendRisk: "Fastest route",
-    diagramHint: "Hover either route to trace it live",
+    diagramHint: "Hover or tap either route to trace it live",
     statusLabel: "Live System Status",
     statusChecking: "Checking live status…",
     statusOnline: "Routing engine online — figures below are live on this page",
@@ -2642,6 +2655,11 @@ const translations = {
     src5dt: "Routing engine", src5dd: "SciPy sparse-graph Dijkstra shortest-path algorithm",
     src6dt: "Watershed data",
     src7dt: "Soil data",
+    src8dt: "Terrain & land cover",
+    src9dt: "Rainfall history", src9dd: "ERA5 hourly reanalysis (ECMWF / Copernicus), 2000–2023",
+    src10dt: "Recorded floods",
+    src11dt: "Past disasters",
+    src12dt: "Official warnings", src12dd: "NDMA SACHET (IMD, CWC, state authority)",
     finalTitle: "Access the flood-aware map tool",
     finalText: "No registration required. Available to all road users in Uttarakhand.",
     finalCta: "Open FloodSafe Map Tool →",
@@ -2699,10 +2717,10 @@ const translations = {
     heroSub: "FloodSafe केवल दूरी के बजाय, भू-संदर्भित बाढ़ खतरा वर्गीकरण, लाइव वर्षा डेटा, और नागरिकों द्वारा रिपोर्ट किए गए खतरों का उपयोग करके उत्तराखंड में सड़क मार्गों की सलाह देता है।",
     heroCta1: "मानचित्र खोलें →",
     heroCta2: "लाइव स्थिति देखें",
-    diagramCaption: "उदाहरण — नीचे किसी मार्ग पर कर्सर ले जाएं",
+    diagramCaption: "उदाहरण — नीचे किसी मार्ग पर कर्सर ले जाएं या टैप करें",
     legendSafe: "सबसे सुरक्षित मार्ग",
     legendRisk: "सबसे तेज़ मार्ग",
-    diagramHint: "मार्ग देखने के लिए उस पर कर्सर ले जाएं",
+    diagramHint: "मार्ग देखने के लिए उस पर कर्सर ले जाएं या टैप करें",
     statusLabel: "लाइव सिस्टम स्थिति",
     statusChecking: "लाइव स्थिति जांची जा रही है…",
     statusOnline: "रूटिंग इंजन ऑनलाइन है — नीचे दिए गए आंकड़े इस पेज पर लाइव हैं",
@@ -2752,6 +2770,11 @@ const translations = {
     src5dt: "रूटिंग इंजन", src5dd: "SciPy स्पार्स-ग्राफ Dijkstra शॉर्टेस्ट-पाथ एल्गोरिथम",
     src6dt: "जलग्रहण डेटा",
     src7dt: "मिट्टी डेटा",
+    src8dt: "भूभाग और भूमि आवरण",
+    src9dt: "वर्षा इतिहास", src9dd: "ERA5 घंटेवार रीएनालिसिस (ECMWF / Copernicus), 2000–2023",
+    src10dt: "दर्ज बाढ़ें",
+    src11dt: "पिछली आपदाएँ",
+    src12dt: "आधिकारिक चेतावनियाँ", src12dd: "NDMA SACHET (IMD, CWC, राज्य प्राधिकरण)",
     finalTitle: "बाढ़-जागरूक मानचित्र टूल खोलें",
     finalText: "कोई पंजीकरण आवश्यक नहीं। उत्तराखंड के सभी सड़क उपयोगकर्ताओं के लिए उपलब्ध।",
     finalCta: "FloodSafe मानचित्र टूल खोलें →",
@@ -4625,9 +4648,13 @@ header nav a:hover { background: rgba(255,255,255,0.28); }
     padding: 12px 16px;
     margin: 18px 0;
     font-size: 13.5px;
+    line-height: 1.55;
     color: #5c4400;
     border-radius: 4px;
 }
+.notice-more { margin-top: 8px; }
+.notice-more summary { cursor: pointer; font-weight: 600; color: #5c4400; }
+.notice-more p { margin: 8px 0 0; }
 
 #ffgsAlert, #ffgsForecastAlert {
     display: none;
@@ -4679,8 +4706,8 @@ header nav a:hover { background: rgba(255,255,255,0.28); }
 /* Zone picker: the map starts hidden and is revealed once a zone is
    chosen, so the default view is a single question rather than 127
    overlapping markers. */
-.zone-picker-hint { margin: 0 0 10px; color: var(--faint); font-size: 13px; }
-.zone-picker { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.zone-picker-hint { margin: 12px 18px 10px; color: var(--faint); font-size: 13px; }
+.zone-picker { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; margin: 0 18px 16px; }
 .combo { position: relative; flex: 1 1 320px; min-width: 240px; }
 .combo input {
     width: 100%; box-sizing: border-box; padding: 10px 32px 10px 12px;
@@ -4713,14 +4740,16 @@ header nav a:hover { background: rgba(255,255,255,0.28); }
 }
 #zoneShowAllBtn:hover { background: #e8edf2; }
 #zoneDetail {
-    margin: 14px 0 0; padding: 12px 14px; border: 1px solid #dfe4ea;
+    margin: 0 18px 16px; padding: 12px 14px; border: 1px solid #dfe4ea;
     border-radius: 4px; background: #fbfcfd;
 }
 #zoneDetail h3 { margin: 0 0 4px; font-size: 16px; }
 #zoneDetail .zd-meta { color: var(--faint); font-size: 12px; margin-bottom: 8px; }
 #zoneDetail .zd-landslide h4 { margin: 14px 0 6px; font-size: 14px; }
 #zoneDetail .zd-note, .mylocation-body .zd-note { color: var(--faint); font-size: 12px; margin: 6px 0 0; }
-#mapWrap { margin-top: 14px; }
+#mapWrap { margin: 0 18px 18px; }
+/* On a phone the map keeps the panel's full width: popups need the room. */
+@media (max-width: 600px) { #mapWrap { margin: 0; } .panel--picker #mapWrap { border-radius: 0; } }
 
 .mylocation-body { padding: 16px 18px; }
 
@@ -4929,19 +4958,7 @@ footer {
 <div class="container">
 
     <div class="notice" data-i18n-html="noticeHtml">
-        This page pairs each mapped hazard zone's static classification with live rainfall
-        over three windows (1h / 3h / 24h) to show whether it is SAFE, in WATCH, or in
-        CRITICAL status right now. Thresholds are adjusted using real watershed data
-        (upstream catchment area, from HydroSHEDS/HydroBASINS) and soil data (texture-based
-        drainage class, from SoilGrids) on top of the hazard atlas and antecedent rainfall —
-        <b>not</b> an official CWC/IMD Flash Flood Guidance value, which would require a full
-        calibrated hydrological model this project doesn't have. The state hazard atlas only
-        covers about 9.7% of Uttarakhand's area; zones outside it are marked <i>modelled</i>
-        and their class comes from the <b>Flash Flood Potential Index</b> (FFPI) — a 1-10
-        susceptibility index computed from real terrain (Copernicus GLO-30 DEM), soil
-        (SoilGrids) and land cover (ESA WorldCover). FFPI is a physical susceptibility score,
-        not a probability or a forecast, and a surveyed atlas class always takes precedence
-        over it.
+        This page compares live rainfall over three windows (1h / 3h / 24h) with each zone's thresholds to show whether it is SAFE, in WATCH, or CRITICAL right now, and in the next 6 hours. Read SAFE as “no alert”, not “no risk”. This is <b>not</b> an official CWC/IMD warning; official warnings appear in their own panel below.<details class='notice-more'><summary>How the thresholds work, and how often they miss</summary><p>The thresholds are <b>calibrated against real floods</b>: 24 monsoons (2000-2023) of IMD-recorded flood events from the India Flood Inventory, matched with hourly ERA5 rainfall across the state, judging each place by how rare the rain is <i>for that place</i>. Tested on years it had not seen, CRITICAL caught __CRIT_POD__ of recorded floods while firing on about __CRIT_POFD__ of dry monsoon days per district, and WATCH caught __WATCH_POD__ at about __WATCH_POFD__. So many floods still come with no CRITICAL: rainfall data at ~25 km cannot see every cloudburst.</p><p>Each zone's hazard class and <b>Flash Flood Potential Index</b> (FFPI) describe how susceptible its terrain is, from the state hazard atlas (about 9.7% of Uttarakhand) or, outside it, from real terrain, soil and land cover; they are context, and a surveyed atlas class takes precedence over FFPI.</p><p>The <b>Next 6 h</b> outlook applies the same thresholds to the hourly rainfall forecast, to warn hours ahead; forecast rain is less certain than rain that has fallen, and this lead time has not yet been tested against past floods.</p></details>
     </div>
 
     <div id="ffgsAlert"></div>
@@ -5027,8 +5044,7 @@ footer {
 </div>
 
 <footer data-i18n="footerText">
-    Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo
-    forecast API, fetched directly by your browser. Refreshes automatically every 60 seconds.
+    Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, fetched by the server every 10 minutes (your browser fetches it only if the server can't). This page refreshes every 60 seconds.
 </footer>
 
 <script>
@@ -5065,7 +5081,7 @@ const translations = {
     pageSubtitle: "Duration-based rainfall guidance for Uttarakhand",
     navMapTool: "Map tool →",
     navBackDashboard: "← Back to dashboard",
-    noticeHtml: "This page compares live rainfall over three windows (1h / 3h / 24h) with each zone's thresholds to show whether it is SAFE, in WATCH, or CRITICAL right now. The thresholds are <b>calibrated against real floods</b>: 24 monsoons (2000-2023) of IMD-recorded flood events from the India Flood Inventory, matched with hourly ERA5 rainfall across the state, judging each place by how rare the rain is <i>for that place</i>. Tested on years it had not seen, CRITICAL caught __CRIT_POD__ of recorded floods while firing on about __CRIT_POFD__ of dry monsoon days per district, and WATCH caught __WATCH_POD__ at about __WATCH_POFD__. So many floods still come with no CRITICAL: rainfall data at ~25 km cannot see every cloudburst. Read SAFE as “no alert”, not “no risk”. This is <b>not</b> an official CWC/IMD warning; official warnings appear in their own panel above. Each zone's hazard class and <b>Flash Flood Potential Index</b> (FFPI) describe how susceptible its terrain is, from the state hazard atlas (about 9.7% of Uttarakhand) or, outside it, from real terrain, soil and land cover; they are context, and a surveyed atlas class takes precedence over FFPI. The <b>Next 6 h</b> outlook applies the same thresholds to the hourly rainfall forecast, to warn hours ahead; forecast rain is less certain than rain that has fallen, and this lead time has not yet been tested against past floods.",
+    noticeHtml: "This page compares live rainfall over three windows (1h / 3h / 24h) with each zone's thresholds to show whether it is SAFE, in WATCH, or CRITICAL right now, and in the next 6 hours. Read SAFE as “no alert”, not “no risk”. This is <b>not</b> an official CWC/IMD warning; official warnings appear in their own panel below.<details class='notice-more'><summary>How the thresholds work, and how often they miss</summary><p>The thresholds are <b>calibrated against real floods</b>: 24 monsoons (2000-2023) of IMD-recorded flood events from the India Flood Inventory, matched with hourly ERA5 rainfall across the state, judging each place by how rare the rain is <i>for that place</i>. Tested on years it had not seen, CRITICAL caught __CRIT_POD__ of recorded floods while firing on about __CRIT_POFD__ of dry monsoon days per district, and WATCH caught __WATCH_POD__ at about __WATCH_POFD__. So many floods still come with no CRITICAL: rainfall data at ~25 km cannot see every cloudburst.</p><p>Each zone's hazard class and <b>Flash Flood Potential Index</b> (FFPI) describe how susceptible its terrain is, from the state hazard atlas (about 9.7% of Uttarakhand) or, outside it, from real terrain, soil and land cover; they are context, and a surveyed atlas class takes precedence over FFPI.</p><p>The <b>Next 6 h</b> outlook applies the same thresholds to the hourly rainfall forecast, to warn hours ahead; forecast rain is less certain than rain that has fallen, and this lead time has not yet been tested against past floods.</p></details>",
     myLocationHeading: "Check guidance at my location",
     myLocationBtn: "Use my current location",
     zoneMapHeading: "Zone map — live status",
@@ -5143,7 +5159,7 @@ const translations = {
     updatedLabel: "Updated ",
     noZones: "No mapped zones with live data right now.",
     guidanceUnavailable: "Guidance data unavailable right now.",
-    footerText: "Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, fetched directly by your browser. Refreshes automatically every 60 seconds.",
+    footerText: "Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, fetched by the server every 10 minutes (your browser fetches it only if the server can't). This page refreshes every 60 seconds.",
     statusSAFE: "SAFE", statusWATCH: "WATCH", statusCRITICAL: "CRITICAL", statusUNMAPPED: "NO RAIN DATA",
     hazardZoneSuffix: " hazard zone",
     popupWindow: "Window", popupRain: "Rain", popupCriticalAt: "Critical at", popupStatus: "Status",
@@ -5179,7 +5195,7 @@ const translations = {
     pageSubtitle: "उत्तराखंड के लिए अवधि-आधारित वर्षा मार्गदर्शन",
     navMapTool: "मानचित्र टूल →",
     navBackDashboard: "← डैशबोर्ड पर वापस जाएं",
-    noticeHtml: "यह पृष्ठ तीन अवधियों (1 घंटा / 3 घंटे / 24 घंटे) की लाइव वर्षा की तुलना हर क्षेत्र की सीमाओं से करके बताता है कि वह अभी सुरक्षित, सतर्क या गंभीर स्थिति में है। ये सीमाएँ <b>असली बाढ़ों पर कैलिब्रेट</b> की गई हैं: India Flood Inventory में IMD द्वारा दर्ज 24 मानसूनों (2000-2023) की बाढ़ की घटनाएँ, पूरे राज्य की घंटेवार ERA5 वर्षा के साथ, और हर जगह को इस आधार पर आँका गया है कि वहाँ के लिए वह वर्षा कितनी असामान्य है। जिन वर्षों को मॉडल ने नहीं देखा था, उन पर परखने पर गंभीर स्तर ने दर्ज बाढ़ों में से __CRIT_POD__ पकड़ीं और हर ज़िले में मानसून के लगभग __CRIT_POFD__ सूखे दिनों पर चेतावनी दी; सतर्क स्तर ने __WATCH_POD__ पकड़ीं, लगभग __WATCH_POFD__ दिनों पर। इसलिए कई बाढ़ें बिना गंभीर चेतावनी के भी आती हैं: ~25 किमी के वर्षा डेटा में हर बादल फटना दिखाई नहीं देता। सुरक्षित का अर्थ “कोई चेतावनी नहीं” है, “कोई खतरा नहीं” नहीं। यह CWC/IMD की आधिकारिक चेतावनी <b>नहीं</b> है; आधिकारिक चेतावनियाँ ऊपर अपने अलग पैनल में दिखती हैं। हर क्षेत्र का खतरा वर्ग और <b>Flash Flood Potential Index</b> (FFPI) बताते हैं कि उसका भूभाग कितना संवेदनशील है — राज्य खतरा एटलस (उत्तराखंड का लगभग 9.7%) से, या उसके बाहर असली भू-आकृति, मिट्टी और भूमि आवरण से; ये संदर्भ हैं, और सर्वेक्षित एटलस वर्ग FFPI से ऊपर रहता है। <b>अगले 6 घंटे</b> का पूर्वानुमान इन्हीं सीमाओं को घंटेवार वर्षा पूर्वानुमान पर लागू करता है, ताकि कुछ घंटे पहले चेतावनी मिल सके; पूर्वानुमानित वर्षा हो चुकी वर्षा से कम निश्चित होती है, और इस पूर्व-चेतावनी को अभी पिछली बाढ़ों पर परखा नहीं गया है।",
+    noticeHtml: "यह पृष्ठ तीन अवधियों (1 घंटा / 3 घंटे / 24 घंटे) की लाइव वर्षा की तुलना हर क्षेत्र की सीमाओं से करके बताता है कि वह अभी, और अगले 6 घंटों में, सुरक्षित, सतर्क या गंभीर स्थिति में है। सुरक्षित का अर्थ “कोई चेतावनी नहीं” है, “कोई खतरा नहीं” नहीं। यह CWC/IMD की आधिकारिक चेतावनी <b>नहीं</b> है; आधिकारिक चेतावनियाँ नीचे अपने अलग पैनल में दिखती हैं।<details class='notice-more'><summary>सीमाएँ कैसे बनीं, और कितनी बार चूकती हैं</summary><p>ये सीमाएँ <b>असली बाढ़ों पर कैलिब्रेट</b> की गई हैं: India Flood Inventory में IMD द्वारा दर्ज 24 मानसूनों (2000-2023) की बाढ़ की घटनाएँ, पूरे राज्य की घंटेवार ERA5 वर्षा के साथ, और हर जगह को इस आधार पर आँका गया है कि वहाँ के लिए वह वर्षा कितनी असामान्य है। जिन वर्षों को मॉडल ने नहीं देखा था, उन पर परखने पर गंभीर स्तर ने दर्ज बाढ़ों में से __CRIT_POD__ पकड़ीं और हर ज़िले में मानसून के लगभग __CRIT_POFD__ सूखे दिनों पर चेतावनी दी; सतर्क स्तर ने __WATCH_POD__ पकड़ीं, लगभग __WATCH_POFD__ दिनों पर। इसलिए कई बाढ़ें बिना गंभीर चेतावनी के भी आती हैं: ~25 किमी के वर्षा डेटा में हर बादल फटना दिखाई नहीं देता।</p><p>हर क्षेत्र का खतरा वर्ग और <b>Flash Flood Potential Index</b> (FFPI) बताते हैं कि उसका भूभाग कितना संवेदनशील है — राज्य खतरा एटलस (उत्तराखंड का लगभग 9.7%) से, या उसके बाहर असली भू-आकृति, मिट्टी और भूमि आवरण से; ये संदर्भ हैं, और सर्वेक्षित एटलस वर्ग FFPI से ऊपर रहता है।</p><p><b>अगले 6 घंटे</b> का पूर्वानुमान इन्हीं सीमाओं को घंटेवार वर्षा पूर्वानुमान पर लागू करता है, ताकि कुछ घंटे पहले चेतावनी मिल सके; पूर्वानुमानित वर्षा हो चुकी वर्षा से कम निश्चित होती है, और इस पूर्व-चेतावनी को अभी पिछली बाढ़ों पर परखा नहीं गया है।</p></details>",
     myLocationHeading: "मेरे स्थान पर मार्गदर्शन जांचें",
     myLocationBtn: "मेरा वर्तमान स्थान उपयोग करें",
     zoneMapHeading: "क्षेत्र मानचित्र — लाइव स्थिति",
@@ -5257,7 +5273,7 @@ const translations = {
     updatedLabel: "अद्यतन ",
     noZones: "अभी कोई मैप किया गया क्षेत्र लाइव डेटा के साथ उपलब्ध नहीं है।",
     guidanceUnavailable: "मार्गदर्शन डेटा अभी उपलब्ध नहीं है।",
-    footerText: "खतरा वर्गीकरण: राज्य का जियोरेफ़रेंस्ड फ्लैश फ्लड खतरा एटलस। वर्षा: Open-Meteo पूर्वानुमान API, आपके ब्राउज़र द्वारा सीधे प्राप्त। हर 60 सेकंड में स्वतः अद्यतन होता है।",
+    footerText: "खतरा वर्गीकरण: राज्य का जियोरेफ़रेंस्ड फ्लैश फ्लड खतरा एटलस। वर्षा: Open-Meteo पूर्वानुमान API, सर्वर द्वारा हर 10 मिनट में प्राप्त (सर्वर न ला पाए तभी आपका ब्राउज़र सीधे लाता है)। यह पृष्ठ हर 60 सेकंड में अद्यतन होता है।",
     statusSAFE: "सुरक्षित", statusWATCH: "सतर्क", statusCRITICAL: "गंभीर", statusUNMAPPED: "वर्षा डेटा नहीं",
     hazardZoneSuffix: " खतरा क्षेत्र",
     popupWindow: "अवधि", popupRain: "वर्षा", popupCriticalAt: "गंभीर स्तर", popupStatus: "स्थिति",
@@ -5841,7 +5857,7 @@ function zoneCardHtml(z, index) {
         '<span><span class="ffgs-badge ffgs-' + status + '">' + statusLabel(z.overall) + "</span></span>" +
         '<span class="zone-card-meta">' + hazardCellText(z) + t("hazardZoneSuffix") + "</span>" +
         '<span class="zone-card-rain">' + t("popupRain") + " / " + t("popupCriticalAt") + ": " + rain + "</span>" +
-        "<span>" + t("colOutlook") + ": " + outlookHtml(z.outlook, z.forecastAvailable) + "</span>" +
+        '<span class="zone-card-meta">' + t("colOutlook") + ": " + outlookHtml(z.outlook, z.forecastAvailable) + "</span>" +
         (z.landslide ? '<span class="zone-card-meta">' + landslideLineHtml(z.landslide) + "</span>" : "") +
         "</button>";
 }

@@ -1637,6 +1637,24 @@ class TestZoneMapPopups:
         html = client.get("/ffgs").get_data(as_text=True)
         assert "table.popup-table th, table.popup-table td { padding: 5px 5px; overflow-wrap: normal; }" in html
 
+class TestPagePolish:
+    """Layout and copy fixes from a visual pass over every page."""
+
+    def test_guidance_table_scrolls_inside_its_box_on_phones(self, client):
+        html = client.get("/").get_data(as_text=True)
+        assert '<div class="table-scroll">\n    <table class="guidance-table">' in html
+        assert ".table-scroll { overflow-x: auto;" in html
+
+    def test_ffgs_footer_says_where_rainfall_comes_from(self, client):
+        html = client.get("/ffgs").get_data(as_text=True)
+        assert "fetched directly by your browser" not in html
+        assert "fetched by the server every 10 minutes" in html
+
+    def test_ffgs_note_points_to_the_official_panel_below_it(self, client):
+        html = client.get("/ffgs").get_data(as_text=True)
+        assert "official warnings appear in their own panel above" not in html
+        assert "official warnings appear in their own panel below" in html
+
 class TestHospitalTargets:
     """OpenStreetMap tags eye, dental, ENT, IVF and veterinary practices as
     hospitals; "nearest hospital" must not send a flood casualty there."""
