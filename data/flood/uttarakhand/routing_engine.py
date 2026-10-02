@@ -185,14 +185,24 @@ print("Spatial index ready.")
 # ============================================================
 # CROWDSOURCED REPORTS
 #
-# A reported hazard hard-blocks the roads right around it for
-# every mode, not just SAFEST — a road someone just reported as
-# flooded is a fact on the ground, not a graduated risk estimate,
-# so even FASTEST should route around it.
+# A trusted report (backed by recent rain or by other travelers --
+# see the trust rule in server.py) hard-blocks the roads right around
+# it for every mode, not just SAFEST: even FASTEST routes around it.
+#
+# An unverified report -- one traveler, no recent rain nearby -- only
+# makes those roads costly, for every mode: a route avoids it when a
+# reasonable detour exists, and goes through rather than take a
+# very long one. A single false report can therefore no longer close
+# a valley road for everyone.
 # ============================================================
 
 REPORT_RADIUS_M = 150.0
 REPORT_BLOCK_MULTIPLIER = 1_000_000.0
+
+# Each metre of road near an unverified report costs this many metres.
+# The ~300 m of road inside a report's 150 m radius then weighs about
+# 6 km, so detours up to roughly that long are taken.
+REPORT_SOFT_MULTIPLIER = 20.0
 
 # Live rain nudges SAFEST's penalty formula up one tier when it's
 # actually raining hard near the trip, on top of whatever the
@@ -327,7 +337,8 @@ def calculate_route(
     mode="FASTEST",
     report_points=None,
     live_rain_mm=None,
-    dijkstra_cache=None
+    dijkstra_cache=None,
+    soft_report_points=None
 ):
     """
     Calculate a route between two points on the Uttarakhand road graph.
@@ -337,13 +348,16 @@ def calculate_route(
     lon/lat order here doesn't match the lat/lon order the API uses.
 
     mode: "FASTEST" | "SAFEST"
-    report_points: optional list of [lon, lat] crowdsourced hazard
-        reports — roads near them are hard-blocked for every mode.
+    report_points: optional list of [lon, lat] trusted crowdsourced
+        hazard reports — roads near them are hard-blocked for every mode.
+    soft_report_points: optional list of [lon, lat] unverified reports
+        — roads near them cost REPORT_SOFT_MULTIPLIER times their length
+        for every mode, unless a trusted report also covers them.
     live_rain_mm: optional current+near-term rainfall total (mm) —
         above LIVE_RAIN_ESCALATION_THRESHOLD_MM, SAFEST treats
         MODERATE/SIGNIFICANT roads one tier more cautiously.
     dijkstra_cache: optional dict shared across calls with the same
-        start, mode, report_points and live_rain_mm, so the searches
+        start, mode, both report lists and live_rain_mm, so the searches
         are reused instead of rerun (see _shortest_path). Only valid
         for that one batch; don't keep it beyond.
     Returns a result dict, or None if no route exists between the
@@ -423,6 +437,16 @@ def calculate_route(
 
     report_edges = batch["report_edges"]
 
+    # A road both a trusted and an unverified report cover stays
+    # hard-blocked, so it is left out of the soft set.
+    if "soft_report_edges" not in batch:
+        soft = _edges_near_points(soft_report_points, REPORT_RADIUS_M)
+        batch["soft_report_edges"] = (
+            np.setdiff1d(soft, report_edges) if report_edges.size else soft
+        )
+
+    soft_report_edges = batch["soft_report_edges"]
+
     live_escalate = (
         live_rain_mm is not None
         and live_rain_mm >= LIVE_RAIN_ESCALATION_THRESHOLD_MM
@@ -454,6 +478,11 @@ def calculate_route(
 
         values = risk[edges]
 
+        # An unverified report shows as at least SIGNIFICANT.
+        if soft_report_edges.size > 0:
+            soft = np.isin(edges, soft_report_edges)
+            values[soft] = np.maximum(values[soft], 4.0)
+
         if report_edges.size > 0:
             values[np.isin(edges, report_edges)] = 8.0
 
@@ -478,8 +507,10 @@ def calculate_route(
     #
     # "primary" is the mode's own weighting, "baseline" is plain
     # distance (SAFEST's yardstick for the detour cap), "fallback" is
-    # SAFEST's milder penalty when the cap trips. Reported hazards are
-    # hard-blocked in all three, for every mode.
+    # SAFEST's milder penalty when the cap trips. Trusted reports are
+    # hard-blocked in all three, for every mode; unverified ones cost
+    # REPORT_SOFT_MULTIPLIER times their length, or more if the
+    # weighting already charges more.
     # --------------------------------------------------------
 
     def _plain_distance(kind):
@@ -540,6 +571,10 @@ def calculate_route(
         else:
             values = distance * _multiplier(kind, _routing_risk(edges))
 
+        if soft_report_edges.size > 0:
+            soft = np.isin(edges, soft_report_edges)
+            values[soft] = np.maximum(values[soft], distance[soft] * REPORT_SOFT_MULTIPLIER)
+
         if report_edges.size > 0:
             reported = np.isin(edges, report_edges)
             values[reported] = distance[reported] * REPORT_BLOCK_MULTIPLIER
@@ -559,7 +594,7 @@ def calculate_route(
 
         if _plain_distance(kind):
 
-            if report_edges.size == 0:
+            if report_edges.size == 0 and soft_report_edges.size == 0:
                 # Read-only from here: csr_matrix and dijkstra don't
                 # write to their data array.
                 return graph_distance
@@ -571,6 +606,12 @@ def calculate_route(
             table = _multiplier(kind, _escalate(RISK_LEVELS))
             values = np.take(table, risk_level)
             np.multiply(values, graph_distance, out=values)
+
+        if soft_report_edges.size > 0:
+            values[soft_report_edges] = np.maximum(
+                values[soft_report_edges],
+                graph_distance[soft_report_edges] * REPORT_SOFT_MULTIPLIER
+            )
 
         if report_edges.size > 0:
             values[report_edges] = graph_distance[report_edges] * REPORT_BLOCK_MULTIPLIER
@@ -829,6 +870,12 @@ def calculate_route(
         else 0
     )
 
+    unverified_report_count = (
+        int(np.intersect1d(np.array(route_edges), soft_report_edges).size)
+        if route_edges and soft_report_edges.size > 0
+        else 0
+    )
+
     return {
         "mode": mode,
         "start_node": int(start_node),
@@ -848,6 +895,7 @@ def calculate_route(
         "extreme_unavoidable": extreme_unavoidable,
         "live_escalation_applied": bool(live_escalate),
         "reported_hazard_count": reported_hazard_count,
+        "unverified_report_count": unverified_report_count,
         "safest_capped": bool(safest_capped)
     }
 
@@ -980,7 +1028,8 @@ def _find_nearest_target(
     mode,
     report_points,
     live_rain_mm,
-    max_candidates
+    max_candidates,
+    soft_report_points=None
 ):
     """
     Shared shortlist-then-route logic for both find_nearest_shelter()
@@ -1022,7 +1071,8 @@ def _find_nearest_target(
             mode=mode,
             report_points=report_points,
             live_rain_mm=live_rain_mm,
-            dijkstra_cache=dijkstra_cache
+            dijkstra_cache=dijkstra_cache,
+            soft_report_points=soft_report_points
         )
 
         if result is None:
@@ -1047,7 +1097,8 @@ def find_nearest_shelter(
     mode="SAFEST",
     report_points=None,
     live_rain_mm=None,
-    max_candidates=5
+    max_candidates=5,
+    soft_report_points=None
 ):
     """
     Find the best reachable shelter for an evacuation. Returns
@@ -1058,7 +1109,8 @@ def find_nearest_shelter(
     found = _find_nearest_target(
         _evacuation_targets, _shelter_tree,
         start_lon, start_lat, mode,
-        report_points, live_rain_mm, max_candidates
+        report_points, live_rain_mm, max_candidates,
+        soft_report_points
     )
 
     if found is None:
@@ -1073,7 +1125,8 @@ def find_nearest_hospital(
     mode="SAFEST",
     report_points=None,
     live_rain_mm=None,
-    max_candidates=5
+    max_candidates=5,
+    soft_report_points=None
 ):
     """
     Find the best reachable hospital, by real road distance. Returns
@@ -1084,7 +1137,8 @@ def find_nearest_hospital(
     found = _find_nearest_target(
         _hospital_targets, _hospital_tree,
         start_lon, start_lat, mode,
-        report_points, live_rain_mm, max_candidates
+        report_points, live_rain_mm, max_candidates,
+        soft_report_points
     )
 
     if found is None:

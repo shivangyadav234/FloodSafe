@@ -611,6 +611,8 @@ def _holding_reports_lock(fn):
 
 # Tracks which client IPs have already confirmed which report, purely
 # to stop the same visitor inflating a count by clicking repeatedly.
+# The reporter's own IP is entered when the report is filed, so a
+# reporter cannot confirm their own report into a road block.
 # Deliberately in-memory only (not persisted) — losing this on a
 # restart just means a handful of IPs could each confirm once more,
 # which is a low-stakes trade-off for a soft, best-effort guard, not
@@ -644,6 +646,110 @@ def _active_reports():
         _persist_removals(expired_ids)
 
     return fresh
+
+
+# ============================================================
+# REPORT TRUST
+#
+# Anyone can file a report, so one false report used to close a road
+# for every traveler for six hours. A report now hard-blocks roads only
+# when something backs it up:
+#
+#   "rain"         -- the live FFGS rainfall shows real rain near it
+#   "confirmed"    -- at least REPORT_CONFIRMATIONS_TO_TRUST other
+#                     travelers (distinct IPs, not the reporter's) said
+#                     "still an issue"
+#   "no_rain_data" -- no fresh rainfall reading covers it, so there is
+#                     nothing to check it against; it blocks, as every
+#                     report did before, rather than be waved through
+#
+# Otherwise it is "unverified": one traveler, and rain recorded nearby
+# stayed below REPORT_RAIN_SUPPORT_MM. The roads around it are made
+# costly instead of closed (routing_engine.REPORT_SOFT_MULTIPLIER), and
+# the report is labelled so on the map. Two confirmations promote it.
+#
+# The rain check is a sanity check, not a flood model: REPORT_RAIN_SUPPORT_MM
+# is IMD's 2.5 mm "rainy day" amount, over the longest window the reading
+# has (72 h, else 48 h, else 24 h) -- a road can still be blocked by
+# debris a day or two after the rain stops. Only the cached reading is
+# used, so routing never waits on Open-Meteo.
+# ============================================================
+
+REPORT_CONFIRMATIONS_TO_TRUST = 2
+REPORT_RAIN_SUPPORT_MM = 2.5
+REPORT_RAIN_MAX_KM = 15.0
+REPORT_RAIN_MAX_AGE_SECONDS = 3 * 60 * 60
+REPORT_RAIN_WINDOWS = ("72h", "antecedent_48h", "24h")
+
+
+def _recent_rain_near(lat, lon):
+    """
+    The most rain any fresh FFGS reading within REPORT_RAIN_MAX_KM shows,
+    as (mm, window), or None when no fresh reading covers the point.
+    """
+
+    cache = _ffgs_rainfall_cache
+
+    if not cache["data"] or time.time() - cache["timestamp"] > REPORT_RAIN_MAX_AGE_SECONDS:
+        return None
+
+    best = None
+
+    for (zone_lat, zone_lon), reading in cache["data"].items():
+
+        if not reading or _haversine_km(lat, lon, zone_lat, zone_lon) > REPORT_RAIN_MAX_KM:
+            continue
+
+        window = next((w for w in REPORT_RAIN_WINDOWS if reading.get(w) is not None), None)
+
+        if window is None:
+            continue
+
+        if best is None or reading[window] > best[0]:
+            best = (float(reading[window]), window)
+
+    return best
+
+
+def report_trust(report):
+    """
+    {"trust", "blocks_road", "rain_mm", "rain_window"} for one report.
+    """
+
+    rain = _recent_rain_near(report["lat"], report["lon"])
+    rain_mm, rain_window = rain if rain else (None, None)
+
+    if int(report.get("confirmations", 0)) >= REPORT_CONFIRMATIONS_TO_TRUST:
+        trust = "confirmed"
+    elif rain is None:
+        trust = "no_rain_data"
+    elif rain_mm >= REPORT_RAIN_SUPPORT_MM:
+        trust = "rain"
+    else:
+        trust = "unverified"
+
+    return {
+        "trust": trust,
+        "blocks_road": trust != "unverified",
+        "rain_mm": rain_mm,
+        "rain_window": rain_window,
+    }
+
+
+def _with_trust(report):
+    return dict(report, **report_trust(report))
+
+
+def _report_points_for_routing():
+    """([lon, lat] of reports that block roads, [lon, lat] of unverified ones)."""
+
+    blocking, unverified = [], []
+
+    for report in _active_reports():
+        point = [report["lon"], report["lat"]]
+        (blocking if report_trust(report)["blocks_road"] else unverified).append(point)
+
+    return blocking, unverified
 
 
 # ============================================================
@@ -2540,7 +2646,7 @@ table.guidance-table tr:nth-child(even) td { background: #f7f9fa; }
       </div>
       <div class="feature-item">
         <h3><span class="num">5</span><span data-i18n="f5h">Citizen hazard reporting</span></h3>
-        <p data-i18n="f5p">Any user may report a flooded or blocked road. Active reports block that road for every routing mode and expire automatically after 6 hours, or can be marked resolved earlier.</p>
+        <p data-i18n="f5p">Any user may report a flooded or blocked road. A report backed by recent rain nearby or confirmed by two other travelers blocks that road for every routing mode; an unverified one only steers routes away when a short detour exists. Reports expire automatically after 6 hours, or can be marked resolved earlier.</p>
       </div>
       <div class="feature-item">
         <h3><span class="num">6</span><span data-i18n="f6h">Live rerouting</span></h3>
@@ -2661,7 +2767,7 @@ const translations = {
     f4h: "Live rainfall adjustment",
     f4p: "Current and forecast rainfall feed directly into Safest-mode routing weights — the advisory becomes more cautious while it is actively raining.",
     f5h: "Citizen hazard reporting",
-    f5p: "Any user may report a flooded or blocked road. Active reports block that road for every routing mode and expire automatically after 6 hours, or can be marked resolved earlier.",
+    f5p: "Any user may report a flooded or blocked road. A report backed by recent rain nearby or confirmed by two other travelers blocks that road for every routing mode; an unverified one only steers routes away when a short detour exists. Reports expire automatically after 6 hours, or can be marked resolved earlier.",
     f6h: "Live rerouting",
     f6p: "A new report immediately recalculates the reporting traveler's route, and every open session is checked every 30 seconds for reports submitted by others.",
     sourcesLabel: "Data Sources & Attribution",
@@ -2777,7 +2883,7 @@ const translations = {
     f4h: "लाइव वर्षा समायोजन",
     f4p: "वर्तमान और पूर्वानुमानित वर्षा सीधे सबसे-सुरक्षित मोड की रूटिंग गणना में शामिल होती है — सक्रिय बारिश के दौरान परामर्श अधिक सतर्क हो जाता है।",
     f5h: "नागरिक खतरा रिपोर्टिंग",
-    f5p: "कोई भी उपयोगकर्ता जलमग्न या अवरुद्ध सड़क की रिपोर्ट कर सकता है। सक्रिय रिपोर्टें उस सड़क को हर रूटिंग मोड के लिए अवरुद्ध कर देती हैं और 6 घंटे बाद स्वतः समाप्त हो जाती हैं, या पहले भी हल के रूप में चिह्नित की जा सकती हैं।",
+    f5p: "कोई भी उपयोगकर्ता जलमग्न या अवरुद्ध सड़क की रिपोर्ट कर सकता है। जिस रिपोर्ट के पास हाल में बारिश दर्ज हुई हो या जिसकी दो अन्य यात्री पुष्टि करें, वह उस सड़क को हर रूटिंग मोड के लिए अवरुद्ध कर देती है; बिना पुष्टि वाली रिपोर्ट से रूट तभी हटता है जब छोटा वैकल्पिक रास्ता हो। रिपोर्टें 6 घंटे बाद स्वतः समाप्त हो जाती हैं, या पहले भी हल के रूप में चिह्नित की जा सकती हैं।",
     f6h: "लाइव रीरूटिंग",
     f6p: "नई रिपोर्ट तुरंत रिपोर्ट करने वाले यात्री के मार्ग की पुनर्गणना करती है, और हर खुला सत्र हर 30 सेकंड में दूसरों द्वारा सबमिट की गई रिपोर्टों के लिए जांचा जाता है।",
     sourcesLabel: "डेटा स्रोत और श्रेय",
@@ -3450,7 +3556,7 @@ def status():
 @app.route("/reports")
 def get_reports():
 
-    return jsonify(_active_reports())
+    return jsonify([_with_trust(r) for r in _active_reports()])
 
 
 REPORTS_VIEW_HTML = """<!DOCTYPE html>
@@ -3598,6 +3704,16 @@ header a.back-link:hover {
     margin-top: 8px;
     font-size: 12px;
     color: #6a4a00;
+}
+
+.report-trust {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #555;
+}
+
+.report-trust.unverified {
+    color: #8a4b00;
 }
 
 .report-actions {
@@ -3841,7 +3957,19 @@ async function loadReportsView() {
             (sorted.length === 1 ? "" : "s") +
             " (auto-expire after 6 hours)";
 
+        // How far the server trusts each report (REPORT TRUST in server.py).
+        const trustText = {
+            rain: "🌧 Backed by recent rain nearby — road blocked for routing",
+            confirmed: "👥 Confirmed by other travelers — road blocked for routing",
+            no_rain_data: "Road blocked for routing (no rain reading to check it against)",
+            unverified: "⚠️ Unverified — no recent rain recorded here. Routes avoid it if a short detour exists; 2 confirmations block the road."
+        };
+
         sorted.forEach(function(report) {
+
+            const trustHtml = trustText[report.trust] ?
+                '<div class="report-trust' + (report.trust === "unverified" ? " unverified" : "") + '">' +
+                trustText[report.trust] + '</div>' : '';
 
             const label = report.place_name ?
                 report.place_name.split(",").slice(0, 2).join(",") :
@@ -3861,7 +3989,8 @@ async function loadReportsView() {
                 (wardLabel ? "<span style='color:#888; font-size:12px;'>" + wardLabel + "</span><br>" : "") +
                 escapeHtml(report.description) + "<br>" +
                 "<span style='color:#888; font-size:12px;'>Reported by " +
-                reporterLabel + "</span>"
+                reporterLabel + "</span>" +
+                (trustText[report.trust] ? "<br><span style='font-size:12px;'>" + trustText[report.trust] + "</span>" : "")
             );
 
             markers[report.id] = marker;
@@ -3895,6 +4024,7 @@ async function loadReportsView() {
                 report.lon.toFixed(5) + '</span>' +
                 '</div>' +
                 '<div class="confirm-count">' + confirmCountText + '</div>' +
+                trustHtml +
                 '<div class="report-actions">' +
                 confirmBtnHtml +
                 '<button class="resolve-btn">✓ Mark resolved — road is clear</button>' +
@@ -4052,8 +4182,9 @@ def post_report():
 
     _reports.append(report)
     _persist_report(report)
+    _confirmed_ips_by_report[report["id"]] = {_client_ip()}
 
-    return jsonify(report), 201
+    return jsonify(_with_trust(report)), 201
 
 
 # ============================================================
@@ -4104,9 +4235,9 @@ def resolve_report(report_id):
 #
 # A lightweight "still an issue" signal, separate from resolving.
 # Turns a lone, unverifiable report into a visible trust signal
-# ("confirmed by 3 travelers") without requiring accounts. Confirming
-# doesn't change routing at all — the road is already blocked by the
-# report's mere existence — it only affects the displayed count.
+# ("confirmed by 3 travelers") without requiring accounts. Once
+# REPORT_CONFIRMATIONS_TO_TRUST other travelers confirm, an unverified
+# report blocks its road outright (see REPORT TRUST).
 # ============================================================
 
 @app.route("/report/<report_id>/confirm", methods=["POST"])
@@ -4141,12 +4272,13 @@ def confirm_report(report_id):
         report["confirmations"] = int(report.get("confirmations", 0)) + 1
         _persist_report(report)
 
-    return jsonify({
-        "status": "ok",
-        "id": report_id,
-        "confirmations": report.get("confirmations", 0),
-        "already_confirmed": already_confirmed
-    })
+    return jsonify(dict(
+        report_trust(report),
+        status="ok",
+        id=report_id,
+        confirmations=report.get("confirmations", 0),
+        already_confirmed=already_confirmed
+    ))
 
 
 # ============================================================
@@ -8865,10 +8997,7 @@ def evacuate():
         if off_network is not None:
             return off_network
 
-        reports_list = [
-            [report["lon"], report["lat"]]
-            for report in _active_reports()
-        ]
+        reports_list, unverified_reports = _report_points_for_routing()
 
         live_rain_mm = data.get("live_rain_mm")
 
@@ -8890,6 +9019,7 @@ def evacuate():
             start_lat=lat,
             mode=mode,
             report_points=reports_list,
+            soft_report_points=unverified_reports,
             live_rain_mm=live_rain_mm
         )
 
@@ -8999,10 +9129,7 @@ def nearest_hospital():
         if off_network is not None:
             return off_network
 
-        reports_list = [
-            [report["lon"], report["lat"]]
-            for report in _active_reports()
-        ]
+        reports_list, unverified_reports = _report_points_for_routing()
 
         live_rain_mm = data.get("live_rain_mm")
 
@@ -9024,6 +9151,7 @@ def nearest_hospital():
             start_lat=lat,
             mode=mode,
             report_points=reports_list,
+            soft_report_points=unverified_reports,
             live_rain_mm=live_rain_mm
         )
 
@@ -9247,10 +9375,7 @@ def route():
         if off_network is not None:
             return off_network
 
-        reports_list = [
-            [report["lon"], report["lat"]]
-            for report in _active_reports()
-        ]
+        reports_list, unverified_reports = _report_points_for_routing()
 
         live_rain_mm = data.get("live_rain_mm")
 
@@ -9270,6 +9395,7 @@ def route():
             end_lon=end_lon,
             mode=mode,
             report_points=reports_list,
+            soft_report_points=unverified_reports,
             live_rain_mm=live_rain_mm
         )
 
@@ -9504,6 +9630,10 @@ def route():
             result.get("reported_hazard_count", 0)
         )
 
+        response["unverified_reports_on_route"] = int(
+            result.get("unverified_report_count", 0)
+        )
+
         response["safest_capped"] = bool(
             result.get("safest_capped", False)
         )
@@ -9645,6 +9775,7 @@ def _shape_route_result(result, mode):
         "segment_risks": segment_risks,
         "extreme_unavoidable": bool(result.get("extreme_unavoidable", False)),
         "reported_hazards_on_route": int(result.get("reported_hazard_count", 0)),
+        "unverified_reports_on_route": int(result.get("unverified_report_count", 0)),
         "safest_capped": bool(result.get("safest_capped", False))
     }
 
@@ -9735,10 +9866,7 @@ def compare():
         if off_network is not None:
             return off_network
 
-        reports_list = [
-            [report["lon"], report["lat"]]
-            for report in _active_reports()
-        ]
+        reports_list, unverified_reports = _report_points_for_routing()
 
         live_rain_mm = data.get("live_rain_mm")
 
@@ -9760,6 +9888,7 @@ def compare():
                 end_lon=end_lon,
                 mode=mode,
                 report_points=reports_list,
+                soft_report_points=unverified_reports,
                 live_rain_mm=live_rain_mm
             )
 

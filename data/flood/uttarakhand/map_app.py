@@ -1323,6 +1323,17 @@ css = """
     color: #6a4a00;
 }
 
+.fs-trust {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #555;
+}
+
+.fs-trust-unverified {
+    color: #8a4b00;
+}
+
 .fs-hazard-actions {
     display: flex;
     gap: 6px;
@@ -3274,6 +3285,13 @@ async function calculateRoute() {
                 '</div>';
         }
 
+        if (data.unverified_reports_on_route > 0) {
+            extraNotices +=
+                '<div class="fs-warning-message">' +
+                '⚠️ Passes an unverified report (one traveler, no recent rain there) — drive with care' +
+                '</div>';
+        }
+
         if (data.live_escalation_applied) {
             extraNotices +=
                 '<div class="fs-warning-message">' +
@@ -3613,6 +3631,24 @@ function markReportConfirmedLocally(reportId) {
     }
 }
 
+// How far the server trusts a report (see REPORT TRUST in server.py).
+function reportTrustHtml(report) {
+
+    if (report.trust === "unverified") {
+        return "<span class='fs-trust fs-trust-unverified'>⚠️ Unverified — no recent rain recorded here. " +
+            "Routes avoid it if a short detour exists; 2 confirmations block the road.</span>";
+    }
+
+    const reasons = {
+        rain: "🌧 Backed by recent rain nearby — road blocked for routing",
+        confirmed: "👥 Confirmed by other travelers — road blocked for routing",
+        no_rain_data: "Road blocked for routing (no rain reading to check it against)"
+    };
+
+    return reasons[report.trust] ?
+        "<span class='fs-trust'>" + reasons[report.trust] + "</span>" : "";
+}
+
 function hazardPopupHtml(report) {
 
     const placeLabel = report.place_name ?
@@ -3648,6 +3684,7 @@ function hazardPopupHtml(report) {
         "<br><span style='color:#888; font-size:12px;'>" +
         reporterLabel + "</span>" +
         "<br><span class='fs-confirm-count'>" + confirmCountText + "</span>" +
+        "<br>" + reportTrustHtml(report) +
         "<div class='fs-hazard-actions'>" +
         confirmBtnHtml +
         "<button class='fs-resolve-btn'>✓ Road is clear now</button>" +
@@ -3715,6 +3752,8 @@ async function confirmReport(report, marker) {
         }
 
         report.confirmations = data.confirmations;
+        report.trust = data.trust;
+        report.blocks_road = data.blocks_road;
         markReportConfirmedLocally(report.id);
 
         if (marker && marker.isPopupOpen()) {

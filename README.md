@@ -47,9 +47,15 @@ produced a route distinct from both Fastest and Safest.
   actually raining hard, Safest routing gets more cautious for that trip, on
   top of the static hazard classification.
 - **Crowdsourced hazard reports** — anyone can click the map to report a
-  flooded or blocked road in real time. Reported locations hard-block nearby
-  roads for *every* routing mode (a reported flooded bridge isn't a
-  "graduated risk," it's a fact on the ground) and are visible to all users.
+  flooded or blocked road in real time, visible to all users. A report
+  hard-blocks nearby roads for *every* routing mode when something backs it
+  up: the live rainfall feed shows at least 2.5 mm (IMD's rainy-day amount)
+  within 15 km over the last 72 h, or two other travelers have confirmed it,
+  or no fresh rain reading exists to check it against. A lone report with no
+  recent rain nearby is labelled **unverified** and only makes those roads
+  costly (20× their length), so one false report can't close a road for
+  everyone; two confirmations turn it into a block. The reporter can't
+  confirm their own report.
   Submitting a report instantly recalculates your own active route around
   it, and every open map polls for new reports every 30s so someone else's
   report reroutes you too — without needing to reload the page. Reports
@@ -57,8 +63,8 @@ produced a route distinct from both Fastest and Safest.
   (from its map popup or the reports page) once the road is actually
   clear, which removes it for everyone immediately and re-checks nearby
   routes in case a shorter path just opened up. Anyone can also confirm
-  a report ("Still an issue?") to turn a lone, unverifiable claim into a
-  visible trust signal ("Confirmed by 3 other travelers") — guarded
+  a report ("Still an issue?"), shown as "Confirmed by 3 other travelers" —
+  guarded
   per-report by a combination of local browser state and a server-side
   IP check so the same visitor can't inflate the count by clicking
   repeatedly.

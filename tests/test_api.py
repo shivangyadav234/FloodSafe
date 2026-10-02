@@ -449,6 +449,154 @@ class TestNearestTargetSearchReuse:
         assert reused["route"]["risk_counts"] == separate["route"]["risk_counts"]
 
 
+class TestReportTrust:
+    """One false report must not close a road for everyone.
+
+    Every report used to hard-block its roads on its own. Now it blocks
+    only when recent rain nearby or two other travelers back it up, or
+    when there is no rain reading to check it against; otherwise it is
+    "unverified" and only makes those roads costly.
+    """
+
+    DEHRADUN = (30.3165, 78.0322)
+    BODY = {"lat": 30.3165, "lon": 78.0322, "description": "Road washed out"}
+
+    @pytest.fixture()
+    def rain_near_dehradun(self, server, monkeypatch):
+        """Install a fresh rainfall reading 1 km from the report point."""
+
+        def install(mm, age_seconds=60):
+            monkeypatch.setitem(server._ffgs_rainfall_cache, "data", {
+                (self.DEHRADUN[0] + 0.009, self.DEHRADUN[1]): {"72h": mm, "24h": mm},
+            })
+            monkeypatch.setitem(server._ffgs_rainfall_cache, "timestamp", time.time() - age_seconds)
+
+        return install
+
+    def trust(self, server, confirmations=0):
+        lat, lon = self.DEHRADUN
+        return server.report_trust({"lat": lat, "lon": lon, "confirmations": confirmations})
+
+    def test_dry_and_unconfirmed_is_unverified(self, server, rain_near_dehradun):
+        rain_near_dehradun(0.0)
+        trust = self.trust(server)
+        assert trust["trust"] == "unverified" and trust["blocks_road"] is False
+        assert trust["rain_mm"] == 0.0 and trust["rain_window"] == "72h"
+
+    def test_recent_rain_backs_a_report(self, server, rain_near_dehradun):
+        rain_near_dehradun(server.REPORT_RAIN_SUPPORT_MM)
+        assert self.trust(server)["trust"] == "rain"
+        assert self.trust(server)["blocks_road"] is True
+
+    def test_two_confirmations_back_a_report(self, server, rain_near_dehradun):
+        rain_near_dehradun(0.0)
+        assert self.trust(server, confirmations=1)["blocks_road"] is False
+        trust = self.trust(server, confirmations=server.REPORT_CONFIRMATIONS_TO_TRUST)
+        assert trust["trust"] == "confirmed" and trust["blocks_road"] is True
+
+    def test_no_rain_reading_blocks_as_before(self, server, rain_near_dehradun, monkeypatch):
+        """With nothing to check against, a report is not waved through."""
+        monkeypatch.setitem(server._ffgs_rainfall_cache, "data", {})
+        assert self.trust(server)["trust"] == "no_rain_data"
+
+        rain_near_dehradun(0.0, age_seconds=server.REPORT_RAIN_MAX_AGE_SECONDS + 60)
+        assert self.trust(server)["trust"] == "no_rain_data"
+
+    def test_far_reading_does_not_count(self, server, monkeypatch):
+        monkeypatch.setitem(server._ffgs_rainfall_cache, "data", {(29.0, 79.5): {"72h": 0.0}})
+        monkeypatch.setitem(server._ffgs_rainfall_cache, "timestamp", time.time())
+        assert self.trust(server)["trust"] == "no_rain_data"
+
+    def test_reporter_cannot_confirm_their_own_report(self, client, server, rain_near_dehradun):
+        rain_near_dehradun(0.0)
+        report = client.post("/report", json=self.BODY).get_json()
+        assert report["trust"] == "unverified"
+
+        own = client.post(f"/report/{report['id']}/confirm").get_json()
+        assert own["already_confirmed"] is True and own["confirmations"] == 0
+
+        for i in range(server.REPORT_CONFIRMATIONS_TO_TRUST):
+            other = client.post(f"/report/{report['id']}/confirm",
+                                headers={"X-Forwarded-For": f"203.0.113.{i + 1}"}).get_json()
+
+        assert other["trust"] == "confirmed" and other["blocks_road"] is True
+        listed = client.get("/reports").get_json()
+        assert [r["trust"] for r in listed] == ["confirmed"]
+
+    def test_routing_splits_reports_by_trust(self, client, server, rain_near_dehradun, monkeypatch):
+        rain_near_dehradun(0.0)
+        client.post("/report", json=self.BODY)
+        assert server._report_points_for_routing() == ([], [[self.DEHRADUN[1], self.DEHRADUN[0]]])
+
+        rain_near_dehradun(10.0)
+        assert server._report_points_for_routing() == ([[self.DEHRADUN[1], self.DEHRADUN[0]]], [])
+
+
+class TestUnverifiedReportRouting:
+    """An unverified report costs extra; a trusted one blocks."""
+
+    TRIP = dict(start_lon=78.0322, start_lat=30.3165, end_lon=78.2676, end_lat=30.0869,
+                mode="FASTEST", live_rain_mm=None)
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def routes(cls):
+        import routing_engine
+
+        trip = cls.TRIP
+        plain = routing_engine.calculate_route(**trip)
+        middle = plain["path"][len(plain["path"]) // 2]
+        point = [[float(c) for c in routing_engine.coordinates[middle]]]
+
+        return {
+            "plain": plain,
+            "hard": routing_engine.calculate_route(report_points=point, **trip),
+            "soft": routing_engine.calculate_route(soft_report_points=point, **trip),
+            "both": routing_engine.calculate_route(report_points=point, soft_report_points=point, **trip),
+        }
+
+    def test_soft_report_costs_more_than_no_report(self, routes):
+        assert routes["soft"]["route_cost"] > routes["plain"]["route_cost"]
+
+    def test_soft_report_is_never_stricter_than_a_block(self, routes):
+        # With a short detour available both take it; the difference is
+        # only that the soft one goes through when the detour is long.
+        assert routes["soft"]["route_cost"] <= routes["hard"]["route_cost"]
+        assert routes["soft"]["distance_m"] <= routes["hard"]["distance_m"]
+
+    def test_soft_report_is_counted_separately(self, routes):
+        assert routes["soft"]["reported_hazard_count"] == 0
+        if routes["soft"]["path"] == routes["plain"]["path"]:
+            assert routes["soft"]["unverified_report_count"] > 0
+
+    def test_unverified_report_does_not_force_a_long_detour(self):
+        """Rudraprayag to Karnaprayag has one valley road.
+
+        Blocking it sends the route the long way round (about 18 km more
+        on this graph); an unverified report there is driven through,
+        with the route flagged instead.
+        """
+        import routing_engine
+
+        trip = dict(start_lon=78.9811, start_lat=30.2844, end_lon=79.2170, end_lat=30.2610,
+                    mode="FASTEST", live_rain_mm=None)
+        plain = routing_engine.calculate_route(**trip)
+        middle = plain["path"][len(plain["path"]) // 2]
+        point = [[float(c) for c in routing_engine.coordinates[middle]]]
+
+        hard = routing_engine.calculate_route(report_points=point, **trip)
+        soft = routing_engine.calculate_route(soft_report_points=point, **trip)
+
+        assert hard["distance_m"] > plain["distance_m"] + 10_000
+        assert soft["path"] == plain["path"]
+        assert soft["unverified_report_count"] > 0
+
+    def test_a_trusted_report_wins_over_an_unverified_one(self, routes):
+        assert routes["both"]["path"] == routes["hard"]["path"]
+        assert routes["both"]["route_cost"] == routes["hard"]["route_cost"]
+        assert routes["both"]["unverified_report_count"] == 0
+
+
 TEST_DB_ADMIN_URL = os.environ.get(
     "FLOODSAFE_TEST_DB_ADMIN_URL", "postgresql://postgres@127.0.0.1:5433/postgres")
 
@@ -503,7 +651,8 @@ class TestReportDatabase:
 
     def test_confirmation_is_stored(self, client, server, report_db):
         report = client.post("/report", json=self.BODY).get_json()
-        client.post(f"/report/{report['id']}/confirm")
+        client.post(f"/report/{report['id']}/confirm",
+                    headers={"X-Forwarded-For": "203.0.113.7"})
         assert _restart(server)[report["id"]]["confirmations"] == 1
 
     def test_resolved_report_stays_gone(self, client, server, report_db):
