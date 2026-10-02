@@ -157,6 +157,10 @@ def check_api():
     reports = check("hazard reports", "/reports", validate=lambda r: None if isinstance(r, list) else "not a list")
     if reports is not None:
         record("hazard reports: count", "PASS", f"{len(reports)} reports stored")
+        untrusted = [r.get("id") for r in reports if r.get("trust") is None]
+        record("hazard reports: trust labels", "FAIL" if untrusted else "PASS",
+               f"missing on {len(untrusted)}" if untrusted else
+               ", ".join(f"{r['trust']}" for r in reports) or "no reports to label")
 
     push = check("push config", "/push/config", validate=lambda p: (
         None if p.get("available") else f"push unavailable: {p}"))
@@ -167,8 +171,13 @@ def check_api():
     # Routing -- the expensive calls, one at a time.
     route_body = {"start_lat": DEHRADUN[0], "start_lon": DEHRADUN[1],
                   "end_lat": RISHIKESH[0], "end_lon": RISHIKESH[1]}
-    check("route Dehradun -> Rishikesh", "/route", route_body, slow=10,
-          validate=lambda r: None if r.get("status") == "ok" else f"status={r.get('status')} error={r.get('error')}")
+    route = check("route Dehradun -> Rishikesh", "/route", route_body, slow=10,
+                  validate=lambda r: None if r.get("status") == "ok" else f"status={r.get('status')} error={r.get('error')}")
+    if route:
+        # Present only once the report-trust deploy is live.
+        record("route: unverified-report count", "PASS" if "unverified_reports_on_route" in route else "FAIL",
+               f"unverified={route.get('unverified_reports_on_route')} "
+               f"blocking={route.get('reported_hazards_on_route')}")
     check("compare routes", "/compare", route_body, slow=15,
           validate=lambda r: None if r.get("status") == "ok" else f"status={r.get('status')} error={r.get('error')}")
     check("nearest hospital (Dehradun)", "/nearest-hospital", {"lat": DEHRADUN[0], "lon": DEHRADUN[1]}, slow=10,
