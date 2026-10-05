@@ -15,6 +15,7 @@ Standard library only, so the workflow needs no install step.
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,7 +38,23 @@ def fetch_open_meteo(points, query):
         "longitude": ",".join(str(p[1]) for p in points),
         **{key: str(value) for key, value in query.items()},
     }
-    payload = request_json("https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode(params))
+    url = "https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode(params)
+
+    # Open-Meteo has brief blips (HTTP 503 "overloaded", TLS handshake
+    # timeouts) that clear within seconds; retry those rather than fail
+    # the run. Short timeouts keep three tries per part inside the job's
+    # 5-minute limit.
+    for attempt in range(3):
+        try:
+            payload = request_json(url, timeout=30)
+            break
+        except (urllib.error.URLError, TimeoutError) as e:
+            client_error = isinstance(e, urllib.error.HTTPError) and e.code < 500
+            if client_error or attempt == 2:
+                raise
+            print(f"Open-Meteo attempt {attempt + 1} failed ({e}); retrying")
+            time.sleep(10)
+
     return payload if isinstance(payload, list) else [payload]
 
 
@@ -65,6 +82,9 @@ def main():
         except urllib.error.HTTPError as e:
             reason = e.read().decode("utf-8", "replace")[:200]
             failures.append(f"{name}: Open-Meteo HTTP {e.code} {reason}")
+        except (urllib.error.URLError, TimeoutError) as e:
+            # Network-level failure: record it and still relay the other part.
+            failures.append(f"{name}: Open-Meteo unreachable ({e})")
 
     if body:
         result = request_json(SITE + "/rainfall/relay", body=body,
