@@ -1729,7 +1729,7 @@ let shelterMarkers = [];
 // by polling — can automatically recompute the same thing instead
 // of leaving a stale route displayed.
 let lastRouteAction = null;
-let knownReportIds = null;
+let knownReportBlocks = null;
 
 
 // =======================================================
@@ -3751,6 +3751,8 @@ async function confirmReport(report, marker) {
             return;
         }
 
+        const nowBlocks = !report.blocks_road && data.blocks_road;
+
         report.confirmations = data.confirmations;
         report.trust = data.trust;
         report.blocks_road = data.blocks_road;
@@ -3759,6 +3761,16 @@ async function confirmReport(report, marker) {
         if (marker && marker.isPopupOpen()) {
             marker.setPopupContent(hazardPopupHtml(report));
             wireHazardPopupButtons(marker, report);
+        }
+
+        // This confirmation closed the road: reroute now, and record it
+        // so the next poll doesn't reroute a second time.
+        if (knownReportBlocks) {
+            knownReportBlocks.set(report.id, !!data.blocks_road);
+        }
+
+        if (nowBlocks && lastRouteAction) {
+            rerunLastRouteAction("⚠ Hazard confirmed — road now closed, updating your route…");
         }
 
     } catch (error) {
@@ -3806,8 +3818,8 @@ async function resolveReport(reportId, marker) {
             });
         }
 
-        if (knownReportIds) {
-            knownReportIds.delete(reportId);
+        if (knownReportBlocks) {
+            knownReportBlocks.delete(reportId);
         }
 
         if (lastRouteAction) {
@@ -3871,31 +3883,38 @@ async function loadReports(options) {
             return;
         }
 
-        const currentIds = new Set(data.map(function(r) { return r.id; }));
+        // id -> blocks_road. A report can start or stop blocking under
+        // the same id (a second confirmation, rain arriving nearby, the
+        // rain reading going stale), which changes routes just as much
+        // as a new or cleared report.
+        const current = new Map(data.map(function(r) { return [r.id, !!r.blocks_road]; }));
 
-        // knownReportIds starts null so the very first load (page open)
+        // knownReportBlocks starts null so the very first load (page open)
         // never counts as "new/cleared reports appeared" — only a
         // change from an already-established baseline, seen on a
         // later poll, should trigger an automatic reroute.
         let hasNewReport = false;
         let hasRemovedReport = false;
 
-        if (isPoll && knownReportIds) {
+        if (isPoll && knownReportBlocks) {
 
-            currentIds.forEach(function(id) {
-                if (!knownReportIds.has(id)) {
+            current.forEach(function(blocks, id) {
+                if (!knownReportBlocks.has(id) ||
+                        (blocks && !knownReportBlocks.get(id))) {
                     hasNewReport = true;
+                } else if (!blocks && knownReportBlocks.get(id)) {
+                    hasRemovedReport = true;
                 }
             });
 
-            knownReportIds.forEach(function(id) {
-                if (!currentIds.has(id)) {
+            knownReportBlocks.forEach(function(blocks, id) {
+                if (!current.has(id)) {
                     hasRemovedReport = true;
                 }
             });
         }
 
-        knownReportIds = currentIds;
+        knownReportBlocks = current;
 
         hazardMarkers.forEach(function(marker) {
             FLOODSAFE_MAP.removeLayer(marker);
@@ -4467,8 +4486,8 @@ async function submitReport(lat, lon) {
 
         addHazardMarker(data);
 
-        if (knownReportIds) {
-            knownReportIds.add(data.id);
+        if (knownReportBlocks) {
+            knownReportBlocks.set(data.id, !!data.blocks_road);
         }
 
         if (activeReportPopup) {

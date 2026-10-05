@@ -6,6 +6,7 @@ import time
 import uuid
 import hmac
 import base64
+import hashlib
 import threading
 from urllib.parse import urlparse
 
@@ -609,15 +610,27 @@ def _holding_reports_lock(fn):
 
     return run
 
-# Tracks which client IPs have already confirmed which report, purely
-# to stop the same visitor inflating a count by clicking repeatedly.
-# The reporter's own IP is entered when the report is filed, so a
-# reporter cannot confirm their own report into a road block.
-# Deliberately in-memory only (not persisted) — losing this on a
-# restart just means a handful of IPs could each confirm once more,
-# which is a low-stakes trade-off for a soft, best-effort guard, not
-# a real identity system.
-_confirmed_ips_by_report = {}
+# Which client IPs have already confirmed a report, so one visitor
+# can't inflate the count by clicking repeatedly. The reporter's own IP
+# is entered when the report is filed, so a reporter cannot confirm
+# their own report into a road block. Two confirmations now close a
+# road, so this is stored with the report ("confirmers") and survives
+# restarts; a redeploy used to let the reporter self-confirm.
+#
+# Stored as hashes salted with the report id, never as raw IPs, and
+# stripped from every response (_public_report). The salt is not
+# secret, so this keeps raw IPs out of storage rather than making them
+# unrecoverable. Per-IP is still not identity: switching networks gets
+# a new IP.
+REPORT_PRIVATE_FIELDS = ("confirmers",)
+
+
+def _confirmer_hash(report_id, ip):
+    return hashlib.sha256(f"{report_id}:{ip}".encode("utf-8")).hexdigest()[:32]
+
+
+def _public_report(report):
+    return {k: v for k, v in report.items() if k not in REPORT_PRIVATE_FIELDS}
 
 
 @_holding_reports_lock
@@ -638,9 +651,6 @@ def _active_reports():
             {r.get("id") for r in _reports}
             - {r.get("id") for r in fresh}
         )
-
-        for report_id in expired_ids:
-            _confirmed_ips_by_report.pop(report_id, None)
 
         _reports[:] = fresh
         _persist_removals(expired_ids)
@@ -737,7 +747,7 @@ def report_trust(report):
 
 
 def _with_trust(report):
-    return dict(report, **report_trust(report))
+    return dict(_public_report(report), **report_trust(report))
 
 
 def _report_points_for_routing():
@@ -4169,8 +4179,9 @@ def post_report():
         "description": description,
         "reporter_name": reporter_name,
         "timestamp": time.time(),
-        "confirmations": 0
+        "confirmations": 0,
     }
+    report["confirmers"] = [_confirmer_hash(report["id"], _client_ip())]
 
     print()
     print("================================")
@@ -4182,7 +4193,6 @@ def post_report():
 
     _reports.append(report)
     _persist_report(report)
-    _confirmed_ips_by_report[report["id"]] = {_client_ip()}
 
     return jsonify(_with_trust(report)), 201
 
@@ -4225,8 +4235,6 @@ def resolve_report(report_id):
     print()
     print("Report resolved:", report_id)
 
-    _confirmed_ips_by_report.pop(report_id, None)
-
     return jsonify({"status": "ok", "id": report_id})
 
 
@@ -4261,14 +4269,14 @@ def confirm_report(report_id):
                 "or expired."
         }), 404
 
-    client_ip = _client_ip()
-    already_confirmed_ips = _confirmed_ips_by_report.setdefault(report_id, set())
+    confirmers = report.setdefault("confirmers", [])
+    client_hash = _confirmer_hash(report_id, _client_ip())
 
-    already_confirmed = client_ip in already_confirmed_ips
+    already_confirmed = client_hash in confirmers
 
     if not already_confirmed:
 
-        already_confirmed_ips.add(client_ip)
+        confirmers.append(client_hash)
         report["confirmations"] = int(report.get("confirmations", 0)) + 1
         _persist_report(report)
 

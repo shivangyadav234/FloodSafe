@@ -523,6 +523,26 @@ class TestReportTrust:
         listed = client.get("/reports").get_json()
         assert [r["trust"] for r in listed] == ["confirmed"]
 
+    def test_reporter_still_cannot_confirm_after_a_restart(self, client, server, rain_near_dehradun):
+        rain_near_dehradun(0.0)
+        report = client.post("/report", json=self.BODY).get_json()
+        _restart(server)
+
+        own = client.post(f"/report/{report['id']}/confirm").get_json()
+        assert own["already_confirmed"] is True and own["confirmations"] == 0
+
+        other = client.post(f"/report/{report['id']}/confirm",
+                            headers={"X-Forwarded-For": "203.0.113.9"}).get_json()
+        assert other["confirmations"] == 1 and other["blocks_road"] is False
+
+    def test_confirmer_hashes_are_never_returned(self, client, server):
+        report = client.post("/report", json=self.BODY).get_json()
+        client.post(f"/report/{report['id']}/confirm", headers={"X-Forwarded-For": "203.0.113.9"})
+
+        assert "confirmers" not in report
+        assert all("confirmers" not in r for r in client.get("/reports").get_json())
+        assert "203.0.113.9" not in json.dumps(server._reports)
+
     def test_routing_splits_reports_by_trust(self, client, server, rain_near_dehradun, monkeypatch):
         rain_near_dehradun(0.0)
         client.post("/report", json=self.BODY)
