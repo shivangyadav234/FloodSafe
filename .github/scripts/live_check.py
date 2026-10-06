@@ -24,6 +24,9 @@ RISHIKESH = (30.0869, 78.2676)
 MUSSOORIE = (30.4598, 78.0664)
 DELHI = (28.6139, 77.2090)
 
+# The relay runs hourly (rainfall-relay.yml), plus scheduling delay.
+RAIN_MAX_AGE_SECONDS = 75 * 60
+
 results = []
 
 
@@ -111,7 +114,7 @@ def check_api():
         rain = zones["rainfall"]
         with_data, total = rain["zones_with_data"], len(zones["zones"])
         age = rain["age_seconds"]
-        fresh = age is not None and age < 30 * 60
+        fresh = age is not None and age < RAIN_MAX_AGE_SECONDS
         level = "PASS" if with_data == total and fresh else ("WARN" if with_data else "FAIL")
         age_text = f"{age / 60:.0f} min old" if age is not None else "never fetched"
         record("FFGS rainfall on server", level,
@@ -129,7 +132,7 @@ def check_api():
         None if t["towns"] else f"no town data, last_error={t.get('last_error')}"))
     if town:
         age = town["age_seconds"]
-        record("town rainfall freshness", "PASS" if age is not None and age < 30 * 60 else "WARN",
+        record("town rainfall freshness", "PASS" if age is not None and age < RAIN_MAX_AGE_SECONDS else "WARN",
                f"{'%.0f min old' % (age / 60) if age is not None else 'never fetched'}, "
                f"source={town.get('source')}")
 

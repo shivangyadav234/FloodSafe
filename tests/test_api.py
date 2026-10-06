@@ -1817,7 +1817,7 @@ class TestPagePolish:
     def test_ffgs_footer_says_where_rainfall_comes_from(self, client):
         html = client.get("/ffgs").get_data(as_text=True)
         assert "fetched directly by your browser" not in html
-        assert "fetched by the server every 10 minutes" in html
+        assert "updated on the server about once an hour" in html
 
     def test_ffgs_note_points_to_the_official_panel_below_it(self, client):
         html = client.get("/ffgs").get_data(as_text=True)

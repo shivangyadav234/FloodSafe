@@ -270,8 +270,11 @@ error, if any (`report_storage_error`).
 ### Keeping the service awake
 
 Render stops a free service after 15 minutes without traffic, and waking
-reloads the road graph. `.github/workflows/keep-awake.yml` pings `/status`
-every five minutes to prevent that. An always-on service uses about 744 of
+reloads the road graph. `.github/workflows/keep-awake.yml` asks GitHub to
+ping `/status` every five minutes, but GitHub actually runs it only every
+few hours, so it does not keep the service up on its own. A free external
+pinger hitting `/status` every 10 minutes does, and costs no GitHub
+Actions minutes. An always-on service uses about 744 of
 Render's 750 free instance-hours a month, so this only fits if it is the
 account's only free service.
 
@@ -280,8 +283,13 @@ account's only free service.
 Open-Meteo's free quota is per IP, and Render's outbound IP is shared with
 other customers who usually use it up, so the server often can't fetch
 rainfall itself. `.github/workflows/rainfall-relay.yml` fetches the same
-Open-Meteo readings every ten minutes from GitHub's runners and posts them
-to `/rainfall/relay`. It needs one shared secret, set in both places:
+Open-Meteo readings once an hour from GitHub's runners and posts them
+to `/rainfall/relay`; between runs the server serves the last relayed
+reading. An external scheduler starts it hourly through
+`workflow_dispatch`, since GitHub's own schedule fires only a few times a
+day. (It was every ten minutes, but on a private repo that is about
+4,300 Actions minutes a month, over the free plan's 2,000.) It needs one
+shared secret, set in both places:
 
 - Render: environment variable `RAINFALL_RELAY_SECRET`
 - GitHub: repository secret `RAINFALL_RELAY_SECRET`

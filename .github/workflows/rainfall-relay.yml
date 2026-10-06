@@ -7,20 +7,27 @@
 # Needs a repository secret RAINFALL_RELAY_SECRET matching the Render
 # environment variable of the same name.
 #
-# Every ten minutes to match the server's rainfall cache; offset from
-# the top of the hour, when GitHub's scheduler is most congested.
+# Hourly. It was every ten minutes, but the repo is private and each
+# run bills at least one Actions minute: 144 runs a day is ~4,300
+# minutes a month against the free plan's 2,000; hourly is ~720. The
+# server keeps serving the last relayed reading between runs, so
+# rainfall is up to about an hour old.
+#
+# The main trigger is an external scheduler calling workflow_dispatch
+# once an hour (GitHub's own schedule fires only a few times a day);
+# this cron is a backup, offset to :33.
 
 name: Rainfall relay
 
 on:
   schedule:
-    - cron: "3-59/10 * * * *"
+    - cron: "33 * * * *"
   workflow_dispatch:
 
 jobs:
   relay:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - name: Relay rainfall to FloodSafe

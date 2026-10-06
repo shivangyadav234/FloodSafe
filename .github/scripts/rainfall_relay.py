@@ -24,12 +24,27 @@ SITE = os.environ.get("FLOODSAFE_URL", "https://floodsafe-u207.onrender.com").rs
 SECRET = os.environ.get("RAINFALL_RELAY_SECRET", "").strip()
 
 
-def request_json(url, body=None, headers=None, timeout=120):
+def request_json(url, body=None, headers=None, timeout=90):
+    """
+    Retries 5xx and network errors three times, 10 s apart. Open-Meteo
+    has brief blips (HTTP 503 "overloaded", TLS handshake timeouts), and
+    with an hourly relay the server is often asleep: Render's wake-up
+    reloads the road graph before it answers.
+    """
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(url, data=data, headers={
         "Content-Type": "application/json", "User-Agent": "FloodSafe-rainfall-relay", **(headers or {})})
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        return json.load(response)
+
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return json.load(response)
+        except (urllib.error.URLError, TimeoutError) as e:
+            client_error = isinstance(e, urllib.error.HTTPError) and e.code < 500
+            if client_error or attempt == 2:
+                raise
+            print(f"{url.split('?')[0]}: attempt {attempt + 1} failed ({e}); retrying")
+            time.sleep(10)
 
 
 def fetch_open_meteo(points, query):
@@ -38,23 +53,7 @@ def fetch_open_meteo(points, query):
         "longitude": ",".join(str(p[1]) for p in points),
         **{key: str(value) for key, value in query.items()},
     }
-    url = "https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode(params)
-
-    # Open-Meteo has brief blips (HTTP 503 "overloaded", TLS handshake
-    # timeouts) that clear within seconds; retry those rather than fail
-    # the run. Short timeouts keep three tries per part inside the job's
-    # 5-minute limit.
-    for attempt in range(3):
-        try:
-            payload = request_json(url, timeout=30)
-            break
-        except (urllib.error.URLError, TimeoutError) as e:
-            client_error = isinstance(e, urllib.error.HTTPError) and e.code < 500
-            if client_error or attempt == 2:
-                raise
-            print(f"Open-Meteo attempt {attempt + 1} failed ({e}); retrying")
-            time.sleep(10)
-
+    payload = request_json("https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode(params), timeout=30)
     return payload if isinstance(payload, list) else [payload]
 
 

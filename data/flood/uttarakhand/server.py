@@ -5209,7 +5209,7 @@ footer {
 </div>
 
 <footer data-i18n="footerText">
-    Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, fetched by the server every 10 minutes (your browser fetches it only if the server can't). This page refreshes every 60 seconds.
+    Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, updated on the server about once an hour (your browser fetches it only if the server can't). This page refreshes every 60 seconds.
 </footer>
 <a class="sos-fab" href="/sos" title="SOS: text your family your location" aria-label="SOS: text your family your location">SOS</a>
 
@@ -5325,7 +5325,7 @@ const translations = {
     updatedLabel: "Updated ",
     noZones: "No mapped zones with live data right now.",
     guidanceUnavailable: "Guidance data unavailable right now.",
-    footerText: "Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, fetched by the server every 10 minutes (your browser fetches it only if the server can't). This page refreshes every 60 seconds.",
+    footerText: "Hazard classification: georeferenced state flash-flood hazard atlas. Rainfall: Open-Meteo forecast API, updated on the server about once an hour (your browser fetches it only if the server can't). This page refreshes every 60 seconds.",
     statusSAFE: "SAFE", statusWATCH: "WATCH", statusCRITICAL: "CRITICAL", statusUNMAPPED: "NO RAIN DATA",
     hazardZoneSuffix: " hazard zone",
     popupWindow: "Window", popupRain: "Rain", popupCriticalAt: "Critical at", popupStatus: "Status",
@@ -5439,7 +5439,7 @@ const translations = {
     updatedLabel: "अद्यतन ",
     noZones: "अभी कोई मैप किया गया क्षेत्र लाइव डेटा के साथ उपलब्ध नहीं है।",
     guidanceUnavailable: "मार्गदर्शन डेटा अभी उपलब्ध नहीं है।",
-    footerText: "खतरा वर्गीकरण: राज्य का जियोरेफ़रेंस्ड फ्लैश फ्लड खतरा एटलस। वर्षा: Open-Meteo पूर्वानुमान API, सर्वर द्वारा हर 10 मिनट में प्राप्त (सर्वर न ला पाए तभी आपका ब्राउज़र सीधे लाता है)। यह पृष्ठ हर 60 सेकंड में अद्यतन होता है।",
+    footerText: "खतरा वर्गीकरण: राज्य का जियोरेफ़रेंस्ड फ्लैश फ्लड खतरा एटलस। वर्षा: Open-Meteo पूर्वानुमान API, सर्वर पर लगभग हर घंटे अद्यतन (सर्वर न ला पाए तभी आपका ब्राउज़र सीधे लाता है)। यह पृष्ठ हर 60 सेकंड में अद्यतन होता है।",
     statusSAFE: "सुरक्षित", statusWATCH: "सतर्क", statusCRITICAL: "गंभीर", statusUNMAPPED: "वर्षा डेटा नहीं",
     hazardZoneSuffix: " खतरा क्षेत्र",
     popupWindow: "अवधि", popupRain: "वर्षा", popupCriticalAt: "गंभीर स्तर", popupStatus: "स्थिति",
