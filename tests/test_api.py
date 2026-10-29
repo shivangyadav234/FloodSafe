@@ -1297,7 +1297,7 @@ class TestOfficialWarnings:
 
     def test_the_page_waits_for_the_first_read_and_asks_again(self, client):
         page = client.get("/ffgs").get_data(as_text=True)
-        assert "officialData.refreshing && !officialData.checked_at" in page
+        assert "officialData.refreshing && !officialData.alerts.length" in page
         assert "setTimeout(loadOfficialWarnings" in page
 
 
@@ -1718,6 +1718,7 @@ class TestLandslideLayer:
 
     def test_on_with_the_thresholds_file(self, tmp_path):
         """A fresh server over a data directory that has the file."""
+        import shutil
         import subprocess
         import sys
 
@@ -1728,7 +1729,11 @@ class TestLandslideLayer:
         data_dir.mkdir()
         for name in os.listdir(real):
             if name != "reports.json":
-                os.symlink(os.path.join(real, name), data_dir / name)
+                try:
+                    os.symlink(os.path.join(real, name), data_dir / name)
+                except OSError:
+                    # Windows refuses symlinks without admin or Developer Mode.
+                    shutil.copy(os.path.join(real, name), data_dir / name)
 
         with open(os.path.join(real, "calibrated_thresholds.json"), encoding="utf-8") as f:
             points = json.load(f)["points"]

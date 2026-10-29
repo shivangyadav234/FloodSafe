@@ -6320,9 +6320,10 @@ function renderOfficialWarnings() {
         return;
     }
 
-    // The server's first read of SACHET after a restart is still
-    // running: nothing checked yet is not the same as "no warnings".
-    if (officialData.refreshing && !officialData.checked_at && !officialData.alerts.length) {
+    // A read of SACHET is still running and the last list is empty --
+    // never checked, or every alert in it has expired since. Either way
+    // that is not the same as "no warnings" until the read finishes.
+    if (officialData.refreshing && !officialData.alerts.length) {
         el.innerHTML = '<p class="official-empty">' + t("loading") + "</p>";
         return;
     }

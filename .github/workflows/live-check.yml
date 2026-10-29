@@ -2,14 +2,16 @@
 # calls, security headers, and each page in a real browser for script
 # errors. Read-only; see .github/scripts/live_check.py.
 #
-# Run it from the Actions tab (Run workflow) after a deploy.
+# Run it from the Actions tab (Run workflow) after a deploy. It also
+# runs on pushes to main that change the check itself; not on every
+# push, since it would race Render's deploy and test the old version.
 
 name: Live site check
 
 on:
   workflow_dispatch:
   push:
-    branches: [claude/zealous-ptolemy-2im8yg]
+    branches: [main]
     paths:
       - .github/scripts/live_check.py
       - .github/workflows/live-check.yml
