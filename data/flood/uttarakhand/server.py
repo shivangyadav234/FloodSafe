@@ -8885,6 +8885,36 @@ def _official_alerts():
     return alerts
 
 
+# Re-read SACHET on a timer, not only when /official-warnings is asked:
+# with nobody on /ffgs for hours, the next visitor got hours-old
+# warnings and an old "Checked" time until a refresh finished. Started
+# by the first request of any kind (not at import, so tests and scripts
+# that import this module never reach SACHET).
+_ndma_timer_started = False
+
+
+def _ndma_timer():
+    while True:
+        try:
+            _official_alerts()
+        except Exception as e:
+            print("WARNING: NDMA timer:", repr(e), flush=True)
+        time.sleep(60)
+
+
+@app.before_request
+def start_ndma_timer():
+    global _ndma_timer_started
+    if _ndma_timer_started or app.testing:
+        return None
+    with _ndma_refresh_lock:
+        if _ndma_timer_started:
+            return None
+        _ndma_timer_started = True
+    threading.Thread(target=_ndma_timer, daemon=True).start()
+    return None
+
+
 @app.route("/official-warnings")
 def official_warnings():
 

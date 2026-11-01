@@ -1300,6 +1300,18 @@ class TestOfficialWarnings:
         assert "officialData.refreshing && !officialData.alerts.length" in page
         assert "setTimeout(loadOfficialWarnings" in page
 
+    def test_sachet_is_reread_on_a_timer_without_visitors(self, client, server, monkeypatch):
+        """Warnings went hours stale when nobody opened /ffgs."""
+        started = []
+        monkeypatch.setattr(server.threading, "Thread",
+                            lambda target, daemon: type("T", (), {"start": lambda self: started.append(target)})())
+        monkeypatch.setattr(server, "_ndma_timer_started", False)
+        monkeypatch.setattr(server.app, "testing", False)
+
+        client.get("/status")
+        client.get("/status")
+        assert started == [server._ndma_timer], "one timer, started by any request"
+
 
 class TestZoneDistricts:
 
